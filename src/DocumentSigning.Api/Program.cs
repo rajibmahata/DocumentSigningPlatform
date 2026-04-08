@@ -1,3 +1,4 @@
+using DocumentSigning.Api.Filters;
 using DocumentSigning.Core.Interfaces;
 using DocumentSigning.Infrastructure.BackgroundJobs;
 using DocumentSigning.Infrastructure.Persistence;
@@ -20,6 +21,11 @@ builder.Services.AddScoped<ISigningRequestRepository, SigningRequestRepository>(
 builder.Services.AddScoped<ISignedDocumentRepository, SignedDocumentRepository>();
 builder.Services.AddScoped<IOutboxQueueRepository, OutboxQueueRepository>();
 builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+builder.Services.AddScoped<IMerchantRepository, MerchantRepository>();
+builder.Services.AddScoped<ISigningEnvelopeRepository, SigningEnvelopeRepository>();
+
+// ─── Filters ──────────────────────────────────────────────────────────────────
+builder.Services.AddScoped<MerchantApiKeyFilter>();
 
 // ─── Domain services ──────────────────────────────────────────────────────────
 builder.Services.AddScoped<ITokenService, TokenService>();
@@ -73,6 +79,7 @@ builder.Services.AddSwaggerGen(c =>
 
     c.EnableAnnotations();
     c.OperationFilter<DocumentSigning.Api.Swagger.InitiateSigningExampleFilter>();
+    c.OperationFilter<DocumentSigning.Api.Swagger.ApiKeyHeaderFilter>();
 });
 
 // ─── Blazor Server ────────────────────────────────────────────────────────────

@@ -1,0 +1,130 @@
+using DocumentSigning.Api.Filters;
+using DocumentSigning.Api.Swagger;
+using DocumentSigning.Core.DTOs;
+using DocumentSigning.Core.Entities;
+using DocumentSigning.Core.Interfaces;
+using Microsoft.AspNetCore.Mvc;
+
+namespace DocumentSigning.Api.Controllers;
+
+[ApiController]
+[Route("api/merchants")]
+public class MerchantController : ControllerBase
+{
+    private readonly IMerchantRepository _merchantRepo;
+
+    public MerchantController(IMerchantRepository merchantRepo)
+        => _merchantRepo = merchantRepo;
+
+    /// <summary>Creates a new merchant and generates a unique API key.</summary>
+    [HttpPost]
+    [ProducesResponseType(typeof(MerchantResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Create(
+        [FromBody] CreateMerchantRequest request,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Name))
+            return BadRequest("Merchant name is required.");
+        if (request.RequestLimit < 0)
+            return BadRequest("RequestLimit must be >= 0 (0 = unlimited).");
+
+        var merchant = new Merchant
+        {
+            Id                = Guid.NewGuid(),
+            Name              = request.Name.Trim(),
+            Email             = request.Email?.Trim() ?? string.Empty,
+            ApiKey            = GenerateApiKey(),
+            IsActive          = true,
+            RequestLimit      = request.RequestLimit,
+            RequestUsed       = 0,
+            SubscriptionStart = DateTime.UtcNow,
+            CreatedAt         = DateTime.UtcNow
+        };
+
+        await _merchantRepo.AddAsync(merchant, ct);
+        await _merchantRepo.SaveChangesAsync(ct);
+
+        return CreatedAtAction(nameof(GetById), new { id = merchant.Id }, ToResponse(merchant));
+    }
+
+    /// <summary>Returns all merchants.</summary>
+    [HttpGet]
+    [ProducesResponseType(typeof(IReadOnlyList<MerchantResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAll(CancellationToken ct)
+    {
+        var merchants = await _merchantRepo.GetAllAsync(ct);
+        return Ok(merchants.Select(ToResponse));
+    }
+
+    /// <summary>Returns a single merchant by ID.</summary>
+    [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(MerchantResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+    {
+        var merchant = await _merchantRepo.GetByIdAsync(id, ct);
+        return merchant is null ? NotFound() : Ok(ToResponse(merchant));
+    }
+
+    /// <summary>
+    /// Updates merchant subscription settings (limit, active flag, subscription end).
+    /// </summary>
+    [HttpPut("{id:guid}")]
+    [ProducesResponseType(typeof(MerchantResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Update(
+        Guid id,
+        [FromBody] UpdateMerchantRequest request,
+        CancellationToken ct)
+    {
+        var merchant = await _merchantRepo.GetByIdAsync(id, ct);
+        if (merchant is null) return NotFound();
+        if (request.RequestLimit < 0)
+            return BadRequest("RequestLimit must be >= 0 (0 = unlimited).");
+
+        merchant.Name            = request.Name?.Trim() ?? merchant.Name;
+        merchant.Email           = request.Email?.Trim() ?? merchant.Email;
+        merchant.IsActive        = request.IsActive;
+        merchant.RequestLimit    = request.RequestLimit;
+        merchant.SubscriptionEnd = request.SubscriptionEnd;
+
+        await _merchantRepo.UpdateAsync(merchant, ct);
+        await _merchantRepo.SaveChangesAsync(ct);
+
+        return Ok(ToResponse(merchant));
+    }
+
+    /// <summary>Regenerates the API key for a merchant.</summary>
+    [HttpPost("{id:guid}/regenerate-key")]
+    [ProducesResponseType(typeof(MerchantResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RegenerateKey(Guid id, CancellationToken ct)
+    {
+        var merchant = await _merchantRepo.GetByIdAsync(id, ct);
+        if (merchant is null) return NotFound();
+
+        merchant.ApiKey = GenerateApiKey();
+        await _merchantRepo.UpdateAsync(merchant, ct);
+        await _merchantRepo.SaveChangesAsync(ct);
+
+        return Ok(ToResponse(merchant));
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static string GenerateApiKey()
+        => $"msk_{Convert.ToBase64String(Guid.NewGuid().ToByteArray()).TrimEnd('=').Replace('+', '-').Replace('/', '_')}";
+
+    private static MerchantResponse ToResponse(Merchant m) => new(
+        m.Id, m.Name, m.Email, m.ApiKey, m.IsActive,
+        m.RequestLimit, m.RequestUsed, m.SubscriptionStart, m.SubscriptionEnd, m.CreatedAt);
+}
+
+public record UpdateMerchantRequest(
+    string? Name,
+    string? Email,
+    bool IsActive,
+    int RequestLimit,
+    DateTime? SubscriptionEnd);
