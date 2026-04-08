@@ -232,7 +232,11 @@ public class EnvelopeController : ControllerBase
             envelope.Title,
             envelope.Status.ToString(),
             envelope.CreatedAt,
-            envelope.Documents.Select(d => new DocumentSummary(d.Id, d.DocumentTitle)).ToList(),
+            envelope.Documents.Select(d => new DocumentSummary(
+                d.Id,
+                d.DocumentTitle,
+                Convert.ToBase64String(d.ContentBytes),
+                d.ContentType)).ToList(),
             envelope.Signers.Select(s => new SignerSummary(s.Name, s.Role, s.Email, s.Status.ToString())).ToList()
         );
 
@@ -272,7 +276,11 @@ public class EnvelopeController : ControllerBase
         e.Title,
         e.Status.ToString(),
         e.CreatedAt,
-        e.Documents.Select(d => new DocumentSummary(d.Id, d.DocumentTitle)).ToList(),
+        e.Documents.Select(d => new DocumentSummary(
+            d.Id,
+            d.DocumentTitle,
+            Convert.ToBase64String(d.ContentBytes),
+            d.ContentType)).ToList(),
         e.Signers.Select(s => new SignerSummary(s.Name, s.Role, s.Email, s.Status.ToString())).ToList()
     );
 }

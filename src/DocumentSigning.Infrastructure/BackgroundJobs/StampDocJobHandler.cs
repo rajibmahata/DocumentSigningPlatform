@@ -21,6 +21,7 @@ public class StampDocJobHandler
     private readonly IClaimRepository _claimRepo;
     private readonly IAuditLogRepository _auditRepo;
     private readonly IOutboxQueueRepository _outboxRepo;
+    private readonly ISigningEnvelopeRepository _envelopeRepo;
     private readonly IDocumentStamper _stamper;
     private readonly IConfiguration _config;
     private readonly ILogger<StampDocJobHandler> _logger;
@@ -32,6 +33,7 @@ public class StampDocJobHandler
         IClaimRepository claimRepo,
         IAuditLogRepository auditRepo,
         IOutboxQueueRepository outboxRepo,
+        ISigningEnvelopeRepository envelopeRepo,
         IDocumentStamper stamper,
         IConfiguration config,
         ILogger<StampDocJobHandler> logger)
@@ -42,6 +44,7 @@ public class StampDocJobHandler
         _claimRepo = claimRepo;
         _auditRepo = auditRepo;
         _outboxRepo = outboxRepo;
+        _envelopeRepo = envelopeRepo;
         _stamper = stamper;
         _config = config;
         _logger = logger;
@@ -90,6 +93,18 @@ public class StampDocJobHandler
         claim.SignedDocRef = signedDoc.Id;
         await _claimRepo.UpdateAsync(claim, ct);
         await _claimRepo.SaveChangesAsync(ct);
+
+        // Update matching Signer status on any envelope containing this email
+        var envelope = await _envelopeRepo.GetBySignerEmailAsync(claim.ClaimantEmail, ct);
+        if (envelope is not null)
+        {
+            var signer = envelope.Signers.FirstOrDefault(s => s.Email == claim.ClaimantEmail);
+            if (signer is not null)
+            {
+                signer.Status = SigningStatus.Signed;
+                await _envelopeRepo.SaveChangesAsync(ct);
+            }
+        }
 
         // Audit entry
         await _auditRepo.AppendAsync(new AuditLog

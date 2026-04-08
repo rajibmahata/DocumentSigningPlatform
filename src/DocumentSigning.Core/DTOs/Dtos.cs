@@ -23,7 +23,9 @@ public record InitiateEnvelopeRequest(
 
 public record DocumentSummary(
     Guid DocumentId,
-    string DocumentTitle);
+    string DocumentTitle,
+    string DocumentBase64,
+    string ContentType);
 
 public record SignerSummary(
     string Name,
@@ -102,7 +104,9 @@ public record StampPdfPayload(
     Guid SigningRequestId,
     Guid ClaimId,
     string SignatureBase64,
-    string SignedDate);
+    string SignedDate,
+    Guid? EnvelopeId = null,
+    Guid? SignerId   = null);
 
 public record ConfirmationEmailPayload(
     string To,

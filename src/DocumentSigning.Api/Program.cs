@@ -79,6 +79,7 @@ builder.Services.AddSwaggerGen(c =>
 
     c.EnableAnnotations();
     c.OperationFilter<DocumentSigning.Api.Swagger.InitiateSigningExampleFilter>();
+    c.OperationFilter<DocumentSigning.Api.Swagger.CreateMerchantExampleFilter>();
     c.OperationFilter<DocumentSigning.Api.Swagger.ApiKeyHeaderFilter>();
 });
 
