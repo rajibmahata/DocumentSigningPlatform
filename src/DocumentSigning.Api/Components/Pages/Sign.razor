@@ -1,0 +1,277 @@
+@page "/sign/{Token}"
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
+@using DocumentSigning.Core.DTOs
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@inject IHttpClientFactory HttpFactory
+<PageTitle>Sign Document</PageTitle>
+
+<div class="signing-portal">
+    @if (_loading)
+    {
+        <div class="status-card">
+            <p>Loading document, please wait...</p>
+        </div>
+    }
+    else if (_errorMessage is not null)
+    {
+        <div class="status-card error">
+            <h2>Unable to open document</h2>
+            <p>@_errorMessage</p>
+        </div>
+    }
+    else if (_submitted)
+    {
+        <div class="status-card success">
+            <h2>&#10003; Thank you, @_claimantName!</h2>
+            <p>Your signature has been received. You will receive a copy of the signed document by email shortly.</p>
+        </div>
+    }
+    else if (_preview is not null)
+    {
+        <div class="portal-header">
+            <h1>Document Signing Portal</h1>
+            <p>Hello <strong>@_claimantName</strong>, please review and sign the document below.</p>
+            <p class="expiry">This signing link expires on <strong>@_expiresAt.ToString("f")</strong> UTC.</p>
+        </div>
+
+        <!-- Document preview as embedded PDF or DOCX/DOC download link -->
+        @if (_preview.ContentType.Contains("pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            <div class="doc-preview">
+                <object data="data:application/pdf;base64,@_preview.DocumentBase64"
+                        type="application/pdf"
+                        width="100%"
+                        height="600px">
+                    <p>Your browser cannot display the PDF inline.
+                       <a href="data:application/pdf;base64,@_preview.DocumentBase64" download="document.pdf">Download PDF</a>
+                    </p>
+                </object>
+            </div>
+        }
+        else
+        {
+            var isLegacyDoc = _preview.ContentType.Contains("msword", StringComparison.OrdinalIgnoreCase);
+            var docMime     = isLegacyDoc ? "application/msword"
+                                          : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            var docExt      = isLegacyDoc ? "doc" : "docx";
+            var docLabel    = isLegacyDoc ? "DOC" : "DOCX";
+            <div class="doc-preview">
+                <p>
+                    <a href="data:@(docMime);base64,@_preview.DocumentBase64"
+                       download="document.@(docExt)">
+                        &#128196; Download document for review (@docLabel)
+                    </a>
+                </p>
+            </div>
+        }
+
+        <!-- Signature tab: draw or type -->
+        <div class="sig-section">
+            <h2>Your Signature</h2>
+
+            <div class="tab-bar">
+                <button class="@(_sigMode == "draw" ? "tab active" : "tab")" @onclick='() => SetMode("draw")'>Draw</button>
+                <button class="@(_sigMode == "type" ? "tab active" : "tab")" @onclick='() => SetMode("type")'>Type</button>
+            </div>
+
+            @if (_sigMode == "draw")
+            {
+                <p class="hint">Draw your signature in the box below using your mouse or finger.</p>
+                <canvas id="sigCanvas" width="500" height="150" style="border:2px solid #d1d5db;border-radius:6px;cursor:crosshair;background:#fff;"></canvas>
+                <div class="canvas-actions">
+                    <button class="btn-secondary" @onclick="ClearCanvas">Clear</button>
+                </div>
+            }
+            else
+            {
+                <p class="hint">Type your full name and it will be rendered as your signature.</p>
+                <input class="typed-sig-input" type="text" @bind="_typedSignature" @bind:event="oninput" placeholder="Full Name" maxlength="80" />
+            }
+
+            @if (!string.IsNullOrEmpty(_validationError))
+            {
+                <p class="validation-error">@_validationError</p>
+            }
+
+            <div class="submit-area">
+                <label class="consent-label">
+                    <input type="checkbox" @bind="_consentChecked" />
+                    I agree that my electronic signature is legally binding.
+                </label>
+                <button class="btn-primary" @onclick="SubmitSignature" disabled="@_submitting">
+                    @(_submitting ? "Submitting…" : "Sign Document")
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Token { get; set; } = string.Empty;
+
+    private DocumentPreviewResponse? _preview;
+    private string? _claimantName;
+    private DateTime _expiresAt;
+    private bool _loading = true;
+    private string? _errorMessage;
+    private bool _submitted;
+    private bool _submitting;
+    private string _sigMode = "draw";
+    private string _typedSignature = string.Empty;
+    private bool _consentChecked;
+    private string? _validationError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var client = HttpFactory.CreateClient("api");
+            var response = await client.GetAsync($"api/portal/validate/{Token}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                _preview = await response.Content.ReadFromJsonAsync<DocumentPreviewResponse>();
+                _claimantName = _preview?.ClaimantName;
+                _expiresAt = _preview?.ExpiresAt ?? DateTime.UtcNow;
+            }
+            else
+            {
+                _errorMessage = response.StatusCode == System.Net.HttpStatusCode.Gone
+                    ? "This signing link has expired."
+                    : "This signing link is invalid or has already been used.";
+            }
+        }
+        catch (Exception)
+        {
+            _errorMessage = "An error occurred while loading the document. Please try again later.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_preview is not null && _sigMode == "draw")
+        {
+            await JS.InvokeVoidAsync("signaturePad.init", "sigCanvas");
+        }
+    }
+
+    private async Task SetMode(string mode)
+    {
+        _sigMode = mode;
+        _validationError = null;
+        if (mode == "draw")
+        {
+            // Reset pad flag so OnAfterRenderAsync re-initialises the new canvas element
+            await JS.InvokeVoidAsync("signaturePad.reset", "sigCanvas");
+        }
+        StateHasChanged();
+        if (mode == "draw")
+        {
+            await Task.Delay(50); // allow render
+            await JS.InvokeVoidAsync("signaturePad.init", "sigCanvas");
+        }
+    }
+
+    private async Task ClearCanvas()
+    {
+        await JS.InvokeVoidAsync("signaturePad.clear", "sigCanvas");
+    }
+
+    private async Task SubmitSignature()
+    {
+        _validationError = null;
+
+        if (!_consentChecked)
+        {
+            _validationError = "Please check the consent box before signing.";
+            return;
+        }
+
+        string signatureBase64;
+
+        if (_sigMode == "draw")
+        {
+            var isEmpty = await JS.InvokeAsync<bool>("signaturePad.isEmpty", "sigCanvas");
+            if (isEmpty)
+            {
+                _validationError = "Please draw your signature before submitting.";
+                return;
+            }
+            var dataUrl = await JS.InvokeAsync<string>("signaturePad.getDataUrl", "sigCanvas");
+            // dataUrl is "data:image/png;base64,{base64}"
+            signatureBase64 = dataUrl.Split(',', 2)[1];
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(_typedSignature))
+            {
+                _validationError = "Please type your name as your signature.";
+                return;
+            }
+            signatureBase64 = await RenderTypedSignatureAsync(_typedSignature);
+        }
+
+        _submitting = true;
+        try
+        {
+            var client = HttpFactory.CreateClient("api");
+            var payload = new SubmitSignatureRequest(signatureBase64, DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + " UTC");
+            var response = await client.PostAsJsonAsync($"api/portal/submit/{Token}", payload);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _submitted = true;
+            }
+            else
+            {
+                var body = await response.Content.ReadAsStringAsync();
+                _validationError = $"Submission failed: {response.StatusCode}. {body}";
+            }
+        }
+        catch
+        {
+            _validationError = "Submission failed due to a network error. Please try again.";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    /// <summary>Renders a typed signature as a base64 PNG via an off-screen HTML Canvas.</summary>
+    private async Task<string> RenderTypedSignatureAsync(string name)
+    {
+        return await JS.InvokeAsync<string>("signaturePad.renderTypedSignature", name);
+    }
+}
+
+<style>
+    .signing-portal { max-width: 820px; margin: 2rem auto; padding: 1rem; font-family: system-ui, sans-serif; }
+    .portal-header { margin-bottom: 1.5rem; }
+    .portal-header h1 { font-size: 1.5rem; color: #1f2937; }
+    .expiry { color: #6b7280; font-size: 0.875rem; }
+    .doc-preview { border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; margin-bottom: 1.5rem; padding: 0.5rem; background: #f9fafb; }
+    .sig-section { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem; }
+    .sig-section h2 { margin-top: 0; font-size: 1rem; color: #374151; }
+    .tab-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .tab { padding: 0.4rem 1rem; border: 1px solid #d1d5db; border-radius: 4px; background: #f3f4f6; cursor: pointer; font-size: 0.875rem; }
+    .tab.active { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
+    .hint { font-size: 0.8rem; color: #6b7280; margin-bottom: 0.5rem; }
+    .canvas-actions { margin-top: 0.5rem; }
+    .typed-sig-input { width: 100%; padding: 0.6rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 1.5rem; font-family: cursive; }
+    .submit-area { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem; }
+    .consent-label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: #374151; cursor: pointer; }
+    .btn-primary { padding: 0.75rem 2rem; background: #1d4ed8; color: #fff; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-secondary { padding: 0.4rem 1rem; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer; font-size: 0.875rem; }
+    .validation-error { color: #dc2626; font-size: 0.875rem; margin-top: 0.5rem; }
+    .status-card { max-width: 500px; margin: 4rem auto; padding: 2rem; text-align: center; border-radius: 8px; border: 1px solid #e5e7eb; }
+    .status-card.error { border-color: #fca5a5; background: #fef2f2; }
+    .status-card.success { border-color: #86efac; background: #f0fdf4; }
+</style>

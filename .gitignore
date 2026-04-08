@@ -1,0 +1,71 @@
+## .NET build outputs
+bin/
+obj/
+
+## NuGet
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+.nuget/
+
+## Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+.vscode/launch.json
+
+## Rider / JetBrains
+.idea/
+*.sln.iml
+
+## Compiled output
+*.dll
+*.exe
+*.pdb
+*.mdb
+*.cache
+*.ilk
+*.map
+*.exp
+*.lib
+
+## Publish / release
+publish/
+**/publish/
+[Rr]elease/
+[Dd]ebug/
+
+## Test results
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+*.opencover.xml
+coverage*/
+
+## SQL Server
+*.mdf
+*.ldf
+*.ndf
+
+## Logs
+*.log
+logs/
+
+## OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+## Secrets / env
+*.env
+.env.*
+appsettings.*.json
+!appsettings.json
+!appsettings.Development.json
+secrets.json
