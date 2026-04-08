@@ -107,9 +107,6 @@ public class EnvelopeController : ControllerBase
             };
 
             if (!allowedTypes.Contains(contentType, StringComparer.OrdinalIgnoreCase))
-                return BadRequest($"Unsupported content type '{rawType}' for '{d.DocumentFileName}'. Accepted: pdf, doc, docx
-
-            if (!allowedTypes.Contains(contentType, StringComparer.OrdinalIgnoreCase))
                 return BadRequest($"Unsupported content type '{rawType}' for '{d.DocumentFileName}'. Accepted: pdf, doc, docx.");
 
             docEntities.Add(new Document
