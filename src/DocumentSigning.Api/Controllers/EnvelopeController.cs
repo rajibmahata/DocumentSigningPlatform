@@ -313,7 +313,8 @@ public class EnvelopeController : ControllerBase
                 s.Role,
                 s.Email,
                 s.Status.ToString(),
-                signedDoc is not null ? Convert.ToBase64String(signedDoc.ContentBytes) : null));
+                signedDoc is not null ? Convert.ToBase64String(signedDoc.ContentBytes) : null,
+                signedDoc is not null ? ResolveDocumentType(signedDoc.ContentType) : null));
         }
 
         var response = new EnvelopeSignedResponse(
@@ -326,4 +327,12 @@ public class EnvelopeController : ControllerBase
 
         return Ok(response);
     }
+
+    private static string ResolveDocumentType(string contentType) => contentType.ToLowerInvariant() switch
+    {
+        "application/pdf"                                                                 => "pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"        => "docx",
+        "application/msword"                                                              => "doc",
+        _ => contentType
+    };
 }

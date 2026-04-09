@@ -36,7 +36,8 @@ public record SignerSignedSummary(
     string Role,
     string Email,
     string Status,
-    string? SignedDocumentBase64);
+    string? SignedDocumentBase64,
+    string? SignedDocumentType);
 
 public record EnvelopeSignedResponse(
     Guid EnvelopeId,
