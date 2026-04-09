@@ -113,3 +113,24 @@ public record FirmNotificationPayload(
     string FirmEmail,
     Guid ClaimId,
     string ClaimantName);
+
+public record VerificationEmailPayload(
+    string To,
+    string ToName,
+    string VerificationLink);
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+public record RegisterRequest(
+    string Name,
+    string Email,
+    string Password,
+    string? Country);
+
+public record LoginRequest(
+    string Email,
+    string Password);
+
+public record LoginResponse(
+    string Token,
+    bool IsEmailVerified);

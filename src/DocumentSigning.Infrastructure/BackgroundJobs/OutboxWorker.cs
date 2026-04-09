@@ -132,6 +132,14 @@ public class OutboxWorker : BackgroundService
                 await emailSvc.SendFirmNotificationAsync(payload.FirmEmail, payload.ClaimId, payload.ClaimantName, ct);
                 break;
             }
+            case JobTypes.SendVerificationEmail:
+            {
+                var payload = JsonSerializer.Deserialize<VerificationEmailPayload>(job.Payload, JsonOpts)
+                    ?? throw new InvalidOperationException("Null VerificationEmail payload.");
+                var emailSvc = sp.GetRequiredService<IEmailService>();
+                await emailSvc.SendEmailVerificationAsync(payload.To, payload.ToName, payload.VerificationLink, ct);
+                break;
+            }
             default:
                 throw new NotSupportedException($"Unknown job type: {job.JobType}");
         }

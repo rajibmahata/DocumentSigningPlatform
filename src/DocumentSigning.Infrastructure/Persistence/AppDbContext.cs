@@ -15,8 +15,10 @@ public class AppDbContext : DbContext
     public DbSet<Document>        Documents         => Set<Document>();
     public DbSet<SigningRequest>   SigningRequests   => Set<SigningRequest>();
     public DbSet<SignedDocument>   SignedDocuments   => Set<SignedDocument>();
-    public DbSet<OutboxQueue>      OutboxQueue       => Set<OutboxQueue>();
-    public DbSet<AuditLog>         AuditLogs         => Set<AuditLog>();
+    public DbSet<OutboxQueue>             OutboxQueue              => Set<OutboxQueue>();
+    public DbSet<AuditLog>                AuditLogs                => Set<AuditLog>();
+    public DbSet<User>                    Users                    => Set<User>();
+    public DbSet<EmailVerificationToken>  EmailVerificationTokens  => Set<EmailVerificationToken>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -106,6 +108,26 @@ public class AppDbContext : DbContext
             e.Property(x => x.IpAddress).HasMaxLength(64).IsRequired();
             e.Property(x => x.UserAgent).HasMaxLength(512).IsRequired();
             e.HasIndex(x => x.SigningRequestId);
+        });
+
+        // Users
+        model.Entity<User>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Email).HasMaxLength(256).IsRequired();
+            e.HasIndex(x => x.Email).IsUnique();
+            e.Property(x => x.PasswordHash).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Country).HasMaxLength(100);
+        });
+
+        // EmailVerificationTokens
+        model.Entity<EmailVerificationToken>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Token).HasMaxLength(128).IsRequired();
+            e.HasIndex(x => x.Token).IsUnique();
+            e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }
