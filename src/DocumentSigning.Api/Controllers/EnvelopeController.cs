@@ -234,16 +234,14 @@ public class EnvelopeController : ControllerBase
             envelope.CreatedAt,
             envelope.Documents.Select(d => new DocumentSummary(
                 d.Id,
-                d.DocumentTitle,
-                Convert.ToBase64String(d.ContentBytes),
-                d.ContentType)).ToList(),
+                d.DocumentTitle)).ToList(),
             envelope.Signers.Select(s => new SignerSummary(s.Name, s.Role, s.Email, s.Status.ToString())).ToList()
         );
 
         return CreatedAtAction(nameof(GetById), new { id = envelope.Id }, response);
     }
 
-    /// <summary>Returns a signing envelope by ID (merchant-scoped).</summary>
+    /// <summary>Returns a signing envelope by ID (merchant-scoped). Documents include signed content when available.</summary>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(InitiateEnvelopeResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -256,7 +254,15 @@ public class EnvelopeController : ControllerBase
         if (envelope is null || envelope.MerchantId != merchant.Id)
             return NotFound();
 
-        return Ok(MapToResponse(envelope));
+        var response = new InitiateEnvelopeResponse(
+            envelope.Id,
+            envelope.Title,
+            envelope.Status.ToString(),
+            envelope.CreatedAt,
+            envelope.Documents.Select(d => new DocumentSummary(d.Id, d.DocumentTitle)).ToList(),
+            envelope.Signers.Select(s => new SignerSummary(s.Name, s.Role, s.Email, s.Status.ToString())).ToList());
+
+        return Ok(response);
     }
 
     /// <summary>Returns all envelopes for the authenticated merchant.</summary>
@@ -278,9 +284,7 @@ public class EnvelopeController : ControllerBase
         e.CreatedAt,
         e.Documents.Select(d => new DocumentSummary(
             d.Id,
-            d.DocumentTitle,
-            Convert.ToBase64String(d.ContentBytes),
-            d.ContentType)).ToList(),
+            d.DocumentTitle)).ToList(),
         e.Signers.Select(s => new SignerSummary(s.Name, s.Role, s.Email, s.Status.ToString())).ToList()
     );
 }

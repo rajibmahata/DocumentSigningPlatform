@@ -17,6 +17,13 @@ public class SignedDocumentRepository : ISignedDocumentRepository
         => await _db.SignedDocuments
             .FirstOrDefaultAsync(sd => sd.ClaimId == claimId, ct);
 
+    public async Task<SignedDocument?> GetByDocumentIdAsync(Guid documentId, CancellationToken ct = default)
+        => await _db.SignedDocuments
+            .Join(_db.SigningRequests, sd => sd.SigningRequestId, sr => sr.Id, (sd, sr) => new { sd, sr })
+            .Where(x => x.sr.DocumentId == documentId)
+            .Select(x => x.sd)
+            .FirstOrDefaultAsync(ct);
+
     public async Task AddAsync(SignedDocument signedDocument, CancellationToken ct = default)
         => await _db.SignedDocuments.AddAsync(signedDocument, ct);
 

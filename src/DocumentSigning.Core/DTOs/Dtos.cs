@@ -23,9 +23,7 @@ public record InitiateEnvelopeRequest(
 
 public record DocumentSummary(
     Guid DocumentId,
-    string DocumentTitle,
-    string DocumentBase64,
-    string ContentType);
+    string DocumentTitle);
 
 public record SignerSummary(
     string Name,
@@ -40,19 +38,6 @@ public record InitiateEnvelopeResponse(
     DateTime SentDate,
     List<DocumentSummary> Documents,
     List<SignerSummary> Signers);
-
-// ── Legacy single-signer initiate (kept for compatibility) ────────────────────
-
-public record InitiateSigningRequest(
-    string ClaimantEmail,
-    string ClaimantName,
-    string DocumentBase64,
-    string DocumentContentType);
-
-public record InitiateSigningResponse(
-    Guid ClaimId,
-    Guid SigningRequestId,
-    DateTime ExpiresAt);
 
 // ── Merchant ──────────────────────────────────────────────────────────────────
 
@@ -84,11 +69,6 @@ public record DocumentPreviewResponse(
 public record SubmitSignatureRequest(
     string SignatureBase64,
     string SignedDate);
-
-public record SigningStatusResponse(
-    Guid SigningRequestId,
-    string Status,
-    DateTime? SignedAt);
 
 // ── Outbox payloads ───────────────────────────────────────────────────────────
 
