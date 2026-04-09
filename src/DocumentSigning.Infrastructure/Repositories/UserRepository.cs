@@ -11,6 +11,9 @@ public class UserRepository : IUserRepository
 
     public UserRepository(AppDbContext db) => _db = db;
 
+    public async Task<IReadOnlyList<User>> GetAllAsync(CancellationToken ct = default)
+        => await _db.Users.OrderBy(u => u.Name).ToListAsync(ct);
+
     public Task<User?> GetByEmailAsync(string email, CancellationToken ct = default)
         => _db.Users.FirstOrDefaultAsync(u => u.Email == email.ToLowerInvariant(), ct);
 

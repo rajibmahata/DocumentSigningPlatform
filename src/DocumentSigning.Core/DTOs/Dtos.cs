@@ -1,3 +1,5 @@
+using DocumentSigning.Core.Enums;
+
 namespace DocumentSigning.Core.DTOs;
 
 // ── Envelope / multi-signer initiate ─────────────────────────────────────────
@@ -119,13 +121,19 @@ public record VerificationEmailPayload(
     string ToName,
     string VerificationLink);
 
+public record PasswordResetEmailPayload(
+    string To,
+    string ToName,
+    string ResetLink);
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 public record RegisterRequest(
     string Name,
     string Email,
     string Password,
-    string? Country);
+    string? Country,
+    AccessRole? AccessRole = null);
 
 public record LoginRequest(
     string Email,
@@ -134,3 +142,25 @@ public record LoginRequest(
 public record LoginResponse(
     string Token,
     bool IsEmailVerified);
+
+public record ForgotPasswordRequest(
+    string Email);
+
+public record ResetPasswordRequest(
+    string Token,
+    string NewPassword);
+
+// ── User management ───────────────────────────────────────────────────────────
+
+public record UserResponse(
+    Guid Id,
+    string Name,
+    string Email,
+    string? Country,
+    bool IsEmailVerified,
+    DocumentSigning.Core.Enums.AccessRole AccessRole,
+    DateTime CreatedAt);
+
+public record UpdateUserRequest(
+    string? Name,
+    DocumentSigning.Core.Enums.AccessRole? AccessRole);

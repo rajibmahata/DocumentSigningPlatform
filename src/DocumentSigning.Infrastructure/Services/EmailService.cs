@@ -92,6 +92,26 @@ public class EmailService : IEmailService
         await SendAsync(toEmail, toName, subject, body, ct: ct);
     }
 
+    public async Task SendPasswordResetAsync(
+        string toEmail, string toName, string resetLink,
+        CancellationToken ct = default)
+    {
+        var subject = "Reset your password";
+        var body = $"""
+            Dear {toName},
+
+            We received a request to reset your password. Click the link below to set a new password:
+            {resetLink}
+
+            This link will expire in 1 hour. If you did not request a password reset, please ignore this email.
+
+            Regards,
+            Document Signing Platform
+            """;
+
+        await SendAsync(toEmail, toName, subject, body, ct: ct);
+    }
+
     // ─── Internal helper ─────────────────────────────────────────────────────────
 
     private async Task SendAsync(

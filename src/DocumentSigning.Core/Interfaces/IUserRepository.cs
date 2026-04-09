@@ -4,6 +4,7 @@ namespace DocumentSigning.Core.Interfaces;
 
 public interface IUserRepository
 {
+    Task<IReadOnlyList<User>> GetAllAsync(CancellationToken ct = default);
     Task<User?> GetByEmailAsync(string email, CancellationToken ct = default);
     Task<User?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task CreateAsync(User user, CancellationToken ct = default);

@@ -28,6 +28,7 @@ builder.Services.AddScoped<IMerchantRepository, MerchantRepository>();
 builder.Services.AddScoped<ISigningEnvelopeRepository, SigningEnvelopeRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IEmailVerificationTokenRepository, EmailVerificationTokenRepository>();
+builder.Services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<MerchantApiKeyFilter>();
@@ -93,10 +94,21 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // Admin: full control (manage users, envelopes, settings)
+    options.AddPolicy("AdminOnly",     p => p.RequireRole("Admin"));
+    // User or Admin: send + view envelopes
+    options.AddPolicy("UserOrAbove",   p => p.RequireRole("Admin", "User"));
+    // Any authenticated role (includes Viewer)
+    options.AddPolicy("ViewerOrAbove", p => p.RequireRole("Admin", "User", "Viewer"));
+});
 
 // ─── Controllers + Swagger ────────────────────────────────────────────────────
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(opts =>
+        opts.JsonSerializerOptions.Converters.Add(
+            new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {

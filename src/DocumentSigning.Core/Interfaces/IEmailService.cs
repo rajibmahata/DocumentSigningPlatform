@@ -31,4 +31,10 @@ public interface IEmailService
         string toName,
         string verificationLink,
         CancellationToken ct = default);
+
+    Task SendPasswordResetAsync(
+        string toEmail,
+        string toName,
+        string resetLink,
+        CancellationToken ct = default);
 }

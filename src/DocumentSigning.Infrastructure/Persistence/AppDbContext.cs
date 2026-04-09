@@ -19,6 +19,7 @@ public class AppDbContext : DbContext
     public DbSet<AuditLog>                AuditLogs                => Set<AuditLog>();
     public DbSet<User>                    Users                    => Set<User>();
     public DbSet<EmailVerificationToken>  EmailVerificationTokens  => Set<EmailVerificationToken>();
+    public DbSet<PasswordResetToken>      PasswordResetTokens      => Set<PasswordResetToken>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -119,10 +120,24 @@ public class AppDbContext : DbContext
             e.HasIndex(x => x.Email).IsUnique();
             e.Property(x => x.PasswordHash).HasMaxLength(256).IsRequired();
             e.Property(x => x.Country).HasMaxLength(100);
+            e.Property(x => x.AccessRole)
+             .HasMaxLength(20)
+             .HasConversion<string>()
+             .HasDefaultValueSql("'User'")
+             .IsRequired();
         });
 
         // EmailVerificationTokens
         model.Entity<EmailVerificationToken>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Token).HasMaxLength(128).IsRequired();
+            e.HasIndex(x => x.Token).IsUnique();
+            e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // PasswordResetTokens
+        model.Entity<PasswordResetToken>(e =>
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.Token).HasMaxLength(128).IsRequired();
