@@ -25,6 +25,7 @@ public class EnvelopeController : ControllerBase
     private readonly ISigningEnvelopeRepository _envelopeRepo;
     private readonly IClaimRepository _claimRepo;
     private readonly ISigningRequestRepository _signingRequestRepo;
+    private readonly ISignedDocumentRepository _signedDocRepo;
     private readonly IOutboxQueueRepository _outboxRepo;
     private readonly IAuditLogRepository _auditRepo;
     private readonly ITokenService _tokenService;
@@ -35,6 +36,7 @@ public class EnvelopeController : ControllerBase
         ISigningEnvelopeRepository envelopeRepo,
         IClaimRepository claimRepo,
         ISigningRequestRepository signingRequestRepo,
+        ISignedDocumentRepository signedDocRepo,
         IOutboxQueueRepository outboxRepo,
         IAuditLogRepository auditRepo,
         ITokenService tokenService,
@@ -44,6 +46,7 @@ public class EnvelopeController : ControllerBase
         _envelopeRepo = envelopeRepo;
         _claimRepo = claimRepo;
         _signingRequestRepo = signingRequestRepo;
+        _signedDocRepo = signedDocRepo;
         _outboxRepo = outboxRepo;
         _auditRepo = auditRepo;
         _tokenService = tokenService;
@@ -287,4 +290,40 @@ public class EnvelopeController : ControllerBase
             d.DocumentTitle)).ToList(),
         e.Signers.Select(s => new SignerSummary(s.Name, s.Role, s.Email, s.Status.ToString())).ToList()
     );
+
+    /// <summary>Returns the envelope with each signer's signed document in base64 (null if not yet signed).</summary>
+    [HttpGet("{id:guid}/signed-documents")]
+    [ProducesResponseType(typeof(EnvelopeSignedResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetSignedDocuments(Guid id, CancellationToken ct)
+    {
+        var merchant = HttpContext.Items["Merchant"] as Merchant;
+        if (merchant is null) return Unauthorized();
+
+        var envelope = await _envelopeRepo.GetByIdAsync(id, ct);
+        if (envelope is null || envelope.MerchantId != merchant.Id)
+            return NotFound();
+
+        var signers = new List<SignerSignedSummary>();
+        foreach (var s in envelope.Signers)
+        {
+            var signedDoc = await _signedDocRepo.GetByEnvelopeAndEmailAsync(envelope.Id, s.Email, ct);
+            signers.Add(new SignerSignedSummary(
+                s.Name,
+                s.Role,
+                s.Email,
+                s.Status.ToString(),
+                signedDoc is not null ? Convert.ToBase64String(signedDoc.ContentBytes) : null));
+        }
+
+        var response = new EnvelopeSignedResponse(
+            envelope.Id,
+            envelope.Title,
+            envelope.Status.ToString(),
+            envelope.CreatedAt,
+            envelope.Documents.Select(d => new DocumentSummary(d.Id, d.DocumentTitle)).ToList(),
+            signers);
+
+        return Ok(response);
+    }
 }

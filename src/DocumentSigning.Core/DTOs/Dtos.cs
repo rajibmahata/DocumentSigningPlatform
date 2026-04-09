@@ -31,6 +31,21 @@ public record SignerSummary(
     string Email,
     string Status);
 
+public record SignerSignedSummary(
+    string Name,
+    string Role,
+    string Email,
+    string Status,
+    string? SignedDocumentBase64);
+
+public record EnvelopeSignedResponse(
+    Guid EnvelopeId,
+    string Title,
+    string Status,
+    DateTime SentDate,
+    List<DocumentSummary> Documents,
+    List<SignerSignedSummary> Signers);
+
 public record InitiateEnvelopeResponse(
     Guid EnvelopeId,
     string Title,
