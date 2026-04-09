@@ -150,8 +150,9 @@ public class OutboxWorker : BackgroundService
 /// <summary>Constants for job type strings in OutboxQueue.JobType.</summary>
 public static class JobTypes
 {
-    public const string SendEmail = "SendEmail";
-    public const string StampDoc = "StampDoc";
-    public const string SendConfirmation = "SendConfirmation";
-    public const string SendFirmNotification = "SendFirmNotification";
+    public const string SendEmail             = "SendEmail";
+    public const string StampDoc              = "StampDoc";
+    public const string SendConfirmation      = "SendConfirmation";
+    public const string SendFirmNotification  = "SendFirmNotification";
+    public const string SendVerificationEmail = "SendVerificationEmail";
 }

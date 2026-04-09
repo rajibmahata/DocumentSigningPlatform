@@ -1,5 +1,4 @@
 using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
 using System.Text;
 using DocumentSigning.Core.Entities;
 using DocumentSigning.Core.Interfaces;
@@ -21,12 +20,12 @@ public class JwtService : IJwtService
         var expiry = DateTime.UtcNow.AddMinutes(
             int.TryParse(_config["Jwt:ExpiryMinutes"], out var m) ? m : 60);
 
-        var claims = new[]
+        var claims = new System.Security.Claims.Claim[]
         {
-            new Claim(JwtRegisteredClaimNames.Sub,   user.Id.ToString()),
-            new Claim(JwtRegisteredClaimNames.Email, user.Email),
-            new Claim(JwtRegisteredClaimNames.Name,  user.Name),
-            new Claim(JwtRegisteredClaimNames.Jti,   Guid.NewGuid().ToString())
+            new(JwtRegisteredClaimNames.Sub,   user.Id.ToString()),
+            new(JwtRegisteredClaimNames.Email, user.Email),
+            new(JwtRegisteredClaimNames.Name,  user.Name),
+            new(JwtRegisteredClaimNames.Jti,   Guid.NewGuid().ToString())
         };
 
         var token = new JwtSecurityToken(
