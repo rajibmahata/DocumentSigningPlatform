@@ -11,13 +11,16 @@ window.signaturePad = (function () {
 
     function getPos(e) {
         const rect = canvas.getBoundingClientRect();
-        if (e.touches && e.touches.length > 0) {
-            return {
-                x: e.touches[0].clientX - rect.left,
-                y: e.touches[0].clientY - rect.top
-            };
-        }
-        return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        // scaleX/Y == 1.0 when canvas.width was set to offsetWidth at init,
+        // but recalculate live so subpixel rounding at init time never accumulates.
+        const scaleX = canvas.width  / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const clientX = (e.touches && e.touches.length > 0) ? e.touches[0].clientX : e.clientX;
+        const clientY = (e.touches && e.touches.length > 0) ? e.touches[0].clientY : e.clientY;
+        return {
+            x: (clientX - rect.left) * scaleX,
+            y: (clientY - rect.top)  * scaleY
+        };
     }
 
     return {
@@ -25,6 +28,14 @@ window.signaturePad = (function () {
             canvas = document.getElementById(canvasId);
             if (!canvas || canvas._padInit) return;
             canvas._padInit = true;
+
+            // Use getBoundingClientRect for float-precision sizing (offsetWidth is integer).
+            // getPos() also uses getBoundingClientRect live, so mouse & touch coords are
+            // always in the same coordinate space.
+            const r = canvas.getBoundingClientRect();
+            canvas.width  = Math.round(r.width);
+            canvas.height = Math.round(r.height);
+
             ctx = canvas.getContext('2d');
             ctx.strokeStyle = '#1f2937';
             ctx.lineWidth = 2.5;

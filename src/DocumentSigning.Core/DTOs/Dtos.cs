@@ -82,11 +82,11 @@ public record DocumentPreviewResponse(
     string DocumentBase64,
     string ContentType,
     string ClaimantName,
+    string DocumentFileName,
     DateTime ExpiresAt);
 
 public record SubmitSignatureRequest(
-    string SignatureBase64,
-    string SignedDate);
+    string SignatureBase64);
 
 // ── Outbox payloads ───────────────────────────────────────────────────────────
 
@@ -102,7 +102,6 @@ public record StampPdfPayload(
     Guid SigningRequestId,
     Guid ClaimId,
     string SignatureBase64,
-    string SignedDate,
     Guid? EnvelopeId = null,
     Guid? SignerId   = null);
 

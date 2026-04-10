@@ -35,7 +35,7 @@ public class SignatureSubmitControllerTests
     }
 
     private static SubmitSignatureRequest ValidRequest() =>
-        new(Convert.ToBase64String(Encoding.UTF8.GetBytes("sig-image-data")), "2025-01-01");
+        new(Convert.ToBase64String(Encoding.UTF8.GetBytes("sig-image-data")));
 
     private SigningRequest MakePendingRequest(string token = "tok") => new()
     {
@@ -52,7 +52,7 @@ public class SignatureSubmitControllerTests
     [Fact]
     public async Task Submit_ReturnsBadRequest_WhenSignatureBase64IsEmpty()
     {
-        var request = new SubmitSignatureRequest("", "2025-01-01");
+        var request = new SubmitSignatureRequest("");
 
         var result = await CreateController().Submit("tok", request, CancellationToken.None);
 
@@ -122,7 +122,7 @@ public class SignatureSubmitControllerTests
     public async Task Submit_ReturnsBadRequest_WhenSignatureBase64IsInvalidBase64()
     {
         var sr = MakePendingRequest("tok");
-        var badRequest = new SubmitSignatureRequest("!!!not-valid-base64!!!", "2025-01-01");
+        var badRequest = new SubmitSignatureRequest("!!!not-valid-base64!!!");
 
         _signingRequestRepo.Setup(r => r.GetByTokenAsync("tok", It.IsAny<CancellationToken>()))
             .ReturnsAsync(sr);

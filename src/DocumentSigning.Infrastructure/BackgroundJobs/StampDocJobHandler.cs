@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using DocumentSigning.Core.DTOs;
 using DocumentSigning.Core.Entities;
@@ -63,11 +64,15 @@ public class StampDocJobHandler
             ?? throw new InvalidOperationException($"SigningRequest {payload.SigningRequestId} not found.");
 
         var signaturePng = Convert.FromBase64String(payload.SignatureBase64);
+        var signedDate = DateTime.UtcNow.ToString("dd MMM yyyy HH:mm:ss 'UTC'");
 
         _logger.LogInformation("Stamping document {DocId} for claim {ClaimId}", doc.Id, claim.Id);
 
         var stampedBytes = await _stamper.StampAsync(
-            doc.ContentBytes, doc.ContentType, signaturePng, payload.SignedDate, ct);
+            doc.ContentBytes, doc.ContentType, signaturePng, signedDate, ct);
+
+        // Compute SHA-256 hash of the stamped document
+        var documentHash = Convert.ToHexString(SHA256.HashData(stampedBytes)).ToLowerInvariant();
 
         // Persist signed document
         var signedDoc = new SignedDocument
@@ -77,6 +82,7 @@ public class StampDocJobHandler
             ClaimId = payload.ClaimId,
             ContentBytes = stampedBytes,
             ContentType = doc.ContentType,
+            Hash = documentHash,
             CreatedAt = DateTime.UtcNow
         };
         await _signedDocRepo.AddAsync(signedDoc, ct);

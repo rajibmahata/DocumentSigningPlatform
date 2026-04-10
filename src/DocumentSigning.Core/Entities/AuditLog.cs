@@ -9,4 +9,5 @@ public class AuditLog
     public string IpAddress { get; set; } = string.Empty;
     public string UserAgent { get; set; } = string.Empty;
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public string Hash { get; set; } = string.Empty;
 }

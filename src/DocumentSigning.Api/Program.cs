@@ -187,7 +187,6 @@ if (app.Environment.IsDevelopment())
     // developer-only tooling can go here
 }
 
-app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAntiforgery();
 app.UseRateLimiter();
