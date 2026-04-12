@@ -15,7 +15,7 @@ curl -X POST http://localhost:5163/api/auth/register \
   -d '{
     "name": "Rajib Mahata",
     "email": "rajibmahata3@gmail.com",
-    "password": "12345678",
+    "password": "Password1",
     "country": "INDIA",
     "accessRole": null
   }'
@@ -27,7 +27,7 @@ curl -X POST http://localhost:5163/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "rajibmahata3@gmail.com",
-    "password": "12345678"
+    "password": "Password1"
   }'
 ```
 > Response: `{ "token": "<jwt>", "isEmailVerified": true }`

@@ -29,7 +29,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Rajib Mahata\",\n  \"email\": \"rajibmahata3@gmail.com\",\n  \"password\": \"12345678\",\n  \"country\": \"INDIA\",\n  \"accessRole\": null\n}",
+              "raw": "{\n  \"name\": \"Rajib Mahata\",\n  \"email\": \"rajibmahata3@gmail.com\",\n  \"password\": \"Password1\",\n  \"country\": \"INDIA\",\n  \"accessRole\": null\n}",
               "options": { "raw": { "language": "json" } }
             },
             "description": "Creates a new user account and sends a verification email.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `name` | string | ✅ | Full display name |\n| `email` | string | ✅ | Must be unique |\n| `password` | string | ✅ | Min 8 chars, upper + lower + digit |\n| `country` | string | ❌ | ISO country code |\n| `accessRole` | string | ❌ | `\"User\"` (default) or `\"Admin\"` |"
@@ -60,7 +60,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"rajibmahata3@gmail.com\",\n  \"password\": \"12345678\"\n}",
+              "raw": "{\n  \"email\": \"rajibmahata3@gmail.com\",\n  \"password\": \"Password1\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "description": "Authenticates the user and returns a JWT. The test script auto-saves the token to the `jwtToken` collection variable.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `email` | string | ✅ | Registered email |\n| `password` | string | ✅ | Account password |"

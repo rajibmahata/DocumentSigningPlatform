@@ -52,6 +52,16 @@ builder.Services.AddHttpClient("api", client =>
     client.BaseAddress = new Uri(baseUrl);
 });
 
+// ─── CORS ─────────────────────────────────────────────────────────────────────
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("FrontendDev", policy =>
+        policy
+            .SetIsOriginAllowed(origin => new Uri(origin).Host == "localhost")
+            .AllowAnyMethod()
+            .AllowAnyHeader());
+});
+
 // ─── Rate limiting ────────────────────────────────────────────────────────────
 builder.Services.AddRateLimiter(options =>
 {
@@ -189,6 +199,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseStaticFiles();
 app.UseAntiforgery();
+app.UseCors("FrontendDev");
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
