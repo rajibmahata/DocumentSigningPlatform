@@ -30,9 +30,13 @@ public class AppDbContext : DbContext
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
-            e.Property(x => x.Email).HasMaxLength(256);
+            e.Property(x => x.Description).HasMaxLength(500);
             e.Property(x => x.ApiKey).HasMaxLength(100).IsRequired();
             e.HasIndex(x => x.ApiKey).IsUnique();
+            e.HasOne(x => x.User)
+             .WithMany()
+             .HasForeignKey(x => x.UserId)
+             .OnDelete(DeleteBehavior.Restrict);
         });
 
         // SigningEnvelopes

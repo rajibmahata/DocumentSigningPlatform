@@ -21,6 +21,7 @@ public class AuthControllerTests
     private readonly Mock<IPasswordResetTokenRepository>      _resetTokenRepo = new();
     private readonly Mock<IOutboxQueueRepository>             _outboxRepo     = new();
     private readonly Mock<IJwtService>                        _jwtService     = new();
+    private readonly Mock<IMerchantRepository>                _merchantRepo   = new();
     private readonly IConfiguration                           _config;
 
     public AuthControllerTests()
@@ -56,11 +57,16 @@ public class AuthControllerTests
 
         _outboxRepo.Setup(r => r.AddAsync(It.IsAny<OutboxQueue>(), It.IsAny<CancellationToken>()))
                    .Returns(Task.CompletedTask);
+
+        _merchantRepo.Setup(r => r.AddAsync(It.IsAny<Core.Entities.Merchant>(), It.IsAny<CancellationToken>()))
+                     .Returns(Task.CompletedTask);
+        _merchantRepo.Setup(r => r.GetByUserIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                     .ReturnsAsync(new List<Core.Entities.Merchant>().AsReadOnly());
     }
 
     private AuthController CreateController() =>
         new(_userRepo.Object, _tokenRepo.Object, _resetTokenRepo.Object,
-            _outboxRepo.Object, _jwtService.Object, _config)
+            _outboxRepo.Object, _jwtService.Object, _config, _merchantRepo.Object)
         {
             ControllerContext = new ControllerContext
             {
@@ -84,6 +90,22 @@ public class AuthControllerTests
 
         result.Should().BeOfType<StatusCodeResult>()
               .Which.StatusCode.Should().Be(StatusCodes.Status201Created);
+    }
+
+    [Theory]
+    [InlineData("short1A")]          // too short (7 chars)
+    [InlineData("alllowercase1")]    // no uppercase
+    [InlineData("ALLUPPERCASE1")]    // no lowercase
+    [InlineData("NoDigitsHere")]     // no number
+    [InlineData("12345678")]         // no letters
+    public async Task Register_WeakPassword_Returns400(string weakPassword)
+    {
+        var result = await CreateController().Register(
+            new RegisterRequest("John", "john@example.com", weakPassword, null),
+            CancellationToken.None);
+
+        result.Should().BeOfType<BadRequestObjectResult>()
+              .Which.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
     }
 
     [Fact]
@@ -141,6 +163,45 @@ public class AuthControllerTests
         _tokenRepo.Verify(r => r.CreateAsync(
             It.Is<EmailVerificationToken>(t => !t.IsUsed && t.ExpiresAt > DateTime.UtcNow),
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Register_AutoCreatesMerchant_WhenUserHasNone()
+    {
+        _userRepo.Setup(r => r.GetByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                 .ReturnsAsync((User?)null);
+        // GetByUserIdAsync returns empty → should auto-create
+        _merchantRepo.Setup(r => r.GetByUserIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                     .ReturnsAsync(new List<Core.Entities.Merchant>().AsReadOnly());
+
+        await CreateController().Register(
+            new RegisterRequest("John", "john@example.com", "Password1", null),
+            CancellationToken.None);
+
+        _merchantRepo.Verify(r => r.AddAsync(
+            It.Is<Core.Entities.Merchant>(m => m.Name.Contains("John") && m.IsActive),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Register_SkipsMerchantCreation_WhenUserAlreadyHasOne()
+    {
+        _userRepo.Setup(r => r.GetByEmailAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                 .ReturnsAsync((User?)null);
+        // GetByUserIdAsync returns an existing merchant → should NOT auto-create
+        _merchantRepo.Setup(r => r.GetByUserIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+                     .ReturnsAsync(new List<Core.Entities.Merchant>
+                     {
+                         new() { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), Name = "Existing", ApiKey = "msk_x", CreatedAt = DateTime.UtcNow }
+                     }.AsReadOnly());
+
+        await CreateController().Register(
+            new RegisterRequest("John", "john@example.com", "Password1", null),
+            CancellationToken.None);
+
+        _merchantRepo.Verify(r => r.AddAsync(
+            It.IsAny<Core.Entities.Merchant>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     // ═════════════════════════════════════════════════════════════════════════
@@ -279,7 +340,9 @@ public class AuthControllerTests
 
         var result = await CreateController().VerifyEmail("valid-token", CancellationToken.None);
 
-        result.Should().BeOfType<OkObjectResult>();
+        var content = result.Should().BeOfType<ContentResult>().Subject;
+        content.ContentType.Should().Be("text/html");
+        content.Content.Should().Contain("Email verified successfully.");
         record.IsUsed.Should().BeTrue();
         user.IsEmailVerified.Should().BeTrue();
     }
@@ -292,7 +355,9 @@ public class AuthControllerTests
 
         var result = await CreateController().VerifyEmail("bad-token", CancellationToken.None);
 
-        result.Should().BeOfType<BadRequestObjectResult>();
+        var content = result.Should().BeOfType<ContentResult>().Subject;
+        content.ContentType.Should().Be("text/html");
+        content.Content.Should().Contain("Invalid or expired");
     }
 
     [Fact]
@@ -308,7 +373,9 @@ public class AuthControllerTests
 
         var result = await CreateController().VerifyEmail("used-token", CancellationToken.None);
 
-        result.Should().BeOfType<BadRequestObjectResult>();
+        var content = result.Should().BeOfType<ContentResult>().Subject;
+        content.ContentType.Should().Be("text/html");
+        content.Content.Should().Contain("Invalid or expired");
     }
 
     [Fact]
@@ -324,7 +391,9 @@ public class AuthControllerTests
 
         var result = await CreateController().VerifyEmail("expired-token", CancellationToken.None);
 
-        result.Should().BeOfType<BadRequestObjectResult>();
+        var content = result.Should().BeOfType<ContentResult>().Subject;
+        content.ContentType.Should().Be("text/html");
+        content.Content.Should().Contain("Invalid or expired");
     }
 
     // ═════════════════════════════════════════════════════════════════════════

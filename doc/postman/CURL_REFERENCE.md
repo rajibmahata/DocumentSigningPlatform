@@ -13,10 +13,10 @@ Base URL: `http://localhost:5163`
 curl -X POST http://localhost:5163/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Alice Smith",
-    "email": "alice@example.com",
-    "password": "Secret1!",
-    "country": "US",
+    "name": "Rajib Mahata",
+    "email": "rajibmahata3@gmail.com",
+    "password": "12345678",
+    "country": "INDIA",
     "accessRole": null
   }'
 ```
@@ -26,8 +26,8 @@ curl -X POST http://localhost:5163/api/auth/register \
 curl -X POST http://localhost:5163/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "alice@example.com",
-    "password": "Secret1!"
+    "email": "rajibmahata3@gmail.com",
+    "password": "12345678"
   }'
 ```
 > Response: `{ "token": "<jwt>", "isEmailVerified": true }`
@@ -41,7 +41,7 @@ curl -X GET "http://localhost:5163/api/auth/verify-email/<token>"
 ```bash
 curl -X POST http://localhost:5163/api/auth/forgot-password \
   -H "Content-Type: application/json" \
-  -d '{ "email": "alice@example.com" }'
+  -d '{ "email": "rajibmahata3@gmail.com" }'
 ```
 
 ### Reset Password  ✅ Required: token, newPassword
@@ -59,35 +59,45 @@ curl -X POST http://localhost:5163/api/auth/reset-password \
 
 ## Merchants
 
-### Create Merchant  ✅ Required: name, email, requestLimit
+> **Auto-creation on register:** A default merchant account is automatically created when a user registers, *unless* the user already has one. Users can create **additional** merchant accounts at any time using `POST /api/merchants`.
+
+### Create Merchant  ✅ Required: userId, name  |  ❌ Optional: description, requestLimit
 ```bash
 curl -X POST http://localhost:5163/api/merchants \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Acme Corp",
-    "email": "billing@acme.com",
+    "userId": "<user-id>",
+    "name": "Second Workspace",
+    "description": "For invoicing clients",
     "requestLimit": 100
   }'
 ```
-> `requestLimit`: `0` = unlimited. Response contains `id` (merchantId) and `apiKey`.
+> Returns `201 Created` with the new merchant (including `id` and `apiKey`).  
+> `requestLimit`: `0` = unlimited. Default is `100`.
 
-### Get All Merchants
+### Get All Merchants (admin)
 ```bash
 curl http://localhost:5163/api/merchants
 ```
+
+### Get Merchants by User  ✅ Required: userId (URL path)
+```bash
+curl http://localhost:5163/api/merchants/by-user/<user-id>
+```
+> Returns all merchants owned by the given user.
 
 ### Get Merchant by ID  ✅ Required: id (URL path)
 ```bash
 curl http://localhost:5163/api/merchants/<merchant-id>
 ```
 
-### Update Merchant  ✅ Required: isActive, requestLimit  |  ❌ Optional: name, email, subscriptionEnd
+### Update Merchant  ✅ Required: isActive, requestLimit  |  ❌ Optional: name, description, subscriptionEnd
 ```bash
 curl -X PUT http://localhost:5163/api/merchants/<merchant-id> \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Acme Corp Updated",
-    "email": "newbilling@acme.com",
+    "description": "Primary signing workspace",
     "isActive": true,
     "requestLimit": 500,
     "subscriptionEnd": "2027-12-31T23:59:59Z"
@@ -257,13 +267,14 @@ curl -X PUT http://localhost:5163/api/users/<user-id> \
 ## Quick Workflow (end-to-end test sequence)
 
 ```
-1.  POST /api/auth/register          → create user
-2.  GET  /api/auth/verify-email/:t   → verify email (token from email)
-3.  POST /api/auth/login             → get JWT
-4.  POST /api/merchants              → create merchant, note apiKey + id
-5.  POST /api/envelopes              → create envelope (X-Api-Key header)
-6.  GET  /api/envelopes/:id          → confirm status = "Sent"
-7.  GET  /api/portal/validate/:t     → signer validates token (t from email)
-8.  POST /api/portal/submit/:t       → signer submits signature
-9.  GET  /api/envelopes/:id/signed-documents → download signed doc (base64)
+1.  POST /api/auth/register                   → create user + auto-creates default merchant (if none exists)
+2.  GET  /api/auth/verify-email/:t            → verify email (token from email)
+3.  POST /api/auth/login                      → get JWT, note userId from `sub` claim
+4.  GET  /api/merchants/by-user/:userId       → list merchant(s), note apiKey + merchantId
+    (optional) POST /api/merchants            → create an additional merchant for the same user
+5.  POST /api/envelopes                       → create envelope (X-Api-Key header)
+6.  GET  /api/envelopes/:id                   → confirm status = "Sent"
+7.  GET  /api/portal/validate/:t              → signer validates token (t from email)
+8.  POST /api/portal/submit/:t                → signer submits signature
+9.  GET  /api/envelopes/:id/signed-documents  → download signed doc (base64)
 ```

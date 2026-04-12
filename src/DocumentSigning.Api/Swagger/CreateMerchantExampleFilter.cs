@@ -11,8 +11,9 @@ public class CreateMerchantExampleFilter : IOperationFilter
 {
     private static readonly OpenApiObject Example = new()
     {
-        ["name"]         = new OpenApiString("Demo"),
-        ["email"]        = new OpenApiString("Demo@admin.com"),
+        ["userId"]       = new OpenApiString("00000000-0000-0000-0000-000000000001"),
+        ["name"]         = new OpenApiString("Demo Workspace"),
+        ["description"]  = new OpenApiString("My main signing workspace"),
         ["requestLimit"] = new OpenApiInteger(100)
     };
 

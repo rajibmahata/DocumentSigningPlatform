@@ -60,14 +60,16 @@ public record InitiateEnvelopeResponse(
 // ── Merchant ──────────────────────────────────────────────────────────────────
 
 public record CreateMerchantRequest(
+    Guid UserId,
     string Name,
-    string Email,
-    int RequestLimit);
+    string? Description,
+    int RequestLimit = 100);
 
 public record MerchantResponse(
     Guid Id,
+    Guid UserId,
     string Name,
-    string Email,
+    string? Description,
     string ApiKey,
     bool IsActive,
     int RequestLimit,
@@ -163,3 +165,10 @@ public record UserResponse(
 public record UpdateUserRequest(
     string? Name,
     DocumentSigning.Core.Enums.AccessRole? AccessRole);
+
+public record UpdateMerchantRequest(
+    string? Name,
+    string? Description,
+    bool IsActive,
+    int RequestLimit,
+    DateTime? SubscriptionEnd);

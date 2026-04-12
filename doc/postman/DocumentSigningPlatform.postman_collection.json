@@ -29,7 +29,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Alice Smith\",\n  \"email\": \"alice@example.com\",\n  \"password\": \"Secret1!\",\n  \"country\": \"US\",\n  \"accessRole\": null\n}",
+              "raw": "{\n  \"name\": \"Rajib Mahata\",\n  \"email\": \"rajibmahata3@gmail.com\",\n  \"password\": \"12345678\",\n  \"country\": \"INDIA\",\n  \"accessRole\": null\n}",
               "options": { "raw": { "language": "json" } }
             },
             "description": "Creates a new user account and sends a verification email.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `name` | string | ✅ | Full display name |\n| `email` | string | ✅ | Must be unique |\n| `password` | string | ✅ | Min 8 chars, upper + lower + digit |\n| `country` | string | ❌ | ISO country code |\n| `accessRole` | string | ❌ | `\"User\"` (default) or `\"Admin\"` |"
@@ -60,7 +60,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"alice@example.com\",\n  \"password\": \"Secret1!\"\n}",
+              "raw": "{\n  \"email\": \"rajibmahata3@gmail.com\",\n  \"password\": \"12345678\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "description": "Authenticates the user and returns a JWT. The test script auto-saves the token to the `jwtToken` collection variable.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `email` | string | ✅ | Registered email |\n| `password` | string | ✅ | Account password |"
@@ -91,7 +91,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"alice@example.com\"\n}",
+              "raw": "{\n  \"email\": \"rajibmahata3@gmail.com\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "description": "Sends a password-reset link. Always returns 200 to prevent user enumeration.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `email` | string | ✅ | Registered email |"
@@ -120,7 +120,7 @@
 
     {
       "name": "Merchants",
-      "description": "Manage merchant accounts. No authentication required (admin-internal endpoints).",
+      "description": "Manage merchant accounts. A default merchant is auto-created on registration (if the user has none). Users can create additional merchant accounts via POST /api/merchants.",
       "item": [
 
         {
@@ -147,20 +147,50 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Acme Corp\",\n  \"email\": \"billing@acme.com\",\n  \"requestLimit\": 100\n}",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"name\": \"Second Workspace\",\n  \"description\": \"For invoicing clients\",\n  \"requestLimit\": 100\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "description": "Creates a merchant and auto-generates a unique API key. The test script saves the `id` and `apiKey` to collection variables.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `name` | string | ✅ | Merchant display name |\n| `email` | string | ✅ | Billing/contact email |\n| `requestLimit` | int | ✅ | 0 = unlimited; must be >= 0 |"
+            "description": "Creates a new merchant account for a user. Users can create multiple merchant accounts. Returns 201 with the new merchant (including `id` and `apiKey`). The test script saves `merchantId` and `merchantApiKey` to collection variables.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `userId` | UUID | ✅ | Owner's user GUID (from login JWT `sub` claim) |\n| `name` | string | ✅ | Merchant display name |\n| `description` | string | ❌ | Optional description |\n| `requestLimit` | int | ❌ | 0 = unlimited; default 100; must be >= 0 |"
           },
           "response": []
         },
 
         {
-          "name": "Get All Merchants",
+          "name": "Get All Merchants (Admin)",
           "request": {
             "method": "GET",
             "url": { "raw": "{{baseUrl}}/api/merchants", "host": ["{{baseUrl}}"], "path": ["api","merchants"] },
-            "description": "Returns a list of all merchants."
+            "description": "Returns a list of all merchants (admin use)."
+          },
+          "response": []
+        },
+
+        {
+          "name": "Get Merchants by User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (Array.isArray(json) && json.length > 0) {",
+                  "  pm.collectionVariables.set('merchantId', json[0].id);",
+                  "  pm.collectionVariables.set('merchantApiKey', json[0].apiKey);",
+                  "  console.log('merchantId and merchantApiKey saved from first result');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/merchants/by-user/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","merchants","by-user","{{userId}}"]
+            },
+            "description": "Returns all merchant accounts belonging to a user. The test script auto-saves the first result's `id` and `apiKey` to collection variables.\n\n| Param | Location | Required | Notes |\n|---|---|---|---|\n| `userId` | URL path | ✅ | User GUID from login JWT `sub` claim |"
           },
           "response": []
         },
@@ -191,10 +221,10 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Acme Corp Updated\",\n  \"email\": \"newbilling@acme.com\",\n  \"isActive\": true,\n  \"requestLimit\": 500,\n  \"subscriptionEnd\": \"2027-12-31T23:59:59Z\"\n}",
+              "raw": "{\n  \"name\": \"Acme Corp Updated\",\n  \"description\": \"Primary signing workspace\",\n  \"isActive\": true,\n  \"requestLimit\": 500,\n  \"subscriptionEnd\": \"2027-12-31T23:59:59Z\"\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "description": "Updates merchant settings.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `name` | string | ❌ | Keeps current if omitted |\n| `email` | string | ❌ | Keeps current if omitted |\n| `isActive` | bool | ✅ | `true` to enable, `false` to suspend |\n| `requestLimit` | int | ✅ | 0 = unlimited; must be >= 0 |\n| `subscriptionEnd` | datetime | ❌ | ISO-8601 UTC; null = no expiry |"
+            "description": "Updates merchant settings.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `name` | string | ❌ | Keeps current if omitted |\n| `description` | string | ❌ | Keeps current if omitted |\n| `isActive` | bool | ✅ | `true` to enable, `false` to suspend |\n| `requestLimit` | int | ✅ | 0 = unlimited; must be >= 0 |\n| `subscriptionEnd` | datetime | ❌ | ISO-8601 UTC; null = no expiry |"
           },
           "response": []
         },

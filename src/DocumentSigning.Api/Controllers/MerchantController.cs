@@ -1,5 +1,3 @@
-using DocumentSigning.Api.Filters;
-using DocumentSigning.Api.Swagger;
 using DocumentSigning.Core.DTOs;
 using DocumentSigning.Core.Entities;
 using DocumentSigning.Core.Interfaces;
@@ -16,7 +14,7 @@ public class MerchantController : ControllerBase
     public MerchantController(IMerchantRepository merchantRepo)
         => _merchantRepo = merchantRepo;
 
-    /// <summary>Creates a new merchant and generates a unique API key.</summary>
+    /// <summary>Creates a new merchant account for a user. Users may create multiple merchant accounts.</summary>
     [HttpPost]
     [ProducesResponseType(typeof(MerchantResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -32,8 +30,9 @@ public class MerchantController : ControllerBase
         var merchant = new Merchant
         {
             Id                = Guid.NewGuid(),
+            UserId            = request.UserId,
             Name              = request.Name.Trim(),
-            Email             = request.Email?.Trim() ?? string.Empty,
+            Description       = request.Description?.Trim(),
             ApiKey            = GenerateApiKey(),
             IsActive          = true,
             RequestLimit      = request.RequestLimit,
@@ -48,12 +47,21 @@ public class MerchantController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = merchant.Id }, ToResponse(merchant));
     }
 
-    /// <summary>Returns all merchants.</summary>
+    /// <summary>Returns all merchants (admin use).</summary>
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<MerchantResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll(CancellationToken ct)
     {
         var merchants = await _merchantRepo.GetAllAsync(ct);
+        return Ok(merchants.Select(ToResponse));
+    }
+
+    /// <summary>Returns all merchants belonging to a user.</summary>
+    [HttpGet("by-user/{userId:guid}")]
+    [ProducesResponseType(typeof(IReadOnlyList<MerchantResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetByUser(Guid userId, CancellationToken ct)
+    {
+        var merchants = await _merchantRepo.GetByUserIdAsync(userId, ct);
         return Ok(merchants.Select(ToResponse));
     }
 
@@ -67,9 +75,7 @@ public class MerchantController : ControllerBase
         return merchant is null ? NotFound() : Ok(ToResponse(merchant));
     }
 
-    /// <summary>
-    /// Updates merchant subscription settings (limit, active flag, subscription end).
-    /// </summary>
+    /// <summary>Updates merchant settings (name, description, limit, active flag, subscription end).</summary>
     [HttpPut("{id:guid}")]
     [ProducesResponseType(typeof(MerchantResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -85,7 +91,7 @@ public class MerchantController : ControllerBase
             return BadRequest("RequestLimit must be >= 0 (0 = unlimited).");
 
         merchant.Name            = request.Name?.Trim() ?? merchant.Name;
-        merchant.Email           = request.Email?.Trim() ?? merchant.Email;
+        merchant.Description     = request.Description?.Trim() ?? merchant.Description;
         merchant.IsActive        = request.IsActive;
         merchant.RequestLimit    = request.RequestLimit;
         merchant.SubscriptionEnd = request.SubscriptionEnd;
@@ -114,17 +120,10 @@ public class MerchantController : ControllerBase
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private static string GenerateApiKey()
+    internal static string GenerateApiKey()
         => $"msk_{Convert.ToBase64String(Guid.NewGuid().ToByteArray()).TrimEnd('=').Replace('+', '-').Replace('/', '_')}";
 
     private static MerchantResponse ToResponse(Merchant m) => new(
-        m.Id, m.Name, m.Email, m.ApiKey, m.IsActive,
+        m.Id, m.UserId, m.Name, m.Description, m.ApiKey, m.IsActive,
         m.RequestLimit, m.RequestUsed, m.SubscriptionStart, m.SubscriptionEnd, m.CreatedAt);
 }
-
-public record UpdateMerchantRequest(
-    string? Name,
-    string? Email,
-    bool IsActive,
-    int RequestLimit,
-    DateTime? SubscriptionEnd);

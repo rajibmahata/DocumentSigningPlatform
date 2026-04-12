@@ -19,6 +19,9 @@ public class MerchantRepository : IMerchantRepository
     public async Task<IReadOnlyList<Merchant>> GetAllAsync(CancellationToken ct = default)
         => await _db.Merchants.OrderBy(m => m.Name).ToListAsync(ct);
 
+    public async Task<IReadOnlyList<Merchant>> GetByUserIdAsync(Guid userId, CancellationToken ct = default)
+        => await _db.Merchants.Where(m => m.UserId == userId).OrderBy(m => m.Name).ToListAsync(ct);
+
     public async Task AddAsync(Merchant merchant, CancellationToken ct = default)
         => await _db.Merchants.AddAsync(merchant, ct);
 
