@@ -31,10 +31,13 @@ export function downloadBlob(blob: Blob, filename: string) {
 
 export function getStatusColor(status: string) {
   switch (status.toLowerCase()) {
-    case 'signed':   return 'bg-green-100 text-green-700';
-    case 'pending':  return 'bg-yellow-100 text-yellow-700';
-    case 'expired':  return 'bg-red-100 text-red-700';
-    case 'cancelled':return 'bg-gray-100 text-gray-600';
-    default:         return 'bg-blue-100 text-blue-700';
+    case 'completed': return 'bg-green-100 text-green-700';
+    case 'signed':    return 'bg-green-100 text-green-700';
+    case 'sent':      return 'bg-blue-100 text-blue-700';
+    case 'inprogress':return 'bg-yellow-100 text-yellow-700';
+    case 'pending':   return 'bg-yellow-100 text-yellow-700';
+    case 'cancelled': return 'bg-gray-100 text-gray-600';
+    case 'expired':   return 'bg-red-100 text-red-700';
+    default:          return 'bg-gray-100 text-gray-600';
   }
 }

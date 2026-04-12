@@ -126,7 +126,7 @@ export interface EnvelopeSignedResponse {
   signers: SignerSignedSummary[];
 }
 
-export type EnvelopeStatus = 'Pending' | 'Signed' | 'Expired' | 'Cancelled';
+export type EnvelopeStatus = 'Sent' | 'InProgress' | 'Completed' | 'Cancelled';
 
 // ── Portal / Signing ──────────────────────────────────────────────────────────
 

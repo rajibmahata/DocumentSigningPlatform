@@ -14,7 +14,7 @@ import type { InitiateEnvelopeResponse } from '@/types';
 
 export default function EnvelopesPage() {
   const { user } = useAuth();
-  const [tab, setTab] = useState<'pending' | 'signed'>('pending');
+  const [tab, setTab] = useState<'active' | 'completed'>('active');
 
   const { data: merchants } = useQuery({
     queryKey: ['merchants', user?.id],
@@ -30,7 +30,9 @@ export default function EnvelopesPage() {
   });
 
   const filtered = envelopes?.filter((e) =>
-    tab === 'pending' ? e.status === 'Pending' : e.status === 'Signed',
+    tab === 'active'
+      ? e.status === 'Sent' || e.status === 'InProgress'
+      : e.status === 'Completed',
   ) ?? [];
 
   return (
@@ -42,12 +44,12 @@ export default function EnvelopesPage() {
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
         <TabsList>
-          <TabsTrigger value="pending">
+          <TabsTrigger value="active">
             <Clock className="h-4 w-4 mr-1.5" />
-            Pending ({envelopes?.filter((e) => e.status === 'Pending').length ?? 0})
+            Active ({envelopes?.filter((e) => e.status === 'Sent' || e.status === 'InProgress').length ?? 0})
           </TabsTrigger>
-          <TabsTrigger value="signed">
-            Signed ({envelopes?.filter((e) => e.status === 'Signed').length ?? 0})
+          <TabsTrigger value="completed">
+            Completed ({envelopes?.filter((e) => e.status === 'Completed').length ?? 0})
           </TabsTrigger>
         </TabsList>
 
@@ -59,8 +61,8 @@ export default function EnvelopesPage() {
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <FileText className="h-10 w-10 text-gray-300 mb-3" />
-              <p className="text-sm text-gray-500">No {tab} envelopes.</p>
-              {tab === 'pending' && (
+              <p className="text-sm text-gray-500">No {tab === 'active' ? 'active' : 'completed'} envelopes.</p>
+              {tab === 'active' && (
                 <Button size="sm" className="mt-4" asChild>
                   <Link href="/dashboard/send">Send Envelope</Link>
                 </Button>
@@ -84,11 +86,11 @@ function EnvelopeCard({
 }: {
   env: InitiateEnvelopeResponse;
   apiKey: string;
-  tab: string;
+  tab: 'active' | 'completed';
 }) {
   const handleViewSigned = async () => {
     try {
-      const res = await envelopeApi.getById(apiKey, env.envelopeId);
+      const res = await envelopeApi.getSignedDocuments(apiKey, env.envelopeId);
       const signed = res.data.signers.find((s) => s.signedDocumentBase64);
       if (signed?.signedDocumentBase64) {
         const blob = base64ToBlob(signed.signedDocumentBase64, signed.signedDocumentType ?? 'application/pdf');
@@ -127,7 +129,7 @@ function EnvelopeCard({
           <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusColor(env.status)}`}>
             {env.status}
           </span>
-          {tab === 'signed' ? (
+          {tab === 'completed' ? (
             <Button size="sm" variant="outline" onClick={handleViewSigned}>
               <Download className="h-3.5 w-3.5" /> Download
             </Button>

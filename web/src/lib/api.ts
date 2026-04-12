@@ -88,7 +88,11 @@ export const envelopeApi = {
       headers: { 'X-Api-Key': apiKey },
     }),
   getById: (apiKey: string, id: string) =>
-    apiClient.get<EnvelopeSignedResponse>(`/envelopes/${id}`, {
+    apiClient.get<InitiateEnvelopeResponse>(`/envelopes/${id}`, {
+      headers: { 'X-Api-Key': apiKey },
+    }),
+  getSignedDocuments: (apiKey: string, id: string) =>
+    apiClient.get<EnvelopeSignedResponse>(`/envelopes/${id}/signed-documents`, {
       headers: { 'X-Api-Key': apiKey },
     }),
 };
