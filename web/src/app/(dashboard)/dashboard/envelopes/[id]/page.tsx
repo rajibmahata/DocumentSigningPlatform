@@ -6,7 +6,7 @@ import { merchantApi, envelopeApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { getStatusColor, base64ToBlob, downloadBlob } from '@/lib/utils';
+import { getStatusColor, base64ToBlob, downloadBlob, resolveDocMimeType } from '@/lib/utils';
 import { FileText, Download, ArrowLeft, User } from 'lucide-react';
 import Link from 'next/link';
 import type { EnvelopeSignedResponse } from '@/types';
@@ -29,8 +29,9 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
   });
 
   const handleDownload = (base64: string, mimeType: string, name: string) => {
-    const blob = base64ToBlob(base64, mimeType);
-    downloadBlob(blob, `signed_${name.replace(/\s+/g, '_')}_${id}.pdf`);
+    const blob = base64ToBlob(base64, resolveDocMimeType(mimeType));
+    const ext = resolveDocMimeType(mimeType).includes('pdf') ? 'pdf' : mimeType;
+    downloadBlob(blob, `signed_${name.replace(/\s+/g, '_')}_${id}.${ext}`);
   };
 
   if (merchantsPending || envelopePending) {

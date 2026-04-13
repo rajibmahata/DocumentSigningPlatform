@@ -20,6 +20,16 @@ export function base64ToBlob(base64: string, contentType: string): Blob {
   return new Blob([byteArray], { type: contentType });
 }
 
+/** Convert short type strings returned by the API ('pdf', 'docx', 'doc') to full MIME types. */
+export function resolveDocMimeType(type: string | undefined | null): string {
+  switch ((type ?? '').toLowerCase()) {
+    case 'pdf':  return 'application/pdf';
+    case 'docx': return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    case 'doc':  return 'application/msword';
+    default:     return type || 'application/pdf';
+  }
+}
+
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

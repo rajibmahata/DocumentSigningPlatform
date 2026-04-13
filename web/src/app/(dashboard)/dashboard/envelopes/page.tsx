@@ -7,7 +7,7 @@ import { merchantApi, envelopeApi } from '@/lib/api';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { formatDate, getStatusColor, base64ToBlob, downloadBlob } from '@/lib/utils';
+import { formatDate, getStatusColor, base64ToBlob, downloadBlob, resolveDocMimeType } from '@/lib/utils';
 import { FileText, Download, ExternalLink, Clock } from 'lucide-react';
 import Link from 'next/link';
 import type { InitiateEnvelopeResponse } from '@/types';
@@ -93,8 +93,10 @@ function EnvelopeCard({
       const res = await envelopeApi.getSignedDocuments(apiKey, env.envelopeId);
       const signed = res.data.signers.find((s) => s.signedDocumentBase64);
       if (signed?.signedDocumentBase64) {
-        const blob = base64ToBlob(signed.signedDocumentBase64, signed.signedDocumentType ?? 'application/pdf');
-        downloadBlob(blob, `signed_${env.title}.pdf`);
+        const mimeType = resolveDocMimeType(signed.signedDocumentType);
+        const ext = mimeType.includes('pdf') ? 'pdf' : signed.signedDocumentType ?? 'pdf';
+        const blob = base64ToBlob(signed.signedDocumentBase64, mimeType);
+        downloadBlob(blob, `signed_${env.title}.${ext}`);
       }
     } catch {
       // handled by global error
