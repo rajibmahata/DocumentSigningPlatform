@@ -15,7 +15,7 @@ export function SignatureInstructions() {
               </h3>
               <p className="mt-1 text-sm text-amber-800">
                 Your PDF documents <strong>must contain</strong> these exact placeholder strings so
-                SignFlow can locate where to embed the signature and date.
+                DocSignerHub can locate where to embed the signature and date.
               </p>
 
               <div className="mt-5 grid gap-4 sm:grid-cols-2">

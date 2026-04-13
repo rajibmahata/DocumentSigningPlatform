@@ -104,7 +104,46 @@ jobs:
           Set-Content -Path "${{ github.workspace }}\${{ env.WEB_DIR }}\.next\standalone\web.config" -Value $webConfig -Encoding UTF8
           Write-Host "web.config written."
 
-      # ── 7. Create iisnode log directory ──────────────────────────────────────
+      # ── 7. Overwrite standalone server.js ────────────────────────────────────
+      #   Next.js standalone generates server.js with parseInt(PORT) which
+      #   returns NaN when IISNode passes a named-pipe path in PORT.
+      #   We replace it so PORT is passed directly to .listen(), which accepts
+      #   both TCP port numbers and Windows named-pipe paths.
+      - name: Overwrite server.js for IISNode named-pipe support
+        shell: pwsh
+        run: |
+          $serverJs = @'
+          'use strict';
+          const path    = require('path');
+          const http    = require('http');
+          const { parse } = require('url');
+          const next    = require(path.join(__dirname, 'node_modules', 'next'));
+
+          const dev    = false;
+          // IISNode sets PORT to a named-pipe path (e.g. \\.\pipe\...)
+          // Do NOT parseInt — pass the value directly so http.Server can bind
+          // to either a TCP port number or a named pipe.
+          const port   = process.env.PORT || 3000;
+          const app    = next({ dev, dir: __dirname });
+          const handle = app.getRequestHandler();
+
+          app.prepare().then(() => {
+            http.createServer((req, res) => {
+              const parsedUrl = parse(req.url, true);
+              handle(req, res, parsedUrl);
+            }).listen(port, (err) => {
+              if (err) throw err;
+              console.log('> Ready on ' + port);
+            });
+          }).catch((err) => {
+            console.error('Failed to start Next.js:', err);
+            process.exit(1);
+          });
+          '@
+          Set-Content -Path "${{ github.workspace }}\${{ env.WEB_DIR }}\.next\standalone\server.js" -Value $serverJs -Encoding UTF8
+          Write-Host "server.js overwritten for IISNode named-pipe support."
+
+      # ── 8. Create iisnode log directory ──────────────────────────────────────
       - name: Create iisnode log dir
         shell: pwsh
         run: |

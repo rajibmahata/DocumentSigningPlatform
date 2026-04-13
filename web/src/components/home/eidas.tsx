@@ -4,7 +4,7 @@ const POINTS = [
   {
     icon: ShieldCheck,
     title: 'Legally Valid Signatures',
-    desc: 'SignFlow produces Simple Electronic Signatures (SES) recognised under EU Regulation No 910/2014 (eIDAS). Signed documents are admissible as evidence in EU member state courts.',
+    desc: 'DocSignerHub produces Simple Electronic Signatures (SES) recognised under EU Regulation No 910/2014 (eIDAS). Signed documents are admissible as evidence in EU member state courts.',
   },
   {
     icon: FileLock,
@@ -34,7 +34,7 @@ export function EidasSection() {
           </div>
           <h2 className="text-3xl font-bold">Built for Legal Validity</h2>
           <p className="mt-3 text-brand-200 max-w-xl mx-auto">
-            SignFlow aligns with EU eIDAS guidelines to ensure your signed documents carry legal weight.
+            DocSignerHub aligns with EU eIDAS guidelines to ensure your signed documents carry legal weight.
           </p>
         </div>
 

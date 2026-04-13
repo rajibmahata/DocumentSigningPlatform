@@ -45,7 +45,7 @@ export function Hero() {
         </h1>
 
         <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-600 leading-relaxed">
-          SignFlow is an API-first, multi-tenant eSign SaaS. Send documents for signature, track
+          DocSignerHub is an API-first, multi-tenant eSign SaaS. Send documents for signature, track
           signing status in real time, and integrate with your own systems via our developer API.
         </p>
 
