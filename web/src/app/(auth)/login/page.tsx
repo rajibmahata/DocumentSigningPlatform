@@ -94,7 +94,7 @@ export default function LoginPage() {
           <FileSignature className="h-6 w-6" />
         </div>
         <CardTitle className="text-2xl">Welcome back</CardTitle>
-        <CardDescription>Sign in to your SignFlow account</CardDescription>
+        <CardDescription>Sign in to your DocSignerHub account</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">

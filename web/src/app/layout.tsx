@@ -7,8 +7,8 @@ import { NavigationProgress } from '@/components/layout/navigation-progress';
 
 export const metadata: Metadata = {
   title: {
-    default: 'SignFlow — eSign Platform',
-    template: '%s | SignFlow',
+    default: 'DocSignerHub — eSign Platform',
+    template: '%s | DocSignerHub',
   },
   description:
     'Legally binding electronic signature platform. eIDAS compliant. API-first multi-tenant SaaS.',

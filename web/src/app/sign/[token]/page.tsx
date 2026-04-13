@@ -97,7 +97,7 @@ export default function SignPage() {
       {/* Header */}
       <header className="sticky top-0 z-10 border-b border-gray-200 bg-white px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2 font-bold text-brand-700 text-lg">
-          <FileText className="h-5 w-5" /> SignFlow
+          <FileText className="h-5 w-5" /> DocSignerHub
         </div>
         <p className="text-sm text-gray-500 truncate max-w-xs">{preview?.documentFileName}</p>
       </header>
