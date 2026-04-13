@@ -395,6 +395,45 @@
     },
 
     {
+      "name": "Analytics",
+      "description": "Platform-wide analytics and trend data. Requires `Authorization: Bearer <jwt>` with **Admin** role.",
+      "item": [
+
+        {
+          "name": "Platform Summary",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/analytics/summary", "host": ["{{baseUrl}}"], "path": ["api","analytics","summary"] },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED – Admin JWT" }
+            ],
+            "description": "Returns total counts for users, envelopes sent, envelopes completed, envelopes cancelled, and documents signed across the platform.\n\n**Response fields**\n| Field | Type | Notes |\n|---|---|---|\n| `totalUsers` | int | All registered users |\n| `totalEnvelopesSent` | int | All envelopes created |\n| `totalEnvelopesSigned` | int | Envelopes with status Completed |\n| `totalEnvelopesCancelled` | int | Envelopes with status Cancelled |\n| `totalDocumentsSigned` | int | Individual signed document records |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Daily Trends",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/analytics/trends?days=30",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","analytics","trends"],
+              "query": [{ "key": "days", "value": "30", "description": "OPTIONAL – number of days to look back (7–90, default 30)" }]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED – Admin JWT" }
+            ],
+            "description": "Returns daily activity counts for user registrations, envelopes sent, and documents signed over the specified period.\n\n| Query param | Type | Required | Notes |\n|---|---|---|---|\n| `days` | int | ❌ | Look-back window: 7–90 days. Default 30. |\n\n**Response fields**\n| Field | Type | Notes |\n|---|---|---|\n| `userRegistrations` | DailyCount[] | New user sign-ups per day |\n| `envelopesSent` | DailyCount[] | Envelopes created per day |\n| `documentsSigned` | DailyCount[] | Documents signed per day |\n\n**DailyCount shape:** `{ \"date\": \"2026-03-15\", \"count\": 3 }`"
+          },
+          "response": []
+        }
+
+      ]
+    },
+
+    {
       "name": "Users",
       "description": "User profile management. Requires `Authorization: Bearer <jwt>`. Admin-only endpoints noted.",
       "item": [

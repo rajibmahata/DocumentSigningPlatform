@@ -1,12 +1,14 @@
 using DocumentSigning.Core.DTOs;
 using DocumentSigning.Core.Entities;
 using DocumentSigning.Core.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DocumentSigning.Api.Controllers;
 
 [ApiController]
 [Route("api/merchants")]
+[Authorize]
 public class MerchantController : ControllerBase
 {
     private readonly IMerchantRepository _merchantRepo;
@@ -49,6 +51,7 @@ public class MerchantController : ControllerBase
 
     /// <summary>Returns all merchants (admin use).</summary>
     [HttpGet]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(IReadOnlyList<MerchantResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll(CancellationToken ct)
     {
@@ -75,8 +78,9 @@ public class MerchantController : ControllerBase
         return merchant is null ? NotFound() : Ok(ToResponse(merchant));
     }
 
-    /// <summary>Updates merchant settings (name, description, limit, active flag, subscription end).</summary>
+    /// <summary>Updates merchant settings (name, description, limit, active flag, subscription end). Requires Admin role.</summary>
     [HttpPut("{id:guid}")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(MerchantResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -102,8 +106,9 @@ public class MerchantController : ControllerBase
         return Ok(ToResponse(merchant));
     }
 
-    /// <summary>Regenerates the API key for a merchant.</summary>
+    /// <summary>Regenerates the API key for a merchant. Requires Admin role.</summary>
     [HttpPost("{id:guid}/regenerate-key")]
+    [Authorize(Roles = "Admin")]
     [ProducesResponseType(typeof(MerchantResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RegenerateKey(Guid id, CancellationToken ct)

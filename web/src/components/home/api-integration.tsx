@@ -66,7 +66,7 @@ export function ApiIntegration() {
     "signers": [{
       "name": "John Doe",
       "email": "john@example.com",
-      "role": "signer1",
+      "role": "signer",
       "order": 1,
       "message": "Please sign the contract."
     }]

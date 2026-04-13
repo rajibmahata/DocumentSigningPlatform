@@ -42,6 +42,7 @@ export interface UserResponse {
 
 export interface UpdateUserRequest {
   name?: string;
+  accessRole?: AccessRole;
 }
 
 // ── Merchant ──────────────────────────────────────────────────────────────────
@@ -51,6 +52,14 @@ export interface CreateMerchantRequest {
   name: string;
   description?: string;
   requestLimit?: number;
+}
+
+export interface UpdateMerchantRequest {
+  name?: string;
+  description?: string;
+  isActive: boolean;
+  requestLimit: number;
+  subscriptionEnd?: string;
 }
 
 export interface MerchantResponse {
@@ -129,6 +138,32 @@ export interface EnvelopeSignedResponse {
 export type EnvelopeStatus = 'Sent' | 'InProgress' | 'Completed' | 'Cancelled';
 
 // ── Portal / Signing ──────────────────────────────────────────────────────────
+
+export interface PlatformStats {
+  documentsSent: number;
+  documentsSigned: number;
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+
+export interface DailyCount {
+  date: string;
+  count: number;
+}
+
+export interface AnalyticsSummary {
+  totalUsers: number;
+  totalEnvelopesSent: number;
+  totalEnvelopesSigned: number;
+  totalEnvelopesCancelled: number;
+  totalDocumentsSigned: number;
+}
+
+export interface AnalyticsTrends {
+  userRegistrations: DailyCount[];
+  envelopesSent: DailyCount[];
+  documentsSigned: DailyCount[];
+}
 
 export interface DocumentPreviewResponse {
   documentBase64: string;

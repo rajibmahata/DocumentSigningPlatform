@@ -55,21 +55,29 @@ import type { UserResponse, UpdateUserRequest } from '@/types';
 export const userApi = {
   getMe: (id: string) =>
     apiClient.get<UserResponse>(`/users/${id}`),
+  getAll: () =>
+    apiClient.get<UserResponse[]>('/users'),
   update: (id: string, data: UpdateUserRequest) =>
     apiClient.put<UserResponse>(`/users/${id}`, data),
 };
 
 // ── Merchant ──────────────────────────────────────────────────────────────────
 
-import type { CreateMerchantRequest, MerchantResponse } from '@/types';
+import type { CreateMerchantRequest, UpdateMerchantRequest, MerchantResponse } from '@/types';
 
 export const merchantApi = {
   create: (data: CreateMerchantRequest) =>
     apiClient.post<MerchantResponse>('/merchants', data),
+  getAll: () =>
+    apiClient.get<MerchantResponse[]>('/merchants'),
   getByUser: (userId: string) =>
     apiClient.get<MerchantResponse[]>(`/merchants/by-user/${userId}`),
   getById: (id: string) =>
     apiClient.get<MerchantResponse>(`/merchants/${id}`),
+  update: (id: string, data: UpdateMerchantRequest) =>
+    apiClient.put<MerchantResponse>(`/merchants/${id}`, data),
+  regenerateKey: (id: string) =>
+    apiClient.post<MerchantResponse>(`/merchants/${id}/regenerate-key`),
 };
 
 // ── Envelope ──────────────────────────────────────────────────────────────────
@@ -99,11 +107,22 @@ export const envelopeApi = {
 
 // ── Portal ────────────────────────────────────────────────────────────────────
 
-import type { DocumentPreviewResponse, SubmitSignatureRequest } from '@/types';
+import type { AnalyticsSummary, AnalyticsTrends, DocumentPreviewResponse, PlatformStats, SubmitSignatureRequest } from '@/types';
 
 export const portalApi = {
   validate: (token: string) =>
     apiClient.get<DocumentPreviewResponse>(`/portal/validate/${token}`),
   submit: (token: string, data: SubmitSignatureRequest) =>
     apiClient.post(`/portal/submit/${token}`, data),
+  getStats: () =>
+    apiClient.get<PlatformStats>('/portal/stats'),
+};
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+
+export const analyticsApi = {
+  getSummary: () =>
+    apiClient.get<AnalyticsSummary>('/analytics/summary'),
+  getTrends: (days = 30) =>
+    apiClient.get<AnalyticsTrends>(`/analytics/trends?days=${days}`),
 };

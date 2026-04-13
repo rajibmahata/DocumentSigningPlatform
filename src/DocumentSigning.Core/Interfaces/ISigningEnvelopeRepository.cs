@@ -10,4 +10,7 @@ public interface ISigningEnvelopeRepository
     Task AddAsync(SigningEnvelope envelope, CancellationToken ct = default);
     Task UpdateAsync(SigningEnvelope envelope, CancellationToken ct = default);
     Task SaveChangesAsync(CancellationToken ct = default);
+    Task<int> CountAllAsync(CancellationToken ct = default);
+    Task<int> CountByStatusAsync(Core.Enums.EnvelopeStatus status, CancellationToken ct = default);
+    Task<List<(DateOnly Date, int Count)>> CountByDayAsync(int days, CancellationToken ct = default);
 }

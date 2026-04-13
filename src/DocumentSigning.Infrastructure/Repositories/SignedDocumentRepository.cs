@@ -38,4 +38,7 @@ public class SignedDocumentRepository : ISignedDocumentRepository
 
     public async Task SaveChangesAsync(CancellationToken ct = default)
         => await _db.SaveChangesAsync(ct);
+
+    public async Task<int> CountAllAsync(CancellationToken ct = default)
+        => await _db.SignedDocuments.CountAsync(ct);
 }

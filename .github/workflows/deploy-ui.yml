@@ -1,0 +1,158 @@
+name: Deploy UI to Production
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+env:
+  WEB_DIR: web
+
+jobs:
+  deploy:
+    name: Build & Deploy Next.js UI
+    runs-on: windows-latest
+    environment: production
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Node.js setup ─────────────────────────────────────────────────────
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      # ── 3. Install dependencies ───────────────────────────────────────────────
+      - name: Install dependencies
+        working-directory: ${{ env.WEB_DIR }}
+        run: npm ci
+
+      # ── 4. Build Next.js ──────────────────────────────────────────────────────
+      #   .env.production is committed and sets NEXT_PUBLIC_API_URL automatically.
+      #   The secret overrides it if set, allowing per-environment CI overrides.
+      - name: Build Next.js (production)
+        working-directory: ${{ env.WEB_DIR }}
+        env:
+          NODE_ENV: production
+        run: npm run build
+
+      # ── 5. Write web.config for IISNode ──────────────────────────────────────
+      #   IISNode routes all requests through server.js (Next.js custom server).
+      #   site4now shared hosting supports IISNode + Node 20.
+      - name: Write web.config
+        shell: pwsh
+        run: |
+          $webConfig = @'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <system.webServer>
+              <handlers>
+                <add name="iisnode" path="server.js" verb="*" modules="iisnode" />
+              </handlers>
+              <rewrite>
+                <rules>
+                  <rule name="NextJS" stopProcessing="true">
+                    <match url=".*" />
+                    <conditions logicalGrouping="MatchAll">
+                      <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="true" />
+                    </conditions>
+                    <action type="Rewrite" url="server.js" />
+                  </rule>
+                </rules>
+              </rewrite>
+              <iisnode
+                nodeProcessCommandLine="node.exe"
+                loggingEnabled="true"
+                logDirectory="iisnode"
+                debuggingEnabled="false" />
+              <security>
+                <requestFiltering>
+                  <hiddenSegments>
+                    <add segment="node_modules" />
+                    <add segment=".next" />
+                    <add segment=".env" />
+                    <add segment=".env.local" />
+                  </hiddenSegments>
+                </requestFiltering>
+              </security>
+            </system.webServer>
+          </configuration>
+          '@
+          Set-Content -Path "${{ github.workspace }}\${{ env.WEB_DIR }}\web.config" -Value $webConfig -Encoding UTF8
+          Write-Host "web.config written."
+
+      # ── 6. Write custom server.js ─────────────────────────────────────────────
+      #   IISNode entry point — starts Next.js on the port IIS assigns via
+      #   the PORT environment variable.
+      - name: Write server.js
+        shell: pwsh
+        run: |
+          $serverJs = @'
+          const { createServer } = require('http');
+          const { parse } = require('url');
+          const next = require('next');
+
+          const dev  = false;
+          const port = process.env.PORT || 3000;
+          const app  = next({ dev });
+          const handle = app.getRequestHandler();
+
+          app.prepare().then(() => {
+            createServer((req, res) => {
+              const parsedUrl = parse(req.url, true);
+              handle(req, res, parsedUrl);
+            }).listen(port, () => {
+              console.log(`> Ready on port ${port}`);
+            });
+          });
+          '@
+          Set-Content -Path "${{ github.workspace }}\${{ env.WEB_DIR }}\server.js" -Value $serverJs -Encoding UTF8
+          Write-Host "server.js written."
+
+      # ── 7. (skipped) .env.local not needed — .env.production is committed ──────
+
+      # ── 8. Deploy via Web Deploy (MSDeploy) ───────────────────────────────────
+      - name: Deploy via Web Deploy (MSDeploy)
+        shell: pwsh
+        env:
+          MSDEPLOY_PASSWORD: ${{ secrets.MSDEPLOY_PASSWORD }}
+        run: |
+          $msdeploy = "C:\Program Files\IIS\Microsoft Web Deploy V3\msdeploy.exe"
+          if (-not (Test-Path $msdeploy)) {
+            Write-Host "MSDeploy not found – installing via Chocolatey..."
+            choco install webdeploy --no-progress -y | Out-Null
+          }
+
+          $publishDir  = "${{ github.workspace }}\${{ env.WEB_DIR }}"
+          $destParams  = "computerName=`"https://win1069.site4now.net:8172/msdeploy.axd?site=rajibmahata143-001-site2`""
+          $destParams += ",userName=`"rajibmahata143-001`""
+          $destParams += ",password=`"$env:MSDEPLOY_PASSWORD`""
+          $destParams += ",authtype=`"Basic`""
+          $destParams += ",includeAcls=`"False`""
+
+          # Skip source-control and local-only folders
+          $skip1 = "-skip:objectName=dirPath,absolutePath=\\\.git"
+          $skip2 = "-skip:objectName=dirPath,absolutePath=\\\node_modules\\\.cache"
+
+          & $msdeploy `
+            -verb:sync `
+            "-source:contentPath=$publishDir" `
+            "-dest:contentPath=rajibmahata143-001-site2,$destParams" `
+            $skip1 `
+            $skip2 `
+            -allowUntrusted `
+            -enableRule:AppOffline `
+            -retryAttempts:3 `
+            -retryInterval:2000
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "MSDeploy failed with exit code $LASTEXITCODE"
+            exit $LASTEXITCODE
+          }
+          Write-Host "Deployment successful → http://rajibmahata143-001-site2.mtempurl.com/"

@@ -31,4 +31,19 @@ public class UserRepository : IUserRepository
 
     public Task SaveChangesAsync(CancellationToken ct = default)
         => _db.SaveChangesAsync(ct);
+
+    public async Task<int> CountAllAsync(CancellationToken ct = default)
+        => await _db.Users.CountAsync(ct);
+
+    public async Task<List<(DateOnly Date, int Count)>> CountByDayAsync(int days, CancellationToken ct = default)
+    {
+        var since = DateTime.UtcNow.Date.AddDays(-(days - 1));
+        var rows = await _db.Users
+            .Where(u => u.CreatedAt >= since)
+            .GroupBy(u => u.CreatedAt.Date)
+            .Select(g => new { Date = g.Key, Count = g.Count() })
+            .OrderBy(x => x.Date)
+            .ToListAsync(ct);
+        return rows.Select(r => (DateOnly.FromDateTime(r.Date), r.Count)).ToList();
+    }
 }

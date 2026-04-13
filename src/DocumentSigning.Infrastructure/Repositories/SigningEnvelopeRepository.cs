@@ -42,4 +42,22 @@ public class SigningEnvelopeRepository : ISigningEnvelopeRepository
 
     public async Task SaveChangesAsync(CancellationToken ct = default)
         => await _db.SaveChangesAsync(ct);
+
+    public async Task<int> CountAllAsync(CancellationToken ct = default)
+        => await _db.SigningEnvelopes.CountAsync(ct);
+
+    public async Task<int> CountByStatusAsync(Core.Enums.EnvelopeStatus status, CancellationToken ct = default)
+        => await _db.SigningEnvelopes.CountAsync(e => e.Status == status, ct);
+
+    public async Task<List<(DateOnly Date, int Count)>> CountByDayAsync(int days, CancellationToken ct = default)
+    {
+        var since = DateTime.UtcNow.Date.AddDays(-(days - 1));
+        var rows = await _db.SigningEnvelopes
+            .Where(e => e.CreatedAt >= since)
+            .GroupBy(e => e.CreatedAt.Date)
+            .Select(g => new { Date = g.Key, Count = g.Count() })
+            .OrderBy(x => x.Date)
+            .ToListAsync(ct);
+        return rows.Select(r => (DateOnly.FromDateTime(r.Date), r.Count)).ToList();
+    }
 }

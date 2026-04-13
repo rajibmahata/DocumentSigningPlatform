@@ -264,6 +264,42 @@ curl -X PUT http://localhost:5163/api/users/<user-id> \
 
 ---
 
+## Analytics
+> All analytics endpoints require **`Authorization: Bearer <jwt>`** with **Admin** role.
+
+### Platform Summary  — counts for users, envelopes and signed documents
+```bash
+curl http://localhost:5163/api/analytics/summary \
+  -H "Authorization: Bearer <jwt>"
+```
+> Response:
+> ```json
+> {
+>   "totalUsers": 42,
+>   "totalEnvelopesSent": 130,
+>   "totalEnvelopesSigned": 98,
+>   "totalEnvelopesCancelled": 5,
+>   "totalDocumentsSigned": 211
+> }
+> ```
+
+### Daily Trends  ❌ Optional: days (default 30, max 90)
+```bash
+curl "http://localhost:5163/api/analytics/trends?days=30" \
+  -H "Authorization: Bearer <jwt>"
+```
+> Response:
+> ```json
+> {
+>   "userRegistrations": [{ "date": "2026-03-15", "count": 3 }, "..."],
+>   "envelopesSent":      [{ "date": "2026-03-15", "count": 8 }, "..."],
+>   "documentsSigned":    [{ "date": "2026-03-15", "count": 6 }, "..."]
+> }
+> ```
+> `days`: valid range 7–90. Returns one entry per day that had activity.
+
+---
+
 ## Quick Workflow (end-to-end test sequence)
 
 ```

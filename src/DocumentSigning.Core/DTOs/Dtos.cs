@@ -2,6 +2,22 @@ using DocumentSigning.Core.Enums;
 
 namespace DocumentSigning.Core.DTOs;
 
+// ── Analytics ─────────────────────────────────────────────────────────────────
+
+public record DailyCount(string Date, int Count);
+
+public record AnalyticsSummaryResponse(
+    int TotalUsers,
+    int TotalEnvelopesSent,
+    int TotalEnvelopesSigned,
+    int TotalEnvelopesCancelled,
+    int TotalDocumentsSigned);
+
+public record AnalyticsTrendResponse(
+    List<DailyCount> UserRegistrations,
+    List<DailyCount> EnvelopesSent,
+    List<DailyCount> DocumentsSigned);
+
 // ── Envelope / multi-signer initiate ─────────────────────────────────────────
 
 public record DocumentInput(
@@ -79,6 +95,10 @@ public record MerchantResponse(
     DateTime CreatedAt);
 
 // ── Portal / signing flow ─────────────────────────────────────────────────────
+
+public record PlatformStatsResponse(
+    int DocumentsSent,
+    int DocumentsSigned);
 
 public record DocumentPreviewResponse(
     string DocumentBase64,

@@ -22,17 +22,17 @@ export function SignatureInstructions() {
                 <div className="rounded-xl bg-white border border-amber-200 p-4">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Signature Field</p>
                   <code className="block rounded-lg bg-gray-900 text-green-400 px-4 py-3 text-sm font-mono break-all">
-                    {'{signature:signer1:Please+Sign+Here}'}
+                    {'{signature:signer:Please+Sign+Here}'}
                   </code>
                   <p className="mt-2 text-xs text-gray-500">
-                    Replace <code>signer1</code> with the signer&apos;s <strong>role</strong> value defined in your envelope request.
+                    Replace <code>signer</code> with the signer&apos;s <strong>role</strong> value defined in your envelope request.
                   </p>
                 </div>
 
                 <div className="rounded-xl bg-white border border-amber-200 p-4">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Date Field</p>
                   <code className="block rounded-lg bg-gray-900 text-blue-400 px-4 py-3 text-sm font-mono break-all">
-                    {'{date:signer1:Date+Here}'}
+                    {'{date:signer:Date+Here}'}
                   </code>
                   <p className="mt-2 text-xs text-gray-500">
                     The signing date is automatically populated when the signer submits.

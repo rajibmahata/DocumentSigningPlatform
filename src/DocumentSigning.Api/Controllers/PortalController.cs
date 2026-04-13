@@ -13,19 +13,25 @@ public class PortalController : ControllerBase
     private readonly IClaimRepository _claimRepo;
     private readonly IAuditLogRepository _auditRepo;
     private readonly ITokenService _tokenService;
+    private readonly ISigningEnvelopeRepository _envelopeRepo;
+    private readonly ISignedDocumentRepository _signedDocRepo;
 
     public PortalController(
         ISigningRequestRepository signingRequestRepo,
         IDocumentRepository docRepo,
         IClaimRepository claimRepo,
         IAuditLogRepository auditRepo,
-        ITokenService tokenService)
+        ITokenService tokenService,
+        ISigningEnvelopeRepository envelopeRepo,
+        ISignedDocumentRepository signedDocRepo)
     {
         _signingRequestRepo = signingRequestRepo;
         _docRepo = docRepo;
         _claimRepo = claimRepo;
         _auditRepo = auditRepo;
         _tokenService = tokenService;
+        _envelopeRepo = envelopeRepo;
+        _signedDocRepo = signedDocRepo;
     }
 
     /// <summary>
@@ -105,5 +111,18 @@ public class PortalController : ControllerBase
 
         Response.Headers.Append("Cache-Control", "no-store, no-cache");
         return File(doc.ContentBytes, doc.ContentType);
+    }
+
+    /// <summary>
+    /// Returns platform-wide stats: total envelopes sent and total documents signed.
+    /// Public endpoint — no authentication required.
+    /// </summary>
+    [HttpGet("stats")]
+    [ProducesResponseType(typeof(PlatformStatsResponse), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetStats(CancellationToken ct)
+    {
+        var sent   = await _envelopeRepo.CountAllAsync(ct);
+        var signed = await _signedDocRepo.CountAllAsync(ct);
+        return Ok(new PlatformStatsResponse(sent, signed));
     }
 }

@@ -1,8 +1,26 @@
+'use client';
+
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, ShieldCheck, Zap } from 'lucide-react';
+import { portalApi } from '@/lib/api';
 
 export function Hero() {
+  const [documentsSent,   setDocumentsSent]   = useState<number | null>(null);
+  const [documentsSigned, setDocumentsSigned] = useState<number | null>(null);
+
+  useEffect(() => {
+    portalApi.getStats()
+      .then(res => {
+        setDocumentsSent(res.data.documentsSent);
+        setDocumentsSigned(res.data.documentsSigned);
+      })
+      .catch(() => { /* silently ignore – stats are optional */ });
+  }, []);
+
+  const fmt = (n: number | null) => n === null ? '…' : n.toLocaleString();
+
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-brand-50 via-white to-blue-50 py-24 lg:py-32">
       {/* Background decoration */}
@@ -45,10 +63,10 @@ export function Hero() {
         {/* Stats */}
         <div className="mt-16 grid grid-cols-2 gap-6 sm:grid-cols-4">
           {[
-            { label: 'Documents Signed',   value: '10,000+' },
-            { label: 'API Uptime',          value: '99.9%'   },
-            { label: 'eIDAS Compliant',     value: '✓'       },
-            { label: 'Avg Sign Time',        value: '< 2 min' },
+            { label: 'Documents Sent',   value: fmt(documentsSent)   },
+            { label: 'Documents Signed', value: fmt(documentsSigned) },
+            { label: 'eIDAS Compliant',  value: '✓'                  },
+            { label: 'Avg Sign Time',    value: '< 2 min'            },
           ].map((s) => (
             <div key={s.label} className="rounded-2xl bg-white/80 border border-gray-100 p-4 shadow-sm">
               <div className="text-2xl font-bold text-brand-700">{s.value}</div>
