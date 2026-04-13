@@ -70,6 +70,48 @@ public class EmailService : IEmailService
         await SendAsync(adminEmail, "Admin", "Platform Alert", message, ct: ct);
     }
 
+    public async Task SendEmailVerificationAsync(
+        string toEmail, string toName, string verificationLink,
+        CancellationToken ct = default)
+    {
+        var subject = "Verify your email address";
+        var body = $"""
+            Dear {toName},
+
+            Thank you for registering. Please verify your email address by clicking the link below:
+            {verificationLink}
+
+            This link will expire in 24 hours.
+
+            If you did not register, please ignore this email.
+
+            Regards,
+            Document Signing Platform
+            """;
+
+        await SendAsync(toEmail, toName, subject, body, ct: ct);
+    }
+
+    public async Task SendPasswordResetAsync(
+        string toEmail, string toName, string resetLink,
+        CancellationToken ct = default)
+    {
+        var subject = "Reset your password";
+        var body = $"""
+            Dear {toName},
+
+            We received a request to reset your password. Click the link below to set a new password:
+            {resetLink}
+
+            This link will expire in 1 hour. If you did not request a password reset, please ignore this email.
+
+            Regards,
+            Document Signing Platform
+            """;
+
+        await SendAsync(toEmail, toName, subject, body, ct: ct);
+    }
+
     // ─── Internal helper ─────────────────────────────────────────────────────────
 
     private async Task SendAsync(

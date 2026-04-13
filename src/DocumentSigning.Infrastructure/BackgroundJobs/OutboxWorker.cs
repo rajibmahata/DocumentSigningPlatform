@@ -132,6 +132,22 @@ public class OutboxWorker : BackgroundService
                 await emailSvc.SendFirmNotificationAsync(payload.FirmEmail, payload.ClaimId, payload.ClaimantName, ct);
                 break;
             }
+            case JobTypes.SendVerificationEmail:
+            {
+                var payload = JsonSerializer.Deserialize<VerificationEmailPayload>(job.Payload, JsonOpts)
+                    ?? throw new InvalidOperationException("Null VerificationEmail payload.");
+                var emailSvc = sp.GetRequiredService<IEmailService>();
+                await emailSvc.SendEmailVerificationAsync(payload.To, payload.ToName, payload.VerificationLink, ct);
+                break;
+            }
+            case JobTypes.SendPasswordReset:
+            {
+                var payload = JsonSerializer.Deserialize<PasswordResetEmailPayload>(job.Payload, JsonOpts)
+                    ?? throw new InvalidOperationException("Null PasswordReset payload.");
+                var emailSvc = sp.GetRequiredService<IEmailService>();
+                await emailSvc.SendPasswordResetAsync(payload.To, payload.ToName, payload.ResetLink, ct);
+                break;
+            }
             default:
                 throw new NotSupportedException($"Unknown job type: {job.JobType}");
         }
@@ -142,8 +158,10 @@ public class OutboxWorker : BackgroundService
 /// <summary>Constants for job type strings in OutboxQueue.JobType.</summary>
 public static class JobTypes
 {
-    public const string SendEmail = "SendEmail";
-    public const string StampDoc = "StampDoc";
-    public const string SendConfirmation = "SendConfirmation";
-    public const string SendFirmNotification = "SendFirmNotification";
+    public const string SendEmail             = "SendEmail";
+    public const string StampDoc              = "StampDoc";
+    public const string SendConfirmation      = "SendConfirmation";
+    public const string SendFirmNotification  = "SendFirmNotification";
+    public const string SendVerificationEmail = "SendVerificationEmail";
+    public const string SendPasswordReset     = "SendPasswordReset";
 }

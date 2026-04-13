@@ -1,0 +1,498 @@
+{
+  "info": {
+    "name": "Document Signing Platform",
+    "description": "Full API collection for the Document Signing Platform.\n\n## Authentication\n- **Auth endpoints** – no auth required\n- **User / Envelope endpoints** – require `Authorization: Bearer <jwt>` (obtain from `/api/auth/login`)\n- **Merchant / Envelope endpoints** – require `X-Api-Key: <merchant-api-key>` (returned when merchant is created)\n- **Portal endpoints** – token is embedded in the URL path\n\n## Variables\nSet these collection variables before running:\n| Variable | Description |\n|---|---|\n| `baseUrl` | e.g. `http://localhost:5163` |\n| `jwtToken` | Bearer JWT from login |\n| `merchantApiKey` | API key from create-merchant |\n| `merchantId` | GUID from create-merchant |\n| `envelopeId` | GUID from create-envelope |\n| `signingToken` | Token from signing invitation email |\n| `userId` | GUID from login JWT `sub` claim |",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "dsp-collection-v1"
+  },
+  "variable": [
+    { "key": "baseUrl",        "value": "http://localhost:5163", "type": "string" },
+    { "key": "jwtToken",       "value": "",                      "type": "string" },
+    { "key": "merchantApiKey", "value": "",                      "type": "string" },
+    { "key": "merchantId",     "value": "",                      "type": "string" },
+    { "key": "envelopeId",     "value": "",                      "type": "string" },
+    { "key": "signingToken",   "value": "",                      "type": "string" },
+    { "key": "userId",         "value": "",                      "type": "string" }
+  ],
+  "item": [
+
+    {
+      "name": "Auth",
+      "description": "Registration, login, email verification, password reset. No API key or JWT required.",
+      "item": [
+
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api","auth","register"] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Rajib Mahata\",\n  \"email\": \"rajibmahata3@gmail.com\",\n  \"password\": \"Password1\",\n  \"country\": \"INDIA\",\n  \"accessRole\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Creates a new user account and sends a verification email.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `name` | string | ✅ | Full display name |\n| `email` | string | ✅ | Must be unique |\n| `password` | string | ✅ | Min 8 chars, upper + lower + digit |\n| `country` | string | ❌ | ISO country code |\n| `accessRole` | string | ❌ | `\"User\"` (default) or `\"Admin\"` |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.token) {",
+                  "  pm.collectionVariables.set('jwtToken', json.token);",
+                  "  console.log('JWT saved to collection variable jwtToken');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api","auth","login"] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"rajibmahata3@gmail.com\",\n  \"password\": \"Password1\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Authenticates the user and returns a JWT. The test script auto-saves the token to the `jwtToken` collection variable.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `email` | string | ✅ | Registered email |\n| `password` | string | ✅ | Account password |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Verify Email",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify-email/:token",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","auth","verify-email",":token"],
+              "variable": [{ "key": "token", "value": "PASTE_VERIFICATION_TOKEN_FROM_EMAIL" }]
+            },
+            "description": "Confirms the user's email address.\n\n| Param | Location | Required | Notes |\n|---|---|---|---|\n| `token` | URL path | ✅ | From verification email link |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/auth/forgot-password", "host": ["{{baseUrl}}"], "path": ["api","auth","forgot-password"] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"rajibmahata3@gmail.com\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Sends a password-reset link. Always returns 200 to prevent user enumeration.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `email` | string | ✅ | Registered email |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/auth/reset-password", "host": ["{{baseUrl}}"], "path": ["api","auth","reset-password"] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"PASTE_RESET_TOKEN_FROM_EMAIL\",\n  \"newPassword\": \"NewSecret1!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Resets the account password using the token from the email link.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `token` | string | ✅ | From password-reset email link |\n| `newPassword` | string | ✅ | Min 8 chars, upper + lower + digit |"
+          },
+          "response": []
+        }
+
+      ]
+    },
+
+    {
+      "name": "Merchants",
+      "description": "Manage merchant accounts. A default merchant is auto-created on registration (if the user has none). Users can create additional merchant accounts via POST /api/merchants.",
+      "item": [
+
+        {
+          "name": "Create Merchant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) {",
+                  "  pm.collectionVariables.set('merchantId', json.id);",
+                  "  pm.collectionVariables.set('merchantApiKey', json.apiKey);",
+                  "  console.log('merchantId and merchantApiKey saved');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/merchants", "host": ["{{baseUrl}}"], "path": ["api","merchants"] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"name\": \"Second Workspace\",\n  \"description\": \"For invoicing clients\",\n  \"requestLimit\": 100\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Creates a new merchant account for a user. Users can create multiple merchant accounts. Returns 201 with the new merchant (including `id` and `apiKey`). The test script saves `merchantId` and `merchantApiKey` to collection variables.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `userId` | UUID | ✅ | Owner's user GUID (from login JWT `sub` claim) |\n| `name` | string | ✅ | Merchant display name |\n| `description` | string | ❌ | Optional description |\n| `requestLimit` | int | ❌ | 0 = unlimited; default 100; must be >= 0 |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Get All Merchants (Admin)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/merchants", "host": ["{{baseUrl}}"], "path": ["api","merchants"] },
+            "description": "Returns a list of all merchants (admin use)."
+          },
+          "response": []
+        },
+
+        {
+          "name": "Get Merchants by User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (Array.isArray(json) && json.length > 0) {",
+                  "  pm.collectionVariables.set('merchantId', json[0].id);",
+                  "  pm.collectionVariables.set('merchantApiKey', json[0].apiKey);",
+                  "  console.log('merchantId and merchantApiKey saved from first result');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/merchants/by-user/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","merchants","by-user","{{userId}}"]
+            },
+            "description": "Returns all merchant accounts belonging to a user. The test script auto-saves the first result's `id` and `apiKey` to collection variables.\n\n| Param | Location | Required | Notes |\n|---|---|---|---|\n| `userId` | URL path | ✅ | User GUID from login JWT `sub` claim |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Get Merchant by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/merchants/{{merchantId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","merchants","{{merchantId}}"]
+            },
+            "description": "Returns a single merchant by GUID.\n\n| Param | Location | Required | Notes |\n|---|---|---|---|\n| `id` | URL path | ✅ | Merchant GUID |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Update Merchant",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/merchants/{{merchantId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","merchants","{{merchantId}}"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Acme Corp Updated\",\n  \"description\": \"Primary signing workspace\",\n  \"isActive\": true,\n  \"requestLimit\": 500,\n  \"subscriptionEnd\": \"2027-12-31T23:59:59Z\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Updates merchant settings.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `name` | string | ❌ | Keeps current if omitted |\n| `description` | string | ❌ | Keeps current if omitted |\n| `isActive` | bool | ✅ | `true` to enable, `false` to suspend |\n| `requestLimit` | int | ✅ | 0 = unlimited; must be >= 0 |\n| `subscriptionEnd` | datetime | ❌ | ISO-8601 UTC; null = no expiry |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Regenerate API Key",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/merchants/{{merchantId}}/regenerate-key",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","merchants","{{merchantId}}","regenerate-key"]
+            },
+            "description": "Issues a new API key for the merchant. The old key is invalidated immediately.\n\n| Param | Location | Required | Notes |\n|---|---|---|---|\n| `id` | URL path | ✅ | Merchant GUID |"
+          },
+          "response": []
+        }
+
+      ]
+    },
+
+    {
+      "name": "Envelopes",
+      "description": "Multi-signer signing envelopes. All requests require `X-Api-Key` (merchant API key).",
+      "item": [
+
+        {
+          "name": "Create Envelope",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.envelopeId) {",
+                  "  pm.collectionVariables.set('envelopeId', json.envelopeId);",
+                  "  console.log('envelopeId saved: ' + json.envelopeId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/envelopes", "host": ["{{baseUrl}}"], "path": ["api","envelopes"] },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Api-Key",    "value": "{{merchantApiKey}}", "description": "Merchant API Key (REQUIRED)" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Service Agreement – Q1 2026\",\n  \"merchantId\": \"{{merchantId}}\",\n  \"documents\": [\n    {\n      \"documentTitle\": \"Service Agreement\",\n      \"documentFileName\": \"service-agreement.pdf\",\n      \"documentBase64\": \"JVBERi0xLjQKJcOkw7zDtsOfCjIgMCBvYmoKPDwgL0xlbmd0aCAzIDAgUiAvRmlsdGVyIC9GbGF0ZURlY29kZSA+PgpzdHJlYW0KeJxjYGBg\",\n      \"documentContentType\": \"application/pdf\"\n    }\n  ],\n  \"signers\": [\n    {\n      \"name\": \"Bob Jones\",\n      \"email\": \"bob@example.com\",\n      \"role\": \"Signer\",\n      \"order\": 1,\n      \"message\": \"Please review and sign the attached service agreement.\"\n    },\n    {\n      \"name\": \"Carol White\",\n      \"email\": \"carol@example.com\",\n      \"role\": \"Counter-Signer\",\n      \"order\": 2,\n      \"message\": \"Please countersign once Bob has signed.\"\n    }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Initiates a signing envelope. Sends email invitations to all signers.\n\n**Header**\n| Header | Required | Notes |\n|---|---|---|\n| `X-Api-Key` | ✅ | Merchant API key |\n\n**Body – top-level**\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `title` | string | ✅ | Envelope display name |\n| `merchantId` | UUID | ✅ | Must match the API key owner |\n| `documents` | array | ✅ | At least one document |\n| `signers` | array | ✅ | At least one signer |\n\n**Body – each `documents[]` item**\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `documentTitle` | string | ✅ | Human-readable title |\n| `documentFileName` | string | ✅ | Filename with extension (e.g. `contract.pdf`) |\n| `documentBase64` | string | ✅ | Base64-encoded file bytes |\n| `documentContentType` | string | ❌ | `application/pdf`, `application/msword`, or `application/vnd.openxmlformats-officedocument.wordprocessingml.document`. If omitted, inferred from file extension. |\n\n**Body – each `signers[]` item**\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `name` | string | ✅ | Signer full name |\n| `email` | string | ✅ | Invitation sent here |\n| `role` | string | ✅ | Free text, e.g. `\"Signer\"`, `\"Counter-Signer\"` |\n| `order` | int | ✅ | Signing order (1-based) |\n| `message` | string | ✅ | Personal note in the invitation email |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Get All Envelopes",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/envelopes", "host": ["{{baseUrl}}"], "path": ["api","envelopes"] },
+            "header": [
+              { "key": "X-Api-Key", "value": "{{merchantApiKey}}", "description": "Merchant API Key (REQUIRED)" }
+            ],
+            "description": "Returns all envelopes for the authenticated merchant."
+          },
+          "response": []
+        },
+
+        {
+          "name": "Get Envelope by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/envelopes/{{envelopeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","envelopes","{{envelopeId}}"]
+            },
+            "header": [
+              { "key": "X-Api-Key", "value": "{{merchantApiKey}}", "description": "Merchant API Key (REQUIRED)" }
+            ],
+            "description": "Returns envelope metadata and signer statuses.\n\n| Param | Location | Required | Notes |\n|---|---|---|---|\n| `id` | URL path | ✅ | Envelope GUID |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Get Signed Documents",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/envelopes/{{envelopeId}}/signed-documents",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","envelopes","{{envelopeId}}","signed-documents"]
+            },
+            "header": [
+              { "key": "X-Api-Key", "value": "{{merchantApiKey}}", "description": "Merchant API Key (REQUIRED)" }
+            ],
+            "description": "Returns each signer's signed document as base64. `signedDocumentBase64` is `null` if not yet signed.\n\n| Param | Location | Required | Notes |\n|---|---|---|---|\n| `id` | URL path | ✅ | Envelope GUID |"
+          },
+          "response": []
+        }
+
+      ]
+    },
+
+    {
+      "name": "Portal (Signing Flow)",
+      "description": "Public endpoints used by the signer portal page. Token is embedded in the URL path — obtained from the signing email link.",
+      "item": [
+
+        {
+          "name": "Validate Token & Get Document Preview",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/portal/validate/:token",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","portal","validate",":token"],
+              "variable": [{ "key": "token", "value": "{{signingToken}}", "description": "REQUIRED – signing token from email link" }]
+            },
+            "description": "Validates the signing token and returns document metadata + base64 content for preview.\n\n| Param | Location | Required | Notes |\n|---|---|---|---|\n| `token` | URL path | ✅ | HMAC-signed signing token |\n\n**Response fields**\n| Field | Type | Notes |\n|---|---|---|\n| `documentBase64` | string | Base64-encoded document bytes |\n| `contentType` | string | MIME type |\n| `claimantName` | string | Name of the intended signer |\n| `documentFileName` | string | Original file name |\n| `expiresAt` | datetime | Token expiry (UTC) |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Stream Raw Document",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/portal/document/:token",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","portal","document",":token"],
+              "variable": [{ "key": "token", "value": "{{signingToken}}", "description": "REQUIRED – signing token from email link" }]
+            },
+            "description": "Streams the raw document bytes with the correct MIME type (for iframe/embed preview).\n\n| Param | Location | Required | Notes |\n|---|---|---|---|\n| `token` | URL path | ✅ | HMAC-signed signing token |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Submit Signature",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/portal/submit/:token",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","portal","submit",":token"],
+              "variable": [{ "key": "token", "value": "{{signingToken}}", "description": "REQUIRED – signing token from email link" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signatureBase64\": \"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Submits the claimant's drawn or typed signature. Enqueues a background job to stamp the document.\n\n| Param | Location | Required | Notes |\n|---|---|---|---|\n| `token` | URL path | ✅ | HMAC-signed signing token |\n\n**Body**\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `signatureBase64` | string | ✅ | Base64-encoded PNG signature image (data-URL prefix NOT included — raw base64 only) |"
+          },
+          "response": []
+        }
+
+      ]
+    },
+
+    {
+      "name": "Analytics",
+      "description": "Platform-wide analytics and trend data. Requires `Authorization: Bearer <jwt>` with **Admin** role.",
+      "item": [
+
+        {
+          "name": "Platform Summary",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/analytics/summary", "host": ["{{baseUrl}}"], "path": ["api","analytics","summary"] },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED – Admin JWT" }
+            ],
+            "description": "Returns total counts for users, envelopes sent, envelopes completed, envelopes cancelled, and documents signed across the platform.\n\n**Response fields**\n| Field | Type | Notes |\n|---|---|---|\n| `totalUsers` | int | All registered users |\n| `totalEnvelopesSent` | int | All envelopes created |\n| `totalEnvelopesSigned` | int | Envelopes with status Completed |\n| `totalEnvelopesCancelled` | int | Envelopes with status Cancelled |\n| `totalDocumentsSigned` | int | Individual signed document records |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Daily Trends",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/analytics/trends?days=30",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","analytics","trends"],
+              "query": [{ "key": "days", "value": "30", "description": "OPTIONAL – number of days to look back (7–90, default 30)" }]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED – Admin JWT" }
+            ],
+            "description": "Returns daily activity counts for user registrations, envelopes sent, and documents signed over the specified period.\n\n| Query param | Type | Required | Notes |\n|---|---|---|---|\n| `days` | int | ❌ | Look-back window: 7–90 days. Default 30. |\n\n**Response fields**\n| Field | Type | Notes |\n|---|---|---|\n| `userRegistrations` | DailyCount[] | New user sign-ups per day |\n| `envelopesSent` | DailyCount[] | Envelopes created per day |\n| `documentsSigned` | DailyCount[] | Documents signed per day |\n\n**DailyCount shape:** `{ \"date\": \"2026-03-15\", \"count\": 3 }`"
+          },
+          "response": []
+        }
+
+      ]
+    },
+
+    {
+      "name": "Users",
+      "description": "User profile management. Requires `Authorization: Bearer <jwt>`. Admin-only endpoints noted.",
+      "item": [
+
+        {
+          "name": "Get All Users (Admin only)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/users", "host": ["{{baseUrl}}"], "path": ["api","users"] },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED – Admin JWT" }
+            ],
+            "description": "Returns all registered users. Requires `Admin` role."
+          },
+          "response": []
+        },
+
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","users","{{userId}}"]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED – own user or Admin JWT" }
+            ],
+            "description": "Returns a user by GUID. Admins may look up any user; regular users may only look up themselves.\n\n| Param | Location | Required | Notes |\n|---|---|---|---|\n| `id` | URL path | ✅ | User GUID |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","users","{{userId}}"]
+            },
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED – own user or Admin JWT" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Alice Johnson\",\n  \"accessRole\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Updates a user profile. Regular users may only change their own `name`. Only Admins may change `accessRole`.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `name` | string | ❌ | New display name; ignored if blank |\n| `accessRole` | string | ❌ | `\"User\"` or `\"Admin\"`. Non-admins receive 403 if set. |"
+          },
+          "response": []
+        }
+
+      ]
+    }
+
+  ]
+}

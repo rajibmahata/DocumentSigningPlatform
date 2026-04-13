@@ -13,19 +13,25 @@ public class PortalController : ControllerBase
     private readonly IClaimRepository _claimRepo;
     private readonly IAuditLogRepository _auditRepo;
     private readonly ITokenService _tokenService;
+    private readonly ISigningEnvelopeRepository _envelopeRepo;
+    private readonly ISignedDocumentRepository _signedDocRepo;
 
     public PortalController(
         ISigningRequestRepository signingRequestRepo,
         IDocumentRepository docRepo,
         IClaimRepository claimRepo,
         IAuditLogRepository auditRepo,
-        ITokenService tokenService)
+        ITokenService tokenService,
+        ISigningEnvelopeRepository envelopeRepo,
+        ISignedDocumentRepository signedDocRepo)
     {
         _signingRequestRepo = signingRequestRepo;
         _docRepo = docRepo;
         _claimRepo = claimRepo;
         _auditRepo = auditRepo;
         _tokenService = tokenService;
+        _envelopeRepo = envelopeRepo;
+        _signedDocRepo = signedDocRepo;
     }
 
     /// <summary>
@@ -76,6 +82,47 @@ public class PortalController : ControllerBase
             Convert.ToBase64String(doc.ContentBytes),
             doc.ContentType,
             claim.ClaimantName,
+            doc.DocumentFileName,
             signingRequest.ExpiresAt));
+    }
+
+    /// <summary>
+    /// Streams the raw document bytes for inline preview or download.
+    /// Re-validates the signing token — no audit log recorded (already logged on portal open).
+    /// </summary>
+    [HttpGet("document/{token}")]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("signing")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status410Gone)]
+    public async Task<IActionResult> GetDocument(string token, CancellationToken ct)
+    {
+        var signingRequest = await _signingRequestRepo.GetByTokenAsync(token, ct);
+        if (signingRequest is null) return NotFound("Token not found.");
+
+        if (signingRequest.ExpiresAt < DateTime.UtcNow)
+            return StatusCode(StatusCodes.Status410Gone, "Token has expired.");
+
+        if (!_tokenService.ValidateTokenSignature(token, signingRequest.ClaimId, signingRequest.DocumentId))
+            return BadRequest("Invalid token signature.");
+
+        var doc = await _docRepo.GetByIdAsync(signingRequest.DocumentId, ct);
+        if (doc is null) return NotFound("Document not found.");
+
+        Response.Headers.Append("Cache-Control", "no-store, no-cache");
+        return File(doc.ContentBytes, doc.ContentType);
+    }
+
+    /// <summary>
+    /// Returns platform-wide stats: total envelopes sent and total documents signed.
+    /// Public endpoint — no authentication required.
+    /// </summary>
+    [HttpGet("stats")]
+    [ProducesResponseType(typeof(PlatformStatsResponse), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetStats(CancellationToken ct)
+    {
+        var sent   = await _envelopeRepo.CountAllAsync(ct);
+        var signed = await _signedDocRepo.CountAllAsync(ct);
+        return Ok(new PlatformStatsResponse(sent, signed));
     }
 }

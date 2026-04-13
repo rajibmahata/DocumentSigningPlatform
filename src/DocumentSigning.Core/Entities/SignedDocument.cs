@@ -7,5 +7,6 @@ public class SignedDocument
     public Guid ClaimId { get; set; }
     public byte[] ContentBytes { get; set; } = Array.Empty<byte>();
     public string ContentType { get; set; } = string.Empty;
+    public string Hash { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

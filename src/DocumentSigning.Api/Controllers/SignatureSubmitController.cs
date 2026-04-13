@@ -73,8 +73,7 @@ public class SignatureSubmitController : ControllerBase
             signingRequest.DocumentId,
             signingRequest.Id,
             signingRequest.ClaimId,
-            request.SignatureBase64,
-            request.SignedDate));
+            request.SignatureBase64));
 
         await _outboxRepo.AddAsync(new OutboxQueue
         {

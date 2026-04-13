@@ -1,115 +1,487 @@
-@page "/sign/{Token}"
+﻿@page "/sign/{Token}"
 @rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))
 @using DocumentSigning.Core.DTOs
 @using Microsoft.JSInterop
 @inject IJSRuntime JS
 @inject NavigationManager Nav
 @inject IHttpClientFactory HttpFactory
-<PageTitle>Sign Document</PageTitle>
+<PageTitle>Sign Document · Document Signing Portal</PageTitle>
 
-<div class="signing-portal">
-    @if (_loading)
-    {
-        <div class="status-card">
-            <p>Loading document, please wait...</p>
+@* styles placed directly in component body (NOT HeadContent) so they render
+   with the interactive component even when prerender=false *@
+<style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f1f5f9; color: #1e293b; }
+
+    /* full-screen centred states */
+    .s-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem; background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%); }
+    .s-screen-red   { background: linear-gradient(135deg, #f8fafc 0%, #fff1f2 100%); }
+    .s-screen-green { background: linear-gradient(135deg, #f8fafc 0%, #f0fdf4 100%); }
+    .s-state-card { background: #fff; border-radius: 1.25rem; box-shadow: 0 4px 24px rgba(0,0,0,.08); padding: 2.5rem 2rem; max-width: 26rem; width: 100%; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+
+    /* spinner */
+    @@keyframes s-spin { to { transform: rotate(360deg); } }
+    .s-spinner    { width: 2.75rem; height: 2.75rem; border-radius: 50%; border: 3px solid #bfdbfe; border-top-color: #2563eb; animation: s-spin .75s linear infinite; }
+    .s-spinner-sm { width: 1.1rem; height: 1.1rem; border-radius: 50%; flex-shrink: 0; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; animation: s-spin .75s linear infinite; }
+
+    /* icon rings */
+    .s-icon-ring { width: 4rem; height: 4rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .s-icon-ring svg { width: 1.75rem; height: 1.75rem; flex-shrink: 0; }
+    .s-ring-red   { background: #fee2e2; color: #ef4444; }
+    .s-ring-green { background: #dcfce7; color: #16a34a; }
+    .s-state-card h2 { font-size: 1.35rem; font-weight: 700; color: #1e293b; }
+    .s-state-card p  { font-size: .9rem; color: #64748b; line-height: 1.6; }
+
+    /* success checklist */
+    .s-checklist { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: .875rem; padding: 1rem 1.25rem; text-align: left; width: 100%; }
+    .s-check-row { display: flex; align-items: center; gap: .625rem; font-size: .85rem; color: #15803d; padding: .3rem 0; }
+    .s-check-row svg { width: 1rem; height: 1rem; flex-shrink: 0; }
+
+    /* page shell */
+    .s-page { min-height: 100vh; display: flex; flex-direction: column; background: #f1f5f9; }
+
+    /* header */
+    .s-header { background: #fff; border-bottom: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,.06); position: sticky; top: 0; z-index: 20; }
+    .s-header-inner { max-width: 1100px; margin: 0 auto; padding: .75rem 1.5rem; display: flex; align-items: center; justify-content: space-between; }
+    .s-logo { display: flex; align-items: center; gap: .6rem; }
+    .s-logo-dot { width: 2.1rem; height: 2.1rem; border-radius: .5rem; background: linear-gradient(135deg, #2563eb, #4f46e5); display: flex; align-items: center; justify-content: center; }
+    .s-logo-dot svg { width: 1.1rem; height: 1.1rem; color: #fff; }
+    .s-brand { font-weight: 700; font-size: .95rem; color: #1e293b; }
+    .s-badge { display: flex; align-items: center; gap: .35rem; font-size: .72rem; color: #64748b; font-weight: 500; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 9999px; padding: .25rem .75rem; }
+    .s-badge svg { width: .875rem; height: .875rem; color: #22c55e; }
+
+    /* two-column layout */
+    .s-body { flex: 1; max-width: 1100px; width: 100%; margin: 0 auto; padding: 1.75rem 1.5rem; display: grid; grid-template-columns: 1fr 400px; gap: 1.5rem; align-items: start; }
+    @@media (max-width: 900px) { .s-body { grid-template-columns: 1fr; } }
+
+    /* cards */
+    .s-card { background: #fff; border-radius: 1rem; box-shadow: 0 1px 6px rgba(0,0,0,.07); border: 1px solid #e8edf3; overflow: hidden; }
+    .s-card-header { padding: 1rem 1.25rem; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between; }
+    .s-card-title { display: flex; align-items: center; gap: .5rem; font-weight: 600; font-size: .9rem; color: #1e293b; }
+    .s-card-title svg { width: 1rem; height: 1rem; color: #64748b; flex-shrink: 0; }
+    .s-card-body { padding: 1.25rem; }
+
+    /* pill */
+    .s-pill { font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: .2rem .6rem; border-radius: 9999px; }
+    .s-pill-blue  { background: #dbeafe; color: #1d4ed8; }
+    .s-pill-amber { background: #fef3c7; color: #92400e; }
+
+    /* welcome */
+    .s-welcome { padding: 1.25rem; }
+    .s-welcome-row { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; align-items: flex-start; margin-bottom: 1.25rem; }
+    .s-welcome h1 { font-size: 1.4rem; font-weight: 700; color: #1e293b; }
+    .s-welcome h1 span { color: #2563eb; }
+    .s-welcome p  { font-size: .875rem; color: #64748b; margin-top: .25rem; }
+    .s-expiry { flex-shrink: 0; background: #fffbeb; border: 1px solid #fde68a; border-radius: .75rem; padding: .65rem 1rem; font-size: .8rem; }
+    .s-expiry-label { display: flex; align-items: center; gap: .3rem; color: #92400e; font-weight: 600; margin-bottom: .2rem; }
+    .s-expiry-label svg { width: .875rem; height: .875rem; }
+    .s-expiry-val { color: #b45309; font-weight: 700; }
+
+    /* steps */
+    .s-steps { display: flex; align-items: center; }
+    .s-step { display: flex; align-items: center; gap: .45rem; }
+    .s-step-num { width: 1.6rem; height: 1.6rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .72rem; font-weight: 700; }
+    .s-step-num-on  { background: #2563eb; color: #fff; }
+    .s-step-num-off { background: #e2e8f0; color: #94a3b8; }
+    .s-step-label   { font-size: .8rem; font-weight: 600; }
+    .s-step-label-on  { color: #2563eb; }
+    .s-step-label-off { color: #94a3b8; }
+    .s-step-line { flex: 1; height: 2px; background: #e2e8f0; margin: 0 .625rem; min-width: 2rem; }
+
+    /* pdf */
+    .s-pdf-wrap { padding: 0; }
+    .s-pdf-obj  { width: 100%; height: 620px; display: block; background: #f8fafc; }
+
+    /* docx placeholder */
+    .s-docx-area { padding: 2.5rem 1.25rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: .75rem; }
+    .s-docx-icon { width: 4.5rem; height: 4.5rem; background: #eff6ff; border-radius: 1.25rem; display: flex; align-items: center; justify-content: center; }
+    .s-docx-icon svg { width: 2rem; height: 2rem; color: #2563eb; }
+    .s-docx-title { font-weight: 600; font-size: 1rem; color: #1e293b; }
+    .s-docx-sub   { font-size: .85rem; color: #64748b; }
+
+    /* signing panel */
+    .s-panel { display: flex; flex-direction: column; gap: 1.25rem; }
+
+    /* tabs */
+    .s-tabs { display: flex; gap: .5rem; margin-bottom: 1rem; }
+    .s-tab  { flex: 1; padding: .6rem .5rem; font-size: .82rem; font-weight: 600; border-radius: .625rem; border: none; cursor: pointer; transition: background .15s, color .15s; }
+    .s-tab-on  { background: #2563eb; color: #fff; box-shadow: 0 1px 4px rgba(37,99,235,.3); }
+    .s-tab-off { background: #f1f5f9; color: #64748b; }
+    .s-tab-off:hover { background: #e2e8f0; }
+
+    /* canvas */
+    .s-canvas-wrap { position: relative; border: 2px dashed #cbd5e1; border-radius: .75rem; background: #fafafa; overflow: hidden; cursor: crosshair; }
+    .s-canvas-wrap:hover { border-color: #93c5fd; }
+    .s-canvas { width: 100%; height: 160px; display: block; background: transparent; cursor: crosshair; }
+    .s-canvas-ghost { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; user-select: none; font-size: .72rem; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: #d1d5db; }
+    .s-clear-row { display: flex; justify-content: flex-end; margin-top: .5rem; }
+    .s-clear-btn { display: flex; align-items: center; gap: .35rem; font-size: .82rem; color: #94a3b8; background: none; border: none; cursor: pointer; padding: .25rem 0; }
+    .s-clear-btn svg { width: .9rem; height: .9rem; }
+    .s-clear-btn:hover { color: #ef4444; }
+    .s-hint { font-size: .8rem; color: #94a3b8; margin-bottom: .75rem; }
+
+    /* typed input */
+    .s-typed { width: 100%; padding: .75rem 1rem; border: 2px solid #e2e8f0; border-radius: .75rem; font-size: 1.9rem; color: #1e293b; font-family: 'Brush Script MT', 'Segoe Script', cursive; outline: none; transition: border-color .15s; background: #fff; }
+    .s-typed:focus { border-color: #2563eb; }
+
+    /* error */
+    .s-error { display: flex; align-items: flex-start; gap: .5rem; margin-top: .75rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: .625rem; padding: .65rem .875rem; font-size: .82rem; color: #b91c1c; }
+    .s-error svg { width: .95rem; height: .95rem; flex-shrink: 0; margin-top: .1rem; }
+
+    /* legal */
+    .s-legal { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .75rem; padding: .875rem 1rem; font-size: .78rem; color: #64748b; line-height: 1.6; }
+    .s-legal-title { font-weight: 700; color: #475569; font-size: .82rem; margin-bottom: .4rem; }
+
+    /* consent */
+    .s-consent { display: flex; align-items: flex-start; gap: .75rem; cursor: pointer; }
+    .s-cb-wrap { position: relative; flex-shrink: 0; margin-top: .1rem; }
+    .s-cb-real { position: absolute; opacity: 0; width: 0; height: 0; }
+    .s-cb-box  { width: 1.2rem; height: 1.2rem; border: 2px solid #cbd5e1; border-radius: .25rem; display: flex; align-items: center; justify-content: center; transition: background .15s, border-color .15s; }
+    .s-cb-on { background: #2563eb !important; border-color: #2563eb !important; }
+    .s-cb-box svg { width: .7rem; height: .7rem; color: #fff; }
+    .s-consent-text { font-size: .82rem; color: #475569; line-height: 1.55; }
+    .s-consent-text strong { color: #1e293b; }
+
+    /* submit */
+    .s-submit { width: 100%; display: flex; align-items: center; justify-content: center; gap: .5rem; padding: .9rem 1rem; font-size: .95rem; font-weight: 700; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; border: none; border-radius: .875rem; cursor: pointer; box-shadow: 0 2px 8px rgba(37,99,235,.35); transition: opacity .15s, transform .1s; }
+    .s-submit:hover:not(:disabled) { opacity: .92; transform: translateY(-1px); }
+    .s-submit:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+    .s-submit svg { width: 1.1rem; height: 1.1rem; flex-shrink: 0; }
+
+    /* download btn */
+    .s-dl-btn { display: inline-flex; align-items: center; gap: .5rem; padding: .65rem 1.25rem; font-size: .875rem; font-weight: 600; background: #2563eb; color: #fff; border: none; border-radius: .625rem; text-decoration: none; cursor: pointer; }
+    .s-dl-btn svg { width: 1rem; height: 1rem; }
+    .s-dl-btn:hover { background: #1d4ed8; }
+
+    /* trust strip */
+    .s-trust-item { display: flex; align-items: center; gap: .375rem; font-size: .72rem; color: #94a3b8; }
+    .s-trust-item svg { width: .875rem; height: .875rem; flex-shrink: 0; }
+</style>
+
+@* LOADING *@
+@if (_loading)
+{
+    <div class="s-screen">
+        <div class="s-state-card">
+            <div class="s-spinner"></div>
+            <p>Loading your document&hellip;</p>
         </div>
-    }
-    else if (_errorMessage is not null)
-    {
-        <div class="status-card error">
-            <h2>Unable to open document</h2>
+    </div>
+}
+@* ERROR *@
+else if (_errorMessage is not null)
+{
+    <div class="s-screen s-screen-red">
+        <div class="s-state-card">
+            <div class="s-icon-ring s-ring-red">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 9v2m0 4h.01M10.29 3.86 1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                </svg>
+            </div>
+            <h2>Unable to Open Document</h2>
             <p>@_errorMessage</p>
         </div>
-    }
-    else if (_submitted)
-    {
-        <div class="status-card success">
-            <h2>&#10003; Thank you, @_claimantName!</h2>
-            <p>Your signature has been received. You will receive a copy of the signed document by email shortly.</p>
-        </div>
-    }
-    else if (_preview is not null)
-    {
-        <div class="portal-header">
-            <h1>Document Signing Portal</h1>
-            <p>Hello <strong>@_claimantName</strong>, please review and sign the document below.</p>
-            <p class="expiry">This signing link expires on <strong>@_expiresAt.ToString("f")</strong> UTC.</p>
-        </div>
-
-        <!-- Document preview as embedded PDF or DOCX/DOC download link -->
-        @if (_preview.ContentType.Contains("pdf", StringComparison.OrdinalIgnoreCase))
-        {
-            <div class="doc-preview">
-                <object data="data:application/pdf;base64,@_preview.DocumentBase64"
-                        type="application/pdf"
-                        width="100%"
-                        height="600px">
-                    <p>Your browser cannot display the PDF inline.
-                       <a href="data:application/pdf;base64,@_preview.DocumentBase64" download="document.pdf">Download PDF</a>
-                    </p>
-                </object>
+    </div>
+}
+@* SUCCESS *@
+else if (_submitted)
+{
+    <div class="s-screen s-screen-green">
+        <div class="s-state-card">
+            <div class="s-icon-ring s-ring-green">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                </svg>
             </div>
-        }
-        else
-        {
-            var isLegacyDoc = _preview.ContentType.Contains("msword", StringComparison.OrdinalIgnoreCase);
-            var docMime     = isLegacyDoc ? "application/msword"
-                                          : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-            var docExt      = isLegacyDoc ? "doc" : "docx";
-            var docLabel    = isLegacyDoc ? "DOC" : "DOCX";
-            <div class="doc-preview">
-                <p>
-                    <a href="data:@(docMime);base64,@_preview.DocumentBase64"
-                       download="document.@(docExt)">
-                        &#128196; Download document for review (@docLabel)
-                    </a>
-                </p>
-            </div>
-        }
-
-        <!-- Signature tab: draw or type -->
-        <div class="sig-section">
-            <h2>Your Signature</h2>
-
-            <div class="tab-bar">
-                <button class="@(_sigMode == "draw" ? "tab active" : "tab")" @onclick='() => SetMode("draw")'>Draw</button>
-                <button class="@(_sigMode == "type" ? "tab active" : "tab")" @onclick='() => SetMode("type")'>Type</button>
-            </div>
-
-            @if (_sigMode == "draw")
-            {
-                <p class="hint">Draw your signature in the box below using your mouse or finger.</p>
-                <canvas id="sigCanvas" width="500" height="150" style="border:2px solid #d1d5db;border-radius:6px;cursor:crosshair;background:#fff;"></canvas>
-                <div class="canvas-actions">
-                    <button class="btn-secondary" @onclick="ClearCanvas">Clear</button>
+            <h2>Signature Received!</h2>
+            <p>Thank you, <strong>@_claimantName</strong>. Your signature has been securely recorded. A signed copy will be emailed to you shortly.</p>
+            <div class="s-checklist">
+                <div class="s-check-row">
+                    <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                    Signature cryptographically bound to document
                 </div>
-            }
-            else
-            {
-                <p class="hint">Type your full name and it will be rendered as your signature.</p>
-                <input class="typed-sig-input" type="text" @bind="_typedSignature" @bind:event="oninput" placeholder="Full Name" maxlength="80" />
-            }
-
-            @if (!string.IsNullOrEmpty(_validationError))
-            {
-                <p class="validation-error">@_validationError</p>
-            }
-
-            <div class="submit-area">
-                <label class="consent-label">
-                    <input type="checkbox" @bind="_consentChecked" />
-                    I agree that my electronic signature is legally binding.
-                </label>
-                <button class="btn-primary" @onclick="SubmitSignature" disabled="@_submitting">
-                    @(_submitting ? "Submitting…" : "Sign Document")
-                </button>
+                <div class="s-check-row">
+                    <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                    Audit trail recorded with timestamp &amp; IP
+                </div>
+                <div class="s-check-row">
+                    <svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                    Signed copy sent to your email
+                </div>
             </div>
         </div>
-    }
-</div>
+    </div>
+}
+@* MAIN SIGNING VIEW *@
+else if (_preview is not null)
+{
+    <div class="s-page">
+
+        <header class="s-header">
+            <div class="s-header-inner">
+                <div class="s-logo">
+                    <div class="s-logo-dot">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                    </div>
+                    <span class="s-brand">Document Signing Portal</span>
+                </div>
+                <span class="s-badge">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                    </svg>
+                    Secure &amp; Encrypted
+                </span>
+            </div>
+        </header>
+
+        <div class="s-body">
+
+            @* LEFT: document area *@
+            <div style="display:flex;flex-direction:column;gap:1.25rem;">
+
+                <div class="s-card">
+                    <div class="s-welcome">
+                        <div class="s-welcome-row">
+                            <div>
+                                <p style="font-size:.8rem;color:#64748b;margin-bottom:.25rem;">You have a document to sign</p>
+                                <h1>Hello, <span>@_claimantName</span> &#128075;</h1>
+                                <p>Please review the document below, then add your signature in the panel on the right.</p>
+                            </div>
+                            <div class="s-expiry">
+                                <div class="s-expiry-label">
+                                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    Link expires
+                                </div>
+                                <div class="s-expiry-val">@_expiresAt.ToString("dd MMM yyyy, HH:mm") UTC</div>
+                            </div>
+                        </div>
+                        <div class="s-steps">
+                            <div class="s-step">
+                                <div class="s-step-num s-step-num-on">1</div>
+                                <span class="s-step-label s-step-label-on">Review</span>
+                            </div>
+                            <div class="s-step-line"></div>
+                            <div class="s-step">
+                                <div class="s-step-num s-step-num-on">2</div>
+                                <span class="s-step-label s-step-label-on">Sign</span>
+                            </div>
+                            <div class="s-step-line"></div>
+                            <div class="s-step">
+                                <div class="s-step-num s-step-num-off">3</div>
+                                <span class="s-step-label s-step-label-off">Done</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="s-card">
+                    <div class="s-card-header">
+                        <div class="s-card-title">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                            </svg>
+                            <div>
+                                <div style="font-size:.9rem;font-weight:600;color:#1e293b;">Document to Sign</div>
+                                @if (!string.IsNullOrWhiteSpace(_preview?.DocumentFileName))
+                                {
+                                    <div style="font-size:.75rem;color:#64748b;font-weight:400;margin-top:.1rem;">@_preview.DocumentFileName</div>
+                                }
+                            </div>
+                        </div>
+                        <span class="s-pill s-pill-blue">
+                            @(_contentTypeSafe.Contains("pdf", StringComparison.OrdinalIgnoreCase) ? "PDF"
+                              : _contentTypeSafe.Contains("msword", StringComparison.OrdinalIgnoreCase) ? "DOC" : "DOCX")
+                        </span>
+                    </div>
+
+                    @if (_contentTypeSafe.Contains("pdf", StringComparison.OrdinalIgnoreCase))
+                    {
+                        <div class="s-pdf-wrap">
+                            <object data="/api/portal/document/@Token"
+                                    type="application/pdf"
+                                    class="s-pdf-obj">
+                                <div style="padding:2rem;text-align:center;">
+                                    <p style="color:#64748b;margin-bottom:1rem;">Your browser cannot display the PDF inline.</p>
+                                    <a href="/api/portal/document/@Token" download="document.pdf" class="s-dl-btn">
+                                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                                        </svg>
+                                        Download PDF
+                                    </a>
+                                </div>
+                            </object>
+                        </div>
+                    }
+                    else
+                    {
+                        var isLegacyDoc = _contentTypeSafe.Contains("msword", StringComparison.OrdinalIgnoreCase);
+                        var docExt   = isLegacyDoc ? "doc" : "docx";
+                        var docLabel = isLegacyDoc ? "DOC" : "DOCX";
+                        <div class="s-docx-area">
+                            <div class="s-docx-icon">
+                                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                </svg>
+                            </div>
+                            <p class="s-docx-title">Review the document before signing</p>
+                            <p class="s-docx-sub">Word documents must be downloaded to view.</p>
+                            <a href="/api/portal/document/@Token" download="document.@(docExt)" class="s-dl-btn">
+                                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                                </svg>
+                                Download @docLabel
+                            </a>
+                        </div>
+                    }
+                </div>
+
+            </div>
+
+            @* RIGHT: signing panel *@
+            <div class="s-panel">
+
+                <div class="s-card">
+                    <div class="s-card-header">
+                        <div class="s-card-title">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                            </svg>
+                            Your Signature
+                        </div>
+                        <span class="s-pill s-pill-amber">Required</span>
+                    </div>
+                    <div class="s-card-body">
+
+                        <div class="s-tabs">
+                            <button class="s-tab @(_sigMode == "draw" ? "s-tab-on" : "s-tab-off")"
+                                    @onclick='() => SetMode("draw")'>&#9998; Draw</button>
+                            <button class="s-tab @(_sigMode == "type" ? "s-tab-on" : "s-tab-off")"
+                                    @onclick='() => SetMode("type")'>&#9000; Type</button>
+                        </div>
+
+                        @if (_sigMode == "draw")
+                        {
+                            <p class="s-hint">Draw your signature using mouse or finger.</p>
+                            <div class="s-canvas-wrap">
+                                <canvas id="sigCanvas" class="s-canvas"></canvas>
+                                <div class="s-canvas-ghost">Sign here</div>
+                            </div>
+                            <div class="s-clear-row">
+                                <button class="s-clear-btn" @onclick="ClearCanvas">
+                                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                    </svg>
+                                    Clear
+                                </button>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="s-hint">Type your full name as your signature.</p>
+                            <input type="text" @bind="_typedSignature" @bind:event="oninput"
+                                   placeholder="Your Full Name" maxlength="80" class="s-typed" />
+                        }
+
+                        @if (!string.IsNullOrEmpty(_validationError))
+                        {
+                            <div class="s-error">
+                                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                </svg>
+                                @_validationError
+                            </div>
+                        }
+
+                        <div class="s-legal" style="margin-top:1rem;">
+                            <p class="s-legal-title">&#128203; Legal Notice</p>
+                            <p>By signing, you agree your electronic signature is legally binding. Your IP address, browser info, and timestamp will be recorded in the audit trail.</p>
+                        </div>
+
+                        <div style="margin-top:1rem;display:flex;flex-direction:column;gap:.875rem;">
+                            <label class="s-consent">
+                                <div class="s-cb-wrap">
+                                    <input type="checkbox" @bind="_consentChecked" class="s-cb-real" />
+                                    <div class="s-cb-box @(_consentChecked ? "s-cb-on" : "")">
+                                        @if (_consentChecked)
+                                        {
+                                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                                            </svg>
+                                        }
+                                    </div>
+                                </div>
+                                <span class="s-consent-text">
+                                    I have read the document and confirm my electronic signature is <strong>legally binding</strong>.
+                                </span>
+                            </label>
+
+                            <button @onclick="SubmitSignature" disabled="@_submitting" class="s-submit">
+                                @if (_submitting)
+                                {
+                                    <div class="s-spinner-sm"></div>
+                                    <span>Submitting&hellip;</span>
+                                }
+                                else
+                                {
+                                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                              d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                                    </svg>
+                                    <span>Sign Document Securely</span>
+                                }
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div style="display:flex;flex-wrap:wrap;gap:.875rem;justify-content:center;padding:.25rem 0;">
+                    <span class="s-trust-item">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                        256-bit encrypted
+                    </span>
+                    <span class="s-trust-item">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                        Full audit trail
+                    </span>
+                    <span class="s-trust-item">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>
+                        eIDAS compliant
+                    </span>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+}
+else
+{
+    <div class="s-screen">
+        <div class="s-state-card">
+            <div class="s-spinner"></div>
+            <p>Initialising&hellip;</p>
+        </div>
+    </div>
+}
+
 
 @code {
     [Parameter] public string Token { get; set; } = string.Empty;
+
+    private string _contentTypeSafe => _preview?.ContentType ?? string.Empty;
 
     private DocumentPreviewResponse? _preview;
     private string? _claimantName;
@@ -133,8 +505,13 @@
             if (response.IsSuccessStatusCode)
             {
                 _preview = await response.Content.ReadFromJsonAsync<DocumentPreviewResponse>();
-                _claimantName = _preview?.ClaimantName;
-                _expiresAt = _preview?.ExpiresAt ?? DateTime.UtcNow;
+                if (_preview is null)
+                    _errorMessage = "The document could not be loaded. Please try again.";
+                else
+                {
+                    _claimantName = _preview.ClaimantName;
+                    _expiresAt    = _preview.ExpiresAt;
+                }
             }
             else
             {
@@ -143,7 +520,7 @@
                     : "This signing link is invalid or has already been used.";
             }
         }
-        catch (Exception)
+        catch
         {
             _errorMessage = "An error occurred while loading the document. Please try again later.";
         }
@@ -157,7 +534,8 @@
     {
         if (_preview is not null && _sigMode == "draw")
         {
-            await JS.InvokeVoidAsync("signaturePad.init", "sigCanvas");
+            try { await JS.InvokeVoidAsync("signaturePad.init", "sigCanvas"); }
+            catch { /* suppress JS interop errors */ }
         }
     }
 
@@ -166,22 +544,17 @@
         _sigMode = mode;
         _validationError = null;
         if (mode == "draw")
-        {
-            // Reset pad flag so OnAfterRenderAsync re-initialises the new canvas element
             await JS.InvokeVoidAsync("signaturePad.reset", "sigCanvas");
-        }
         StateHasChanged();
         if (mode == "draw")
         {
-            await Task.Delay(50); // allow render
+            await Task.Delay(50);
             await JS.InvokeVoidAsync("signaturePad.init", "sigCanvas");
         }
     }
 
-    private async Task ClearCanvas()
-    {
+    private async Task ClearCanvas() =>
         await JS.InvokeVoidAsync("signaturePad.clear", "sigCanvas");
-    }
 
     private async Task SubmitSignature()
     {
@@ -204,7 +577,6 @@
                 return;
             }
             var dataUrl = await JS.InvokeAsync<string>("signaturePad.getDataUrl", "sigCanvas");
-            // dataUrl is "data:image/png;base64,{base64}"
             signatureBase64 = dataUrl.Split(',', 2)[1];
         }
         else
@@ -214,24 +586,22 @@
                 _validationError = "Please type your name as your signature.";
                 return;
             }
-            signatureBase64 = await RenderTypedSignatureAsync(_typedSignature);
+            signatureBase64 = await JS.InvokeAsync<string>("signaturePad.renderTypedSignature", _typedSignature);
         }
 
         _submitting = true;
         try
         {
             var client = HttpFactory.CreateClient("api");
-            var payload = new SubmitSignatureRequest(signatureBase64, DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + " UTC");
+            var payload = new SubmitSignatureRequest(signatureBase64);
             var response = await client.PostAsJsonAsync($"api/portal/submit/{Token}", payload);
 
             if (response.IsSuccessStatusCode)
-            {
                 _submitted = true;
-            }
             else
             {
                 var body = await response.Content.ReadAsStringAsync();
-                _validationError = $"Submission failed: {response.StatusCode}. {body}";
+                _validationError = $"Submission failed ({(int)response.StatusCode}). {body}";
             }
         }
         catch
@@ -243,35 +613,4 @@
             _submitting = false;
         }
     }
-
-    /// <summary>Renders a typed signature as a base64 PNG via an off-screen HTML Canvas.</summary>
-    private async Task<string> RenderTypedSignatureAsync(string name)
-    {
-        return await JS.InvokeAsync<string>("signaturePad.renderTypedSignature", name);
-    }
 }
-
-<style>
-    .signing-portal { max-width: 820px; margin: 2rem auto; padding: 1rem; font-family: system-ui, sans-serif; }
-    .portal-header { margin-bottom: 1.5rem; }
-    .portal-header h1 { font-size: 1.5rem; color: #1f2937; }
-    .expiry { color: #6b7280; font-size: 0.875rem; }
-    .doc-preview { border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; margin-bottom: 1.5rem; padding: 0.5rem; background: #f9fafb; }
-    .sig-section { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem; }
-    .sig-section h2 { margin-top: 0; font-size: 1rem; color: #374151; }
-    .tab-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
-    .tab { padding: 0.4rem 1rem; border: 1px solid #d1d5db; border-radius: 4px; background: #f3f4f6; cursor: pointer; font-size: 0.875rem; }
-    .tab.active { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
-    .hint { font-size: 0.8rem; color: #6b7280; margin-bottom: 0.5rem; }
-    .canvas-actions { margin-top: 0.5rem; }
-    .typed-sig-input { width: 100%; padding: 0.6rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 1.5rem; font-family: cursive; }
-    .submit-area { margin-top: 1.5rem; display: flex; flex-direction: column; gap: 0.75rem; }
-    .consent-label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: #374151; cursor: pointer; }
-    .btn-primary { padding: 0.75rem 2rem; background: #1d4ed8; color: #fff; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; }
-    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
-    .btn-secondary { padding: 0.4rem 1rem; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer; font-size: 0.875rem; }
-    .validation-error { color: #dc2626; font-size: 0.875rem; margin-top: 0.5rem; }
-    .status-card { max-width: 500px; margin: 4rem auto; padding: 2rem; text-align: center; border-radius: 8px; border: 1px solid #e5e7eb; }
-    .status-card.error { border-color: #fca5a5; background: #fef2f2; }
-    .status-card.success { border-color: #86efac; background: #f0fdf4; }
-</style>

@@ -1,30 +1,116 @@
+using DocumentSigning.Core.Enums;
+
 namespace DocumentSigning.Core.DTOs;
 
-public record InitiateSigningRequest(
-    string ClaimantEmail,
-    string ClaimantName,
-    string DocumentBase64,
-    string DocumentContentType);
+// ── Analytics ─────────────────────────────────────────────────────────────────
 
-public record InitiateSigningResponse(
-    Guid ClaimId,
-    Guid SigningRequestId,
-    DateTime ExpiresAt);
+public record DailyCount(string Date, int Count);
+
+public record AnalyticsSummaryResponse(
+    int TotalUsers,
+    int TotalEnvelopesSent,
+    int TotalEnvelopesSigned,
+    int TotalEnvelopesCancelled,
+    int TotalDocumentsSigned);
+
+public record AnalyticsTrendResponse(
+    List<DailyCount> UserRegistrations,
+    List<DailyCount> EnvelopesSent,
+    List<DailyCount> DocumentsSigned);
+
+// ── Envelope / multi-signer initiate ─────────────────────────────────────────
+
+public record DocumentInput(
+    string DocumentTitle,
+    string DocumentFileName,
+    string DocumentBase64,             // base64-encoded file bytes
+    string? DocumentContentType);      // pdf | doc | docx (optional; inferred from filename if omitted)
+
+public record SignerInput(
+    string Name,
+    string Email,
+    string Role,
+    int Order,
+    string Message);
+
+public record InitiateEnvelopeRequest(
+    string Title,
+    Guid MerchantId,
+    List<DocumentInput> Documents,
+    List<SignerInput> Signers);
+
+public record DocumentSummary(
+    Guid DocumentId,
+    string DocumentTitle);
+
+public record SignerSummary(
+    string Name,
+    string Role,
+    string Email,
+    string Status);
+
+public record SignerSignedSummary(
+    string Name,
+    string Role,
+    string Email,
+    string Status,
+    string? SignedDocumentBase64,
+    string? SignedDocumentType);
+
+public record EnvelopeSignedResponse(
+    Guid EnvelopeId,
+    string Title,
+    string Status,
+    DateTime SentDate,
+    List<DocumentSummary> Documents,
+    List<SignerSignedSummary> Signers);
+
+public record InitiateEnvelopeResponse(
+    Guid EnvelopeId,
+    string Title,
+    string Status,
+    DateTime SentDate,
+    List<DocumentSummary> Documents,
+    List<SignerSummary> Signers);
+
+// ── Merchant ──────────────────────────────────────────────────────────────────
+
+public record CreateMerchantRequest(
+    Guid UserId,
+    string Name,
+    string? Description,
+    int RequestLimit = 100);
+
+public record MerchantResponse(
+    Guid Id,
+    Guid UserId,
+    string Name,
+    string? Description,
+    string ApiKey,
+    bool IsActive,
+    int RequestLimit,
+    int RequestUsed,
+    DateTime SubscriptionStart,
+    DateTime? SubscriptionEnd,
+    DateTime CreatedAt);
+
+// ── Portal / signing flow ─────────────────────────────────────────────────────
+
+public record PlatformStatsResponse(
+    int DocumentsSent,
+    int DocumentsSigned);
 
 public record DocumentPreviewResponse(
     string DocumentBase64,
     string ContentType,
     string ClaimantName,
+    string DocumentFileName,
     DateTime ExpiresAt);
 
 public record SubmitSignatureRequest(
-    string SignatureBase64,
-    string SignedDate);
+    string SignatureBase64);
 
-public record SigningStatusResponse(
-    Guid SigningRequestId,
-    string Status,
-    DateTime? SignedAt);
+// ── Outbox payloads ───────────────────────────────────────────────────────────
 
 public record SendEmailPayload(
     string To,
@@ -38,7 +124,8 @@ public record StampPdfPayload(
     Guid SigningRequestId,
     Guid ClaimId,
     string SignatureBase64,
-    string SignedDate);
+    Guid? EnvelopeId = null,
+    Guid? SignerId   = null);
 
 public record ConfirmationEmailPayload(
     string To,
@@ -49,3 +136,59 @@ public record FirmNotificationPayload(
     string FirmEmail,
     Guid ClaimId,
     string ClaimantName);
+
+public record VerificationEmailPayload(
+    string To,
+    string ToName,
+    string VerificationLink);
+
+public record PasswordResetEmailPayload(
+    string To,
+    string ToName,
+    string ResetLink);
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+public record RegisterRequest(
+    string Name,
+    string Email,
+    string Password,
+    string? Country,
+    AccessRole? AccessRole = null);
+
+public record LoginRequest(
+    string Email,
+    string Password);
+
+public record LoginResponse(
+    string Token,
+    bool IsEmailVerified);
+
+public record ForgotPasswordRequest(
+    string Email);
+
+public record ResetPasswordRequest(
+    string Token,
+    string NewPassword);
+
+// ── User management ───────────────────────────────────────────────────────────
+
+public record UserResponse(
+    Guid Id,
+    string Name,
+    string Email,
+    string? Country,
+    bool IsEmailVerified,
+    DocumentSigning.Core.Enums.AccessRole AccessRole,
+    DateTime CreatedAt);
+
+public record UpdateUserRequest(
+    string? Name,
+    DocumentSigning.Core.Enums.AccessRole? AccessRole);
+
+public record UpdateMerchantRequest(
+    string? Name,
+    string? Description,
+    bool IsActive,
+    int RequestLimit,
+    DateTime? SubscriptionEnd);

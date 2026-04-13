@@ -25,4 +25,16 @@ public interface IEmailService
     Task SendAdminAlertAsync(
         string message,
         CancellationToken ct = default);
+
+    Task SendEmailVerificationAsync(
+        string toEmail,
+        string toName,
+        string verificationLink,
+        CancellationToken ct = default);
+
+    Task SendPasswordResetAsync(
+        string toEmail,
+        string toName,
+        string resetLink,
+        CancellationToken ct = default);
 }
