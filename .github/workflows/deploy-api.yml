@@ -103,20 +103,29 @@ jobs:
           }
 
           $publishDir = "${{ github.workspace }}\publish"
-          $destParams  = "computerName=`"https://win1069.site4now.net:8172/msdeploy.axd?site=rajibmahata143-001-subsite3`""
-          $destParams += ",userName=`"rajibmahata143-001`""
-          $destParams += ",password=`"$env:MSDEPLOY_PASSWORD`""
-          $destParams += ",authtype=`"Basic`""
-          $destParams += ",includeAcls=`"False`""
 
-          & $msdeploy `
-            -verb:sync `
-            "-source:contentPath=$publishDir" `
-            "-dest:contentPath=rajibmahata143-001-subsite3,$destParams" `
-            -allowUntrusted `
-            -enableRule:AppOffline `
-            -retryAttempts:3 `
-            -retryInterval:2000
+          # Build the dest value without inner quotes.
+          # Embedding quotes inside a string passed to a native exe breaks PowerShell
+          # argument quoting. MSDeploy does not require quotes around parameter values.
+          $destLine  = "contentPath=rajibmahata143-001-subsite3"
+          $destLine += ",computerName=https://win1069.site4now.net:8172/msdeploy.axd?site=rajibmahata143-001-subsite3"
+          $destLine += ",userName=rajibmahata143-001"
+          $destLine += ",password=$env:MSDEPLOY_PASSWORD"
+          $destLine += ",authtype=Basic"
+          $destLine += ",includeAcls=False"
+
+          # Use argument splatting so each flag is a separate, clean argument.
+          $msArgs = @(
+            '-verb:sync',
+            "-source:contentPath=$publishDir",
+            "-dest:$destLine",
+            '-allowUntrusted',
+            '-enableRule:AppOffline',
+            '-retryAttempts:3',
+            '-retryInterval:2000'
+          )
+
+          & $msdeploy @msArgs
 
           if ($LASTEXITCODE -ne 0) {
             Write-Error "MSDeploy failed with exit code $LASTEXITCODE"
