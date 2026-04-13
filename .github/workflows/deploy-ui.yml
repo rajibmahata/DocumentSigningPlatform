@@ -42,9 +42,25 @@ jobs:
           NODE_ENV: production
         run: npm run build
 
-      # ── 5. Write web.config for IISNode ──────────────────────────────────────
-      #   IISNode routes all requests through server.js (Next.js custom server).
-      #   site4now shared hosting supports IISNode + Node 20.
+      # ── 5. Assemble standalone package ───────────────────────────────────────
+      #   next build (with output:'standalone') creates .next/standalone/ which
+      #   contains a minimal node_modules + server.js — no full node_modules
+      #   deploy needed.  We then copy the static/public assets alongside it.
+      - name: Assemble standalone package
+        shell: pwsh
+        working-directory: ${{ env.WEB_DIR }}
+        run: |
+          $standalone = ".next\standalone"
+          # Static client assets (/_next/static/...)
+          Copy-Item -Recurse -Force ".next\static" "$standalone\.next\static"
+          # public/ folder (not present yet but future-safe)
+          if (Test-Path "public") {
+            Copy-Item -Recurse -Force "public" "$standalone\public"
+          }
+          Write-Host "Standalone package assembled."
+
+      # ── 6. Write web.config for IISNode ──────────────────────────────────────
+      #   Goes into .next/standalone — that is what we deploy.
       - name: Write web.config
         shell: pwsh
         run: |
@@ -85,54 +101,18 @@ jobs:
             </system.webServer>
           </configuration>
           '@
-          Set-Content -Path "${{ github.workspace }}\${{ env.WEB_DIR }}\web.config" -Value $webConfig -Encoding UTF8
+          Set-Content -Path "${{ github.workspace }}\${{ env.WEB_DIR }}\.next\standalone\web.config" -Value $webConfig -Encoding UTF8
           Write-Host "web.config written."
 
-      # ── 6. Write custom server.js ─────────────────────────────────────────────
-      #   IISNode entry point — starts Next.js on the port IIS assigns via
-      #   the PORT environment variable.
-      - name: Write server.js
-        shell: pwsh
-        run: |
-          $serverJs = @'
-          'use strict';
-          const path = require('path');
-          const { createServer } = require('http');
-          const { parse } = require('url');
-
-          // Use __dirname-relative require so Node never needs to lstat
-          // directories above the app root (avoids EPERM on shared hosting).
-          const next = require(path.join(__dirname, 'node_modules', 'next'));
-
-          const dev  = false;
-          const port = parseInt(process.env.PORT, 10) || 3000;
-          const app  = next({ dev, dir: __dirname });
-          const handle = app.getRequestHandler();
-
-          app.prepare().then(() => {
-            createServer((req, res) => {
-              const parsedUrl = parse(req.url, true);
-              handle(req, res, parsedUrl);
-            }).listen(port, () => {
-              console.log('> Ready on port ' + port);
-            });
-          }).catch((err) => {
-            console.error('Failed to start Next.js:', err);
-            process.exit(1);
-          });
-          '@
-          Set-Content -Path "${{ github.workspace }}\${{ env.WEB_DIR }}\server.js" -Value $serverJs -Encoding UTF8
-          Write-Host "server.js written."
-
       # ── 7. Create iisnode log directory ──────────────────────────────────────
-      #   IISNode needs this to exist before first request or it can fail.
       - name: Create iisnode log dir
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\${{ env.WEB_DIR }}\iisnode" | Out-Null
+          New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\${{ env.WEB_DIR }}\.next\standalone\iisnode" | Out-Null
           Write-Host "iisnode/ directory created."
 
       # ── 8. Deploy via Web Deploy (MSDeploy) ───────────────────────────────────
+      #   Deploy only .next/standalone — self-contained, no full node_modules.
       - name: Deploy via Web Deploy (MSDeploy)
         shell: pwsh
         env:
@@ -144,11 +124,8 @@ jobs:
             choco install webdeploy --no-progress -y | Out-Null
           }
 
-          $publishDir = "${{ github.workspace }}\${{ env.WEB_DIR }}"
+          $publishDir = "${{ github.workspace }}\${{ env.WEB_DIR }}\.next\standalone"
 
-          # Build dest without inner quotes — MSDeploy doesn't need them and
-          # embedding literal " in a PowerShell string passed to a native exe
-          # breaks argument parsing (same root cause as the API deploy fix).
           $destLine  = "contentPath=rajibmahata143-001-site2"
           $destLine += ",computerName=https://win1069.site4now.net:8172/msdeploy.axd?site=rajibmahata143-001-site2"
           $destLine += ",userName=rajibmahata143-001"
@@ -160,8 +137,6 @@ jobs:
             '-verb:sync',
             "-source:contentPath=$publishDir",
             "-dest:$destLine",
-            '-skip:objectName=dirPath,absolutePath=\\\.git',
-            '-skip:objectName=dirPath,absolutePath=\\\node_modules\\\.cache',
             '-allowUntrusted',
             '-enableRule:AppOffline',
             '-retryAttempts:3',
@@ -175,3 +150,4 @@ jobs:
             exit $LASTEXITCODE
           }
           Write-Host "Deployment successful → http://rajibmahata143-001-site2.mtempurl.com/"
+

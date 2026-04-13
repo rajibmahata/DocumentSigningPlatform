@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Produce a self-contained build in .next/standalone — no full node_modules needed on server.
+  output: 'standalone',
+
   // Expose react-pdf worker from pdfjs-dist
   webpack: (config) => {
     config.resolve.alias.canvas = false;
