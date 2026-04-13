@@ -31,10 +31,13 @@ jobs:
         run: dotnet restore ${{ env.PROJECT }}
 
       # ── 4. Publish ───────────────────────────────────────────────────────────
-      - name: Publish (Release)
+      - name: Publish (Release, self-contained win-x64)
         run: >
           dotnet publish ${{ env.PROJECT }}
           -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=false
           -o "${{ github.workspace }}\publish"
           --no-restore
 
@@ -53,7 +56,7 @@ jobs:
           Write-Host "appsettings.Production.json written."
 
       # ── 6. Set ASPNETCORE_ENVIRONMENT=Production in web.config ───────────────
-      - name: Patch web.config – set Production environment
+      - name: Patch web.config – set Production environment + enable stdout logs
         shell: pwsh
         run: |
           $path = "${{ github.workspace }}\publish\web.config"
@@ -68,6 +71,10 @@ jobs:
             Write-Warning "aspNetCore element not found – skipping patch."
             exit 0
           }
+
+          # Enable stdout logging so IIS writes the real crash reason to logfiles/stdout*.log
+          $aspNetCore.SetAttribute("stdoutLogEnabled", "true")
+          $aspNetCore.SetAttribute("stdoutLogFile",    ".\logfiles\stdout")
 
           # Ensure <environmentVariables> exists
           $envVars = $aspNetCore.SelectSingleNode("environmentVariables")
@@ -88,7 +95,11 @@ jobs:
           }
 
           $xml.Save($path)
-          Write-Host "web.config patched: ASPNETCORE_ENVIRONMENT=Production"
+          Write-Host "web.config patched: ASPNETCORE_ENVIRONMENT=Production, stdoutLogEnabled=true"
+
+          # Create logfiles dir so IIS can write stdout without a permissions error
+          New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\publish\logfiles" | Out-Null
+          Write-Host "logfiles/ directory created."
 
       # ── 7. MSDeploy ──────────────────────────────────────────────────────────
       - name: Deploy via Web Deploy (MSDeploy)
