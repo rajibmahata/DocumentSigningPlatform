@@ -28,14 +28,14 @@ jobs:
 
       # ── 3. Restore ───────────────────────────────────────────────────────────
       - name: Restore dependencies
-        run: dotnet restore ${{ env.PROJECT }} -r win-x64
+        run: dotnet restore ${{ env.PROJECT }} -r win-x86
 
       # ── 4. Publish ───────────────────────────────────────────────────────────
-      - name: Publish (Release, self-contained win-x64)
+      - name: Publish (Release, self-contained win-x86)
         run: >
           dotnet publish ${{ env.PROJECT }}
           -c Release
-          -r win-x64
+          -r win-x86
           --self-contained true
           -p:PublishSingleFile=false
           -o "${{ github.workspace }}\publish"
