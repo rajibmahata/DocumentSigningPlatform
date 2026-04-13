@@ -48,8 +48,9 @@ builder.Services.AddHostedService<OutboxWorker>();
 // ─── HTTP client (used by Blazor components to call local API endpoints) ──────
 builder.Services.AddHttpClient("api", client =>
 {
-    var baseUrl = builder.Configuration["App:BaseUrl"] ?? "https://localhost:5001";
-    client.BaseAddress = new Uri(baseUrl);
+    var baseUrl = builder.Configuration["App:BaseUrl"];
+    if (!string.IsNullOrWhiteSpace(baseUrl))
+        client.BaseAddress = new Uri(baseUrl);
 });
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
@@ -91,6 +92,9 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        var jwtKey = builder.Configuration["Jwt:Key"]
+            ?? throw new InvalidOperationException("Jwt:Key is missing from configuration.");
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer           = true,
@@ -100,7 +104,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidIssuer              = builder.Configuration["Jwt:Issuer"],
             ValidAudience            = builder.Configuration["Jwt:Audience"],
             IssuerSigningKey         = new SymmetricSecurityKey(
-                                           Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
+                                           Encoding.UTF8.GetBytes(jwtKey))
         };
     });
 
