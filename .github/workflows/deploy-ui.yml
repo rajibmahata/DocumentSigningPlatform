@@ -46,6 +46,10 @@ jobs:
       #   next build (with output:'standalone') creates .next/standalone/ which
       #   contains a minimal node_modules + server.js — no full node_modules
       #   deploy needed.  We then copy the static/public assets alongside it.
+      #
+      #   We also copy next/dist/compiled/webpack/* because the standalone
+      #   trace misses bundle5.js (dynamically required inside webpack.js).
+      #   Without it IISNode throws "Cannot find module './bundle5'".
       - name: Assemble standalone package
         shell: pwsh
         working-directory: ${{ env.WEB_DIR }}
@@ -56,6 +60,14 @@ jobs:
           # public/ folder (not present yet but future-safe)
           if (Test-Path "public") {
             Copy-Item -Recurse -Force "public" "$standalone\public"
+          }
+          # Copy webpack compiled dir — standalone trace misses bundle5.js
+          $webpackSrc = "node_modules\next\dist\compiled\webpack"
+          $webpackDst = "$standalone\node_modules\next\dist\compiled\webpack"
+          if (Test-Path $webpackSrc) {
+            New-Item -ItemType Directory -Force -Path $webpackDst | Out-Null
+            Copy-Item -Recurse -Force "$webpackSrc\*" $webpackDst
+            Write-Host "Webpack compiled files copied."
           }
           Write-Host "Standalone package assembled."
 
