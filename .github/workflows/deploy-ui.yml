@@ -90,10 +90,14 @@ jobs:
               <rewrite>
                 <rules>
                   <!-- Force HTTPS: redirect http://docsignerhub.com → https://docsignerhub.com -->
+                  <!-- On shared hosting (site4now), SSL is terminated at the proxy, so {HTTPS}   -->
+                  <!-- is always OFF.  We skip the redirect when X-Forwarded-Proto: https is set  -->
+                  <!-- (meaning the client already reached us via HTTPS through the proxy).        -->
                   <rule name="HTTP to HTTPS redirect" stopProcessing="true">
                     <match url="(.*)" />
-                    <conditions>
+                    <conditions logicalGrouping="MatchAll">
                       <add input="{HTTPS}" pattern="^OFF$" />
+                      <add input="{HTTP_X_FORWARDED_PROTO}" pattern="^https$" negate="true" />
                     </conditions>
                     <action type="Redirect" url="https://{HTTP_HOST}/{R:1}" redirectType="Permanent" />
                   </rule>
