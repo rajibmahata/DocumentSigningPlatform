@@ -163,8 +163,10 @@ public class AuthController : ControllerBase
     {
         var record = await _tokenRepo.GetByTokenAsync(token, ct);
 
+        var frontendUrl = _config["App:FrontendUrl"] ?? "http://localhost:3000";
+
         if (record is null || record.IsUsed || record.ExpiresAt < DateTime.UtcNow)
-            return Content(VerifyEmailPage(success: false), "text/html");
+            return Content(VerifyEmailPage(success: false, frontendUrl), "text/html");
 
         record.IsUsed = true;
         await _tokenRepo.UpdateAsync(record, ct);
@@ -178,10 +180,10 @@ public class AuthController : ControllerBase
 
         await _tokenRepo.SaveChangesAsync(ct);
 
-        return Content(VerifyEmailPage(success: true), "text/html");
+        return Content(VerifyEmailPage(success: true, frontendUrl), "text/html");
     }
 
-    private static string VerifyEmailPage(bool success)
+    private static string VerifyEmailPage(bool success, string frontendUrl)
     {
         var title        = success ? "Email Verified" : "Verification Failed";
         var heading      = success ? "Email Verified!" : "Verification Failed";
@@ -267,7 +269,7 @@ public class AuthController : ControllerBase
                 <p class="sub">{{bodyText}}</p>
                 <div class="json-box">{"message":"{{jsonMsg}}"}</div>
                 {{extraBlock}}
-                <a href="https://docsignerhub.com/dashboard" class="btn">Back to home</a>
+                <a href="{{frontendUrl}}/dashboard" class="btn">Back to home</a>
               </div>
             </body>
             </html>
