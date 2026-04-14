@@ -98,7 +98,7 @@ jobs:
                 </rules>
               </rewrite>
               <iisnode
-                nodeProcessCommandLine="node.exe --preserve-symlinks --preserve-symlinks-main"
+                nodeProcessCommandLine="node.exe --no-deprecation --preserve-symlinks --preserve-symlinks-main"
                 loggingEnabled="true"
                 logDirectory="iisnode"
                 devErrorsEnabled="false"
