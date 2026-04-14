@@ -40,6 +40,7 @@ jobs:
         working-directory: ${{ env.WEB_DIR }}
         env:
           NODE_ENV: production
+          NEXT_PUBLIC_API_URL: http://api.docsignerhub.com
         run: npm run build
 
       # ── 5. Assemble standalone package ───────────────────────────────────────
@@ -88,6 +89,23 @@ jobs:
               </handlers>
               <rewrite>
                 <rules>
+                  <!-- Force HTTPS: redirect http://docsignerhub.com → https://docsignerhub.com -->
+                  <rule name="HTTP to HTTPS redirect" stopProcessing="true">
+                    <match url="(.*)" />
+                    <conditions>
+                      <add input="{HTTPS}" pattern="^OFF$" />
+                    </conditions>
+                    <action type="Redirect" url="https://{HTTP_HOST}/{R:1}" redirectType="Permanent" />
+                  </rule>
+                  <!-- www → apex redirect: https://www.docsignerhub.com → https://docsignerhub.com -->
+                  <rule name="www to apex redirect" stopProcessing="true">
+                    <match url="(.*)" />
+                    <conditions>
+                      <add input="{HTTP_HOST}" pattern="^www\.docsignerhub\.com$" />
+                    </conditions>
+                    <action type="Redirect" url="https://docsignerhub.com/{R:1}" redirectType="Permanent" />
+                  </rule>
+                  <!-- Route all traffic through Next.js server.js -->
                   <rule name="NextJS" stopProcessing="true">
                     <match url=".*" />
                     <conditions logicalGrouping="MatchAll">
@@ -203,5 +221,5 @@ jobs:
             Write-Error "MSDeploy failed with exit code $LASTEXITCODE"
             exit $LASTEXITCODE
           }
-          Write-Host "Deployment successful → http://rajibmahata143-001-site2.mtempurl.com/"
+          Write-Host "Deployment successful → https://docsignerhub.com/"
 

@@ -1,7 +1,14 @@
 /** @type {import('next').NextConfig} */
+const isProd = process.env.NODE_ENV === 'production';
+
 const nextConfig = {
   // Produce a self-contained build in .next/standalone — no full node_modules needed on server.
   output: 'standalone',
+
+  // Canonical HTTPS domain — ensures /_next/static asset URLs use HTTPS in production.
+  ...(isProd && {
+    assetPrefix: 'https://docsignerhub.com',
+  }),
 
   // Expose react-pdf worker from pdfjs-dist
   webpack: (config) => {
