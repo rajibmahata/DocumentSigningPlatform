@@ -161,9 +161,8 @@ public class AuthController : ControllerBase
         string token,
         CancellationToken ct)
     {
+        var frontendUrl = (_config["App:FrontendUrl"] ?? "http://localhost:3000").TrimEnd('/');
         var record = await _tokenRepo.GetByTokenAsync(token, ct);
-
-        var frontendUrl = _config["App:FrontendUrl"] ?? "http://localhost:3000";
 
         if (record is null || record.IsUsed || record.ExpiresAt < DateTime.UtcNow)
             return Content(VerifyEmailPage(success: false, frontendUrl), "text/html");
@@ -331,7 +330,8 @@ public class AuthController : ControllerBase
     [ApiExplorerSettings(IgnoreApi = true)]
     public IActionResult ResetPasswordPage(string token)
     {
-        return Content(ResetPasswordHtml(token), "text/html");
+        var frontendUrl = (_config["App:FrontendUrl"] ?? "http://localhost:3000").TrimEnd('/');
+        return Content(ResetPasswordHtml(token, frontendUrl), "text/html");
     }
 
     /// <summary>Reset the user's password using a valid reset token.</summary>
@@ -370,7 +370,7 @@ public class AuthController : ControllerBase
 
     // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-    private static string ResetPasswordHtml(string token) => $$"""
+    private static string ResetPasswordHtml(string token, string frontendUrl) => $$"""
         <!DOCTYPE html>
         <html lang="en">
         <head>
@@ -464,7 +464,7 @@ public class AuthController : ControllerBase
 
             <button class="btn" id="submitBtn" onclick="submit()">Reset Password</button>
 
-            <p class="footer"><a href="/swagger">Back to API Explorer</a></p>
+            <p class="footer"><a href="{{frontendUrl}}/dashboard">Back to home</a></p>
           </div>
 
           <script>
