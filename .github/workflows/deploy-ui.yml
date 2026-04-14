@@ -61,13 +61,16 @@ jobs:
           if (Test-Path "public") {
             Copy-Item -Recurse -Force "public" "$standalone\public"
           }
-          # Copy webpack compiled dir — standalone trace misses bundle5.js
-          $webpackSrc = "node_modules\next\dist\compiled\webpack"
-          $webpackDst = "$standalone\node_modules\next\dist\compiled\webpack"
-          if (Test-Path $webpackSrc) {
-            New-Item -ItemType Directory -Force -Path $webpackDst | Out-Null
-            Copy-Item -Recurse -Force "$webpackSrc\*" $webpackDst
-            Write-Host "Webpack compiled files copied."
+          # Copy entire next/dist/compiled/ — the standalone tracer misses many
+          # dynamically required files (bundle5.js, loader-runner, etc.).
+          # Copying the whole compiled dir prevents a chain of MODULE_NOT_FOUND
+          # errors at startup under IISNode.
+          $compiledSrc = "node_modules\next\dist\compiled"
+          $compiledDst = "$standalone\node_modules\next\dist\compiled"
+          if (Test-Path $compiledSrc) {
+            New-Item -ItemType Directory -Force -Path $compiledDst | Out-Null
+            Copy-Item -Recurse -Force "$compiledSrc\*" $compiledDst
+            Write-Host "next/dist/compiled copied."
           }
           Write-Host "Standalone package assembled."
 
