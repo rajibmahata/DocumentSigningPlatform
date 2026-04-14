@@ -256,8 +256,6 @@ public class AuthController : ControllerBase
                   transition:transform .15s ease,box-shadow .15s ease;
                 }
                 .btn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(21,101,192,.40)}
-                .footer{margin-top:36px;font-size:.78rem;color:#90a4ae}
-                .footer a{color:#1976d2;text-decoration:none}
               </style>
             </head>
             <body>
@@ -269,8 +267,7 @@ public class AuthController : ControllerBase
                 <p class="sub">{{bodyText}}</p>
                 <div class="json-box">{"message":"{{jsonMsg}}"}</div>
                 {{extraBlock}}
-                <a href="/swagger" class="btn">Go to API Explorer</a>
-                <p class="footer">Need help? <a href="mailto:support@docsign.io">Contact support</a></p>
+                <a href="https://docsignerhub.com/dashboard" class="btn">Back to home</a>
               </div>
             </body>
             </html>
