@@ -54,13 +54,20 @@ builder.Services.AddHttpClient("api", client =>
 });
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
+var allowedOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>() ?? [];
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontendDev", policy =>
-        policy
-            .SetIsOriginAllowed(origin => new Uri(origin).Host == "localhost")
-            .AllowAnyMethod()
-            .AllowAnyHeader());
+    {
+        policy.AllowAnyMethod().AllowAnyHeader();
+        if (allowedOrigins.Length > 0)
+            policy.WithOrigins(allowedOrigins);
+        else
+            policy.SetIsOriginAllowed(origin => new Uri(origin).Host == "localhost");
+    });
 });
 
 // ─── Rate limiting ────────────────────────────────────────────────────────────
