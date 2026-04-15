@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { FileSignature, Eye, EyeOff } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const schema = z.object({
   email:    z.string().email('Invalid email address'),
@@ -30,6 +30,9 @@ export default function LoginPage() {
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
   });
+
+  // Pre-warm the dashboard route so navigation is instant
+  useEffect(() => { router.prefetch('/dashboard'); }, [router]);
 
   const onSubmit = async (data: FormValues) => {
     try {
@@ -61,6 +64,9 @@ export default function LoginPage() {
       if (!isEmailVerified) {
         toast.warning('Please verify your email address.');
       }
+
+      // Hold briefly so the user can read the toast, then navigate
+      await new Promise<void>((resolve) => setTimeout(resolve, 800));
       router.push('/dashboard');
     } catch (err: unknown) {
       // Clear any partial token on failure
@@ -88,7 +94,7 @@ export default function LoginPage() {
           <FileSignature className="h-6 w-6" />
         </div>
         <CardTitle className="text-2xl">Welcome back</CardTitle>
-        <CardDescription>Sign in to your SignFlow account</CardDescription>
+        <CardDescription>Sign in to your DocSignerHub account</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">

@@ -339,7 +339,7 @@ export default function DocsPage() {
         <div className="mx-auto max-w-6xl">
           <h1 className="text-3xl font-bold text-gray-900">API Reference</h1>
           <p className="mt-2 text-gray-500 text-sm max-w-xl">
-            All API endpoints for SignFlow. Base URL: <code className="font-mono text-brand-700">https://api.signflow.app</code>
+            All API endpoints for DocSignerHub. Base URL: <code className="font-mono text-brand-700">https://api.docsignerhub.com</code>
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Badge variant="secondary">REST / JSON</Badge>

@@ -69,7 +69,7 @@ export function DashboardSidebar() {
         {!collapsed && (
           <Link href="/" className="flex items-center gap-2 font-bold text-brand-700">
             <FileSignature className="h-5 w-5 shrink-0" />
-            <span className="text-lg">SignFlow</span>
+            <span className="text-lg">DocSignerHub</span>
           </Link>
         )}
         {collapsed && <FileSignature className="h-5 w-5 text-brand-700 mx-auto" />}

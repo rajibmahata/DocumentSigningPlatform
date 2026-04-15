@@ -13,7 +13,7 @@ import Link from 'next/link';
 export default function DashboardPage() {
   const { user } = useAuth();
 
-  const { data: merchants } = useQuery({
+  const { data: merchants, isLoading: loadingMerchants } = useQuery({
     queryKey: ['merchants', user?.id],
     queryFn: () => merchantApi.getByUser(user!.id).then((r) => r.data),
     enabled: !!user,
@@ -21,15 +21,17 @@ export default function DashboardPage() {
 
   const merchant = merchants?.[0];
 
-  const { data: envelopes } = useQuery({
+  const { data: envelopes, isLoading: loadingEnvelopes } = useQuery({
     queryKey: ['envelopes', merchant?.apiKey],
     queryFn: () => envelopeApi.list(merchant!.apiKey).then((r) => r.data),
     enabled: !!merchant,
   });
 
+  const isLoading = loadingMerchants || (!!merchant && loadingEnvelopes);
+
   const total   = envelopes?.length ?? 0;
-  const pending = envelopes?.filter((e) => e.status === 'Pending').length ?? 0;
-  const signed  = envelopes?.filter((e) => e.status === 'Signed').length ?? 0;
+  const pending = envelopes?.filter((e) => e.status === 'Sent' || e.status === 'InProgress').length ?? 0;
+  const signed  = envelopes?.filter((e) => e.status === 'Completed').length ?? 0;
   const remaining = merchant
     ? merchant.requestLimit === 0
       ? '∞'
@@ -83,21 +85,35 @@ export default function DashboardPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {STATS.map(({ label, value, icon: Icon, color, bg }) => (
-          <Card key={label}>
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-gray-500">{label}</p>
-                  <p className={`mt-1 text-2xl font-bold ${color}`}>{value}</p>
-                </div>
-                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${bg} ${color}`}>
-                  <Icon className="h-5 w-5" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        {isLoading
+          ? [...Array(4)].map((_, i) => (
+              <Card key={i}>
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-2">
+                      <div className="h-3 w-20 animate-pulse rounded bg-gray-200" />
+                      <div className="h-7 w-10 animate-pulse rounded bg-gray-200" />
+                    </div>
+                    <div className="h-10 w-10 animate-pulse rounded-xl bg-gray-100" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          : STATS.map(({ label, value, icon: Icon, color, bg }) => (
+              <Card key={label}>
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium text-gray-500">{label}</p>
+                      <p className={`mt-1 text-2xl font-bold ${color}`}>{value}</p>
+                    </div>
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${bg} ${color}`}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
       </div>
 
       {/* Recent envelopes */}
@@ -109,7 +125,18 @@ export default function DashboardPage() {
           </Button>
         </CardHeader>
         <CardContent className="p-0">
-          {!envelopes || envelopes.length === 0 ? (
+          {isLoading ? (
+            <div className="divide-y">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="flex items-center gap-4 px-6 py-3">
+                  <div className="h-4 flex-1 animate-pulse rounded bg-gray-100" />
+                  <div className="h-4 w-8 animate-pulse rounded bg-gray-100" />
+                  <div className="h-4 w-24 animate-pulse rounded bg-gray-100" />
+                  <div className="h-5 w-16 animate-pulse rounded-full bg-gray-100" />
+                </div>
+              ))}
+            </div>
+          ) : !envelopes || envelopes.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <FileText className="h-10 w-10 text-gray-300 mb-3" />
               <p className="text-sm text-gray-500">No envelopes yet.</p>

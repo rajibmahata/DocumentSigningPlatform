@@ -9,7 +9,7 @@ export function Footer() {
           <div className="col-span-2 md:col-span-1">
             <Link href="/" className="flex items-center gap-2 text-brand-700 font-bold text-lg">
               <FileSignature className="h-5 w-5" />
-              <span>SignFlow</span>
+              <span>DocSignerHub</span>
             </Link>
             <p className="mt-2 text-sm text-gray-500 leading-relaxed">
               Legally binding eSign platform. eIDAS compliant.
@@ -43,7 +43,7 @@ export function Footer() {
         </div>
 
         <div className="mt-10 border-t border-gray-100 pt-6 flex flex-col md:flex-row items-center justify-between gap-2">
-          <p className="text-xs text-gray-400">© {new Date().getFullYear()} SignFlow. All rights reserved.</p>
+          <p className="text-xs text-gray-400">© {new Date().getFullYear()} DocSignerHub. All rights reserved.</p>
           <p className="text-xs text-gray-400">eIDAS compliant · Encrypted · Audit-logged</p>
         </div>
       </div>

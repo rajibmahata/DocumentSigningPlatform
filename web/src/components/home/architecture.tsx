@@ -17,7 +17,7 @@ export function Architecture() {
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold text-gray-900">Background Architecture</h2>
           <p className="mt-3 text-gray-500 max-w-xl mx-auto">
-            High-level overview of how SignFlow processes a document signing request.
+            High-level overview of how DocSignerHub processes a document signing request.
           </p>
         </div>
 

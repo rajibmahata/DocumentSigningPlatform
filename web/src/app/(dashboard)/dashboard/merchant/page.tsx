@@ -170,7 +170,7 @@ function MerchantDetails({ merchant }: { merchant: MerchantResponse }) {
       <Card>
         <CardHeader><CardTitle className="text-sm">Quick API Usage</CardTitle></CardHeader>
         <CardContent>
-          <pre className="rounded-xl bg-gray-900 text-green-400 p-4 text-xs font-mono overflow-x-auto whitespace-pre">{`curl -X POST https://api.signflow.app/api/envelopes \\
+          <pre className="rounded-xl bg-gray-900 text-green-400 p-4 text-xs font-mono overflow-x-auto whitespace-pre">{`curl -X POST https://api.docsignerhub.com/api/envelopes \\
   -H "X-Api-Key: ${keyVisible ? merchant.apiKey : 'YOUR_API_KEY'}" \\
   -H "Content-Type: application/json" \\
   -d '{ "title": "...", "merchantId": "${merchant.id}", ... }'`}</pre>

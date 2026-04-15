@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Copy, Key } from 'lucide-react';
 
 const STEPS = [
-  { num: '1', title: 'Register',         desc: 'Create a free account at signflow.app/register' },
+  { num: '1', title: 'Register',         desc: 'Create a free account at docsignerhub.com/register' },
   { num: '2', title: 'Create Merchant',  desc: 'Go to Dashboard → Merchant → Create Merchant Account' },
   { num: '3', title: 'Copy API Key',     desc: 'Your API key appears on the Merchant page. Keep it secret.' },
   { num: '4', title: 'Call the API',     desc: 'Add the X-Api-Key header to every envelope request.' },
@@ -18,7 +18,7 @@ export function ApiIntegration() {
           <div>
             <h2 className="text-3xl font-bold text-gray-900">Integrate in Minutes</h2>
             <p className="mt-3 text-gray-500 leading-relaxed">
-              SignFlow provides a clean REST API. All you need is an API key from your merchant
+              DocSignerHub provides a clean REST API. All you need is an API key from your merchant
               account and you can start sending envelopes from any language or platform.
             </p>
 
@@ -52,7 +52,7 @@ export function ApiIntegration() {
               </button>
             </div>
             <pre className="text-sm text-green-400 font-mono overflow-x-auto leading-relaxed whitespace-pre">
-{`curl -X POST https://api.signflow.app/api/envelopes \\
+{`curl -X POST https://api.docsignerhub.com/api/envelopes \\
   -H "X-Api-Key: YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{

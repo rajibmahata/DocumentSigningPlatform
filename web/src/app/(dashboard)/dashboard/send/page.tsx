@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2, AlertTriangle, Upload } from 'lucide-react';
+import { Plus, Trash2, AlertTriangle, Upload, Download } from 'lucide-react';
 
 const signerSchema = z.object({
   name:    z.string().min(1, 'Required'),
@@ -120,13 +120,21 @@ export default function SendPage() {
       {/* Signature placeholder instructions */}
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex gap-3">
         <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-        <div className="text-sm text-amber-800">
+        <div className="text-sm text-amber-800 flex-1">
           <p className="font-semibold">Document must contain signature placeholders:</p>
           <code className="block mt-1 text-xs bg-amber-100 rounded p-2 font-mono">
             {'{signature:signer:Please+Sign+Here}'}<br />
             {'{date:signer:Date+Here}'}
           </code>
           <p className="mt-1.5 text-xs">Replace <code>signer</code> with the matching signer <strong>role</strong>.</p>
+          <a
+            href="/sample-template.docx"
+            download="DocSignerHub-Sample-Template.docx"
+            className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 underline underline-offset-2 hover:text-amber-900"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Download sample template (.docx)
+          </a>
         </div>
       </div>
 
@@ -143,13 +151,14 @@ export default function SendPage() {
 
             {/* File upload */}
             <div className="space-y-1">
-              <Label>Documents (PDF)</Label>
+              <Label>Documents (PDF or Word)</Label>
               <label className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-6 cursor-pointer hover:border-brand-400 transition-colors">
                 <Upload className="h-7 w-7 text-gray-400 mb-2" />
-                <p className="text-sm text-gray-500">Click or drag to upload PDF files</p>
+                <p className="text-sm text-gray-500">Click or drag to upload files</p>
+                <p className="text-xs text-gray-400 mt-0.5">Supported: .pdf, .doc, .docx</p>
                 <input
                   type="file"
-                  accept=".pdf"
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   multiple
                   className="hidden"
                   onChange={handleFileChange}

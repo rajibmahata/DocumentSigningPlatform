@@ -29,7 +29,7 @@ export function Header() {
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 font-bold text-xl text-brand-700">
           <FileSignature className="h-6 w-6" />
-          <span>SignFlow</span>
+          <span>DocSignerHub</span>
         </Link>
 
         {/* Desktop nav */}
