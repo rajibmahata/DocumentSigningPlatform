@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Copy, CheckCircle } from 'lucide-react';
+import { apiBaseUrl, swaggerUrl } from '@/lib/config';
 
 /* ── Types ── */
 interface Param { name: string; type: string; required: boolean; description: string }
@@ -337,14 +338,32 @@ export default function DocsPage() {
       {/* Page header */}
       <div className="border-b border-gray-200 bg-white px-6 py-6">
         <div className="mx-auto max-w-6xl">
-          <h1 className="text-3xl font-bold text-gray-900">API Reference</h1>
-          <p className="mt-2 text-gray-500 text-sm max-w-xl">
-            All API endpoints for DocSignerHub. Base URL: <code className="font-mono text-brand-700">https://api.docsignerhub.com</code>
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Badge variant="secondary">REST / JSON</Badge>
-            <Badge variant="secondary">JWT Bearer</Badge>
-            <Badge variant="secondary">API Key (X-Api-Key)</Badge>
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">API Reference</h1>
+              <p className="mt-2 text-gray-500 text-sm max-w-xl">
+                All API endpoints for DocSignerHub. Base URL:{' '}
+                <code className="font-mono text-brand-700">{apiBaseUrl}</code>
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Badge variant="secondary">REST / JSON</Badge>
+                <Badge variant="secondary">JWT Bearer</Badge>
+                <Badge variant="secondary">API Key (X-Api-Key)</Badge>
+              </div>
+            </div>
+            <a
+              href={swaggerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm font-semibold text-brand-700 hover:bg-brand-100 transition-colors"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+              Open Swagger UI
+            </a>
           </div>
         </div>
       </div>

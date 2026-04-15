@@ -2,6 +2,7 @@ import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { Hero } from '@/components/home/hero';
 import { HowItWorks } from '@/components/home/how-it-works';
+import { VideoExplainer } from '@/components/home/video-explainer';
 import { Features } from '@/components/home/features';
 import { SignatureInstructions } from '@/components/home/signature-instructions';
 import { ApiIntegration } from '@/components/home/api-integration';
@@ -16,6 +17,7 @@ export default function HomePage() {
       <main>
         <Hero />
         <HowItWorks />
+        <VideoExplainer />
         <Features />
         <SignatureInstructions />
         <ApiIntegration />
