@@ -108,6 +108,12 @@ public class StampDocJobHandler
             if (signer is not null)
             {
                 signer.Status = SigningStatus.Signed;
+
+                // Promote envelope status based on how many signers remain
+                bool allSigned = envelope.Signers.All(s => s.Status == SigningStatus.Signed);
+                envelope.Status = allSigned ? EnvelopeStatus.Completed : EnvelopeStatus.InProgress;
+
+                await _envelopeRepo.UpdateAsync(envelope, ct);
                 await _envelopeRepo.SaveChangesAsync(ct);
             }
         }
