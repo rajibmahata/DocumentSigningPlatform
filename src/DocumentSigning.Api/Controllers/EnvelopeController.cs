@@ -257,15 +257,7 @@ public class EnvelopeController : ControllerBase
         if (envelope is null || envelope.MerchantId != merchant.Id)
             return NotFound();
 
-        var response = new InitiateEnvelopeResponse(
-            envelope.Id,
-            envelope.Title,
-            envelope.Status.ToString(),
-            envelope.CreatedAt,
-            envelope.Documents.Select(d => new DocumentSummary(d.Id, d.DocumentTitle)).ToList(),
-            envelope.Signers.Select(s => new SignerSummary(s.Name, s.Role, s.Email, s.Status.ToString())).ToList());
-
-        return Ok(response);
+        return Ok(MapToResponse(envelope));
     }
 
     /// <summary>Returns all envelopes for the authenticated merchant.</summary>
@@ -280,16 +272,30 @@ public class EnvelopeController : ControllerBase
         return Ok(envelopes.Select(MapToResponse));
     }
 
-    private static InitiateEnvelopeResponse MapToResponse(SigningEnvelope e) => new(
-        e.Id,
-        e.Title,
-        e.Status.ToString(),
-        e.CreatedAt,
-        e.Documents.Select(d => new DocumentSummary(
-            d.Id,
-            d.DocumentTitle)).ToList(),
-        e.Signers.Select(s => new SignerSummary(s.Name, s.Role, s.Email, s.Status.ToString())).ToList()
-    );
+    private static InitiateEnvelopeResponse MapToResponse(SigningEnvelope e)
+    {
+        // Derive effective status from signer states to handle any stale DB records
+        var effectiveStatus = e.Status;
+        if (effectiveStatus != EnvelopeStatus.Cancelled && e.Signers.Count > 0)
+        {
+            bool allSigned = e.Signers.All(s => s.Status == SigningStatus.Signed);
+            bool anySigned = e.Signers.Any(s => s.Status == SigningStatus.Signed);
+
+            if (allSigned)
+                effectiveStatus = EnvelopeStatus.Completed;
+            else if (anySigned)
+                effectiveStatus = EnvelopeStatus.InProgress;
+        }
+
+        return new(
+            e.Id,
+            e.Title,
+            effectiveStatus.ToString(),
+            e.CreatedAt,
+            e.Documents.Select(d => new DocumentSummary(d.Id, d.DocumentTitle)).ToList(),
+            e.Signers.Select(s => new SignerSummary(s.Name, s.Role, s.Email, s.Status.ToString())).ToList()
+        );
+    }
 
     /// <summary>Returns the envelope with each signer's signed document in base64 (null if not yet signed).</summary>
     [HttpGet("{id:guid}/signed-documents")]
