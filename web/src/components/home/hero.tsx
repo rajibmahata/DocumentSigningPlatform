@@ -22,14 +22,14 @@ export function Hero() {
   const fmt = (n: number | null) => n === null ? '…' : n.toLocaleString();
 
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-brand-50 via-white to-blue-50 py-24 lg:py-32">
+    <section className="relative overflow-hidden bg-gradient-to-br from-brand-50 via-white to-blue-50 py-24 lg:py-32 w-full">
       {/* Background decoration */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 h-96 w-96 rounded-full bg-brand-100 opacity-30 blur-3xl" />
         <div className="absolute -bottom-32 -left-32 h-80 w-80 rounded-full bg-blue-100 opacity-40 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto max-w-7xl px-6 text-center">
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 text-center">
         {/* Badge */}
         <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-brand-50 px-4 py-1.5 text-sm text-brand-700 font-medium">
           <ShieldCheck className="h-4 w-4" />
@@ -45,9 +45,22 @@ export function Hero() {
         </h1>
 
         <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-600 leading-relaxed">
-          DocSignerHub is an API-first, multi-tenant eSign SaaS. Send documents for signature, track
-          signing status in real time, and integrate with your own systems via our developer API.
+          DocSignerHub is an API-first, multi-tenant eSign SaaS. Upload <strong>PDF, DOC, or DOCX</strong> files,
+          assign signers per document, and each recipient signs only their designated file — tracked in real time.
         </p>
+
+        {/* Format support chips */}
+        <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
+          {[
+            { label: '📄 PDF',  cls: 'border-red-200 bg-red-50 text-red-700'     },
+            { label: '📝 DOC',  cls: 'border-blue-200 bg-blue-50 text-blue-700'  },
+            { label: '📋 DOCX', cls: 'border-indigo-200 bg-indigo-50 text-indigo-700' },
+          ].map(({ label, cls }) => (
+            <span key={label} className={`rounded-full border px-3 py-0.5 text-xs font-semibold ${cls}`}>
+              {label} Supported
+            </span>
+          ))}
+        </div>
 
         <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
           <Button size="lg" asChild>

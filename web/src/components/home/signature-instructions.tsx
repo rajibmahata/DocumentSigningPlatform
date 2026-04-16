@@ -1,9 +1,11 @@
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, FileText } from 'lucide-react';
 
 export function SignatureInstructions() {
   return (
     <section className="py-20 bg-white">
-      <div className="mx-auto max-w-4xl px-6">
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 space-y-6">
+
+        {/* Placeholder instructions (PDF + DOCX) */}
         <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-8">
           <div className="flex items-start gap-4">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
@@ -14,8 +16,9 @@ export function SignatureInstructions() {
                 Document Signature Placeholders (Required)
               </h3>
               <p className="mt-1 text-sm text-amber-800">
-                Your PDF documents <strong>must contain</strong> these exact placeholder strings so
+                Your documents <strong>must contain</strong> these exact placeholder strings so
                 DocSignerHub can locate where to embed the signature and date.
+                Works for <strong>PDF</strong>, <strong>DOC</strong>, and <strong>DOCX</strong> files.
               </p>
 
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -47,6 +50,47 @@ export function SignatureInstructions() {
             </div>
           </div>
         </div>
+
+        {/* Per-document signing note */}
+        <div className="rounded-2xl border-2 border-blue-200 bg-blue-50 p-8">
+          <div className="flex items-start gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
+              <FileText className="h-5 w-5" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-blue-900">
+                Signers Only See Their Assigned Document
+              </h3>
+              <p className="mt-1 text-sm text-blue-800">
+                An envelope can include multiple documents. Each signer receives a unique, secure link that
+                opens <strong>only the document assigned to them</strong> — other documents in the same envelope
+                are never exposed. Use the <code>role</code> field in each signer definition to match the
+                placeholder inside the relevant document.
+              </p>
+
+              <div className="mt-5 rounded-xl bg-white border border-blue-200 p-4 overflow-hidden">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Example — Envelope with two documents</p>
+                <pre className="rounded-lg bg-gray-900 text-gray-100 px-4 py-3 text-xs font-mono overflow-x-auto whitespace-pre w-full">{
+`{
+  "title": "Employment Package",
+  "documents": [
+    { "documentTitle": "NDA",      "documentFileName": "nda.pdf",      ... },
+    { "documentTitle": "Contract", "documentFileName": "contract.docx", ... }
+  ],
+  "signers": [
+    { "name": "Alice", "email": "alice@co.com", "role": "employee", "documentIndex": 0 },
+    { "name": "Bob",   "email": "bob@co.com",   "role": "witness",  "documentIndex": 1 }
+  ]
+}`}
+                </pre>
+                <p className="mt-2 text-xs text-gray-500">
+                  Alice receives a link to sign <strong>nda.pdf</strong> only; Bob signs <strong>contract.docx</strong> only.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </section>
   );

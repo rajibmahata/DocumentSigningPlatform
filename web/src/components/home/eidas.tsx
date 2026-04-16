@@ -9,7 +9,7 @@ const POINTS = [
   {
     icon: FileLock,
     title: 'Secure Signing Process',
-    desc: 'Documents are transmitted over TLS. Signing tokens are HMAC-signed and expire. Signed PDF bytes are preserved unchanged after stamping.',
+    desc: 'Documents are transmitted over TLS. Signing tokens are HMAC-signed and expire. Signed document bytes (PDF, DOC, or DOCX) are preserved unchanged after stamping.',
   },
   {
     icon: History,
@@ -26,7 +26,7 @@ const POINTS = [
 export function EidasSection() {
   return (
     <section id="eidas" className="py-24 bg-gradient-to-br from-brand-700 to-brand-900 text-white">
-      <div className="mx-auto max-w-7xl px-6">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-sm font-medium mb-4">
             <ShieldCheck className="h-4 w-4" />

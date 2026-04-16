@@ -164,6 +164,7 @@ const SECTIONS: Section[] = [
           title: 'Employment Contract',
           merchantId: 'merchant-uuid',
           documents: [{ documentTitle: 'Contract', documentFileName: 'contract.pdf', documentBase64: 'base64...', documentContentType: 'application/pdf' }],
+          // also accepted: .doc / .docx with documentContentType 'application/msword' or 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
           signers: [{ name: 'John Doe', email: 'john@example.com', role: 'signer', order: 1, message: 'Please sign.' }],
         }, null, 2),
         response: JSON.stringify({ envelopeId: 'uuid', title: 'Employment Contract', status: 'Pending', sentDate: '2025-01-01T00:00:00Z', signers: [{ signingToken: 'uuid', status: 'Pending' }] }, null, 2),
@@ -183,7 +184,7 @@ const SECTIONS: Section[] = [
         auth: 'api-key',
         headers: { 'X-Api-Key': 'YOUR_API_KEY' },
         params: [{ name: 'id', type: 'string', required: true, description: 'Envelope UUID' }],
-        response: JSON.stringify({ envelopeId: 'uuid', signers: [{ signedDocumentBase64: 'base64_pdf...' }] }, null, 2),
+        response: JSON.stringify({ envelopeId: 'uuid', signers: [{ signedDocumentBase64: 'base64_signed_doc...' }] }, null, 2),
       },
     ],
   },
@@ -200,7 +201,7 @@ const SECTIONS: Section[] = [
       {
         id: 'submit-signature', method: 'POST', path: '/api/portal/submit/{token}',
         title: 'Submit Signature',
-        description: 'Submit the drawn signature. The API stamps the PDF and marks the request signed.',
+        description: 'Submit the drawn signature. The API stamps the document (PDF, DOC, or DOCX) and marks the request signed.',
         params: [{ name: 'token', type: 'string', required: true, description: 'Signing token UUID' }],
         body: JSON.stringify({ signatureBase64: 'base64_png...' }, null, 2),
         response: JSON.stringify({ message: 'Signature submitted successfully.' }, null, 2),
@@ -243,7 +244,7 @@ function EndpointCard({ ep }: { ep: Endpoint }) {
         <span className={`rounded-md px-2.5 py-1 text-xs font-bold font-mono ${METHOD_COLOR[ep.method]}`}>
           {ep.method}
         </span>
-        <code className="text-sm font-mono text-gray-700 flex-1">{ep.path}</code>
+        <code className="text-sm font-mono text-gray-700 flex-1 break-all min-w-0">{ep.path}</code>
         <span className="text-sm text-gray-600 hidden md:block">{ep.title}</span>
         {ep.auth && (
           <Badge variant={ep.auth === 'bearer' ? 'default' : 'secondary'} className="hidden md:flex">
@@ -259,6 +260,7 @@ function EndpointCard({ ep }: { ep: Endpoint }) {
           {ep.params && (
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Path Parameters</p>
+              <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="bg-gray-50 text-xs text-gray-500 text-left">
@@ -283,6 +285,7 @@ function EndpointCard({ ep }: { ep: Endpoint }) {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
@@ -368,7 +371,7 @@ export default function DocsPage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-6xl flex gap-0 py-8 px-4">
+      <div className="mx-auto max-w-6xl flex flex-col md:flex-row gap-0 py-8 px-4">
         {/* Sidebar nav */}
         <nav className="hidden md:block w-48 shrink-0 mr-8">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-2">Sections</p>
@@ -389,7 +392,7 @@ export default function DocsPage() {
         </nav>
 
         {/* Mobile section select */}
-        <div className="md:hidden w-full mb-6">
+        <div className="md:hidden w-full mb-6 shrink-0">
           <select
             className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm"
             value={activeSection}

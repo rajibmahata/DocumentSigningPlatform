@@ -13,7 +13,7 @@ const FLOW = [
 export function Architecture() {
   return (
     <section className="py-24 bg-white">
-      <div className="mx-auto max-w-7xl px-6">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold text-gray-900">Background Architecture</h2>
           <p className="mt-3 text-gray-500 max-w-xl mx-auto">
@@ -44,15 +44,15 @@ export function Architecture() {
             },
             {
               title: 'Outbox Queue Processing',
-              desc: 'Emails (signing links, confirmations) and PDF stamping jobs are queued in the OutboxQueue table and processed by a background worker.',
+              desc: 'Emails (signing links, confirmations) and document stamping jobs are queued in the OutboxQueue table and processed by a background worker.',
             },
             {
               title: 'Audit Logging',
               desc: 'Every action — portal opened, signature submitted, token expired — is appended to the AuditLog with IP address, user agent, and timestamp.',
             },
             {
-              title: 'PDF Stamping',
-              desc: 'When a signer submits, the background stamp worker embeds the signature image and signing date into the PDF at the placeholder coordinates.',
+              title: 'Document Stamping',
+              desc: 'When a signer submits, the background stamp worker embeds the signature image and signing date into the document (PDF, DOC, or DOCX) at the placeholder coordinates.',
             },
             {
               title: 'Multi-Tenant Isolation',
