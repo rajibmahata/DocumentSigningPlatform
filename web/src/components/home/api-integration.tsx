@@ -15,7 +15,7 @@ const STEPS = [
 export function ApiIntegration() {
   return (
     <section id="api-integration" className="py-24 bg-gray-50">
-      <div className="mx-auto max-w-7xl px-6">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="grid gap-12 lg:grid-cols-2 items-center">
           {/* Left */}
           <div>
@@ -54,14 +54,14 @@ export function ApiIntegration() {
           </div>
 
           {/* Right — code snippet */}
-          <div className="rounded-2xl bg-gray-900 p-6 shadow-xl">
+          <div className="rounded-2xl bg-gray-900 p-6 shadow-xl overflow-hidden min-w-0">
             <div className="flex items-center justify-between mb-4">
               <span className="text-xs text-gray-400 font-mono">POST /api/envelopes</span>
               <button className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors">
                 <Copy className="h-3.5 w-3.5" /> Copy
               </button>
             </div>
-            <pre className="text-sm text-green-400 font-mono overflow-x-auto leading-relaxed whitespace-pre">
+            <pre className="text-sm text-green-400 font-mono overflow-x-auto leading-relaxed whitespace-pre w-full">
 {`curl -X POST ${apiBaseUrl}/api/envelopes \\
   -H "X-Api-Key: YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
@@ -70,7 +70,7 @@ export function ApiIntegration() {
     "merchantId": "YOUR_MERCHANT_ID",
     "documents": [{
       "documentTitle": "Contract",
-      "documentFileName": "contract.pdf",
+      "documentFileName": "contract.pdf",  // .pdf | .doc | .docx
       "documentBase64": "BASE64_CONTENT"
     }],
     "signers": [{

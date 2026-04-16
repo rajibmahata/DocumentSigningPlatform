@@ -1,13 +1,14 @@
 import {
   ShieldCheck, Clock, FileCheck, Layers, Lock, BellRing,
-  FileText, Globe, BarChart2, Users,
+  FileText, Globe, BarChart2, Users, FileBadge,
 } from 'lucide-react';
 
 const FEATURES = [
   { icon: ShieldCheck, title: 'eIDAS Compliant',       desc: 'Meets EU electronic signature regulations for legal validity.' },
   { icon: Lock,        title: 'Secure Token Signing',   desc: 'HMAC-secured, expiring, single-use signing tokens per signer.' },
   { icon: Layers,      title: 'Multi-Signer Support',   desc: 'Define signer order and roles — each receives their own link.' },
-  { icon: FileCheck,   title: 'PDF Stamping',           desc: 'Signature and date automatically embedded into the document.' },
+  { icon: FileBadge,   title: 'PDF · DOC · DOCX',       desc: 'Upload PDF, Word DOC, or DOCX files. Each signer receives only their assigned document.' },
+  { icon: FileCheck,   title: 'Document Stamping',       desc: 'Signature and date automatically embedded into PDF, DOC, and DOCX files after signing.' },
   { icon: Clock,       title: 'Audit Trail',            desc: 'Every action logged: portal opened, signed, IP, user agent.' },
   { icon: BellRing,    title: 'Email Notifications',    desc: 'Signers and senders get confirmation emails on completion.' },
   { icon: FileText,    title: 'API-First Design',       desc: 'Full REST API — integrate signing into your own product.' },
@@ -19,7 +20,7 @@ const FEATURES = [
 export function Features() {
   return (
     <section id="features" className="py-24 bg-gray-50">
-      <div className="mx-auto max-w-7xl px-6">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="text-center mb-14">
           <h2 className="text-3xl font-bold text-gray-900">Everything You Need</h2>
           <p className="mt-3 text-gray-500 max-w-xl mx-auto">
@@ -27,7 +28,7 @@ export function Features() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {FEATURES.map(({ icon: Icon, title, desc }) => (
             <div
               key={title}
