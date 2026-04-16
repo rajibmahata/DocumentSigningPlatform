@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Copy, Key } from 'lucide-react';
+import { Copy, Key, ExternalLink } from 'lucide-react';
+import { apiBaseUrl, swaggerUrl } from '@/lib/config';
+
+const SWAGGER_URL = swaggerUrl;
 
 const STEPS = [
   { num: '1', title: 'Register',         desc: 'Create a free account at docsignerhub.com/register' },
@@ -36,11 +39,18 @@ export function ApiIntegration() {
               ))}
             </ol>
 
-            <Button className="mt-8" asChild>
-              <Link href="/docs">
-                <Key className="h-4 w-4" /> View Full API Docs
-              </Link>
-            </Button>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Button asChild>
+                <Link href="/docs">
+                  <Key className="h-4 w-4" /> View Full API Docs
+                </Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <a href={SWAGGER_URL} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4" /> Try Swagger UI
+                </a>
+              </Button>
+            </div>
           </div>
 
           {/* Right — code snippet */}
@@ -52,7 +62,7 @@ export function ApiIntegration() {
               </button>
             </div>
             <pre className="text-sm text-green-400 font-mono overflow-x-auto leading-relaxed whitespace-pre">
-{`curl -X POST https://api.docsignerhub.com/api/envelopes \\
+{`curl -X POST ${apiBaseUrl}/api/envelopes \\
   -H "X-Api-Key: YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
