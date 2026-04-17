@@ -7,7 +7,7 @@ import { Play } from 'lucide-react';
  * Replace DEMO_VIDEO_ID with your real YouTube video ID.
  * e.g. for https://www.youtube.com/watch?v=abc123  →  'abc123'
  */
-const DEMO_VIDEO_ID = 'REPLACE_WITH_YOUR_VIDEO_ID';
+const DEMO_VIDEO_ID = 'f4Y_l0h4Xt0';
 
 export function VideoExplainer() {
   const [playing, setPlaying] = useState(false);
