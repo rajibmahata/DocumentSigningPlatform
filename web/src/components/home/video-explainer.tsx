@@ -3,10 +3,6 @@
 import { useState } from 'react';
 import { Play } from 'lucide-react';
 
-/**
- * Replace DEMO_VIDEO_ID with your real YouTube video ID.
- * e.g. for https://www.youtube.com/watch?v=abc123  →  'abc123'
- */
 const DEMO_VIDEO_ID = 'f4Y_l0h4Xt0';
 
 export function VideoExplainer() {
@@ -28,7 +24,7 @@ export function VideoExplainer() {
 
         {/* Video container */}
         <div className="relative rounded-2xl overflow-hidden shadow-2xl aspect-video bg-gray-800 ring-1 ring-white/10">
-          {playing && DEMO_VIDEO_ID !== 'REPLACE_WITH_YOUR_VIDEO_ID' ? (
+          {playing ? (
             <iframe
               className="absolute inset-0 w-full h-full"
               src={`https://www.youtube.com/embed/${DEMO_VIDEO_ID}?autoplay=1&rel=0&modestbranding=1`}
