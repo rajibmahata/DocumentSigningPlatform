@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Copy, CheckCircle } from 'lucide-react';
+import { Copy, CheckCircle, ArrowLeft } from 'lucide-react';
 import { apiBaseUrl, swaggerUrl } from '@/lib/config';
 
 /* ── Types ── */
@@ -343,6 +344,13 @@ export default function DocsPage() {
         <div className="mx-auto max-w-6xl">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div>
+              <Link
+                href="/"
+                className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-700 transition-colors mb-3"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Home
+              </Link>
               <h1 className="text-3xl font-bold text-gray-900">API Reference</h1>
               <p className="mt-2 text-gray-500 text-sm max-w-xl">
                 All API endpoints for DocSignerHub. Base URL:{' '}
