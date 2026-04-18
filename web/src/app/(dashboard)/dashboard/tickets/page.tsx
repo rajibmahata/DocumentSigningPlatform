@@ -7,7 +7,7 @@ import type {
   TicketSummary, TicketType, TicketStatus,
   CreateTicketRequest,
 } from '@/types';
-import { Plus, MessageSquare, Tag, Clock, ChevronRight, X } from 'lucide-react';
+import { Plus, MessageSquare, Clock, ChevronRight, X, Paperclip } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
@@ -46,6 +46,35 @@ export default function TicketsPage() {
     title: '', description: '', type: 'Feedback',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowed.includes(file.type)) {
+      toast.error('Only JPEG, PNG, GIF, or WebP images are allowed.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Image must be smaller than 2 MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const dataUrl = ev.target?.result as string;
+      // strip the data:image/...;base64, prefix
+      const base64 = dataUrl.split(',')[1];
+      setImagePreview(dataUrl);
+      setForm(f => ({ ...f, attachmentBase64: base64, attachmentContentType: file.type }));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearImage() {
+    setImagePreview(null);
+    setForm(f => ({ ...f, attachmentBase64: undefined, attachmentContentType: undefined }));
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -63,7 +92,12 @@ export default function TicketsPage() {
     }
     setSubmitting(true);
     try {
-      const { data } = await ticketsApi.create(form);
+      const { data } = await ticketsApi.create(form).catch((err) => {
+        const msg = err?.response?.data?.message
+          ?? err?.response?.data
+          ?? 'Failed to create ticket.';
+        throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      });
       setTickets(prev => [{
         id: data.id,
         userName: data.userName,
@@ -73,14 +107,16 @@ export default function TicketsPage() {
         status: data.status,
         priority: data.priority,
         messageCount: data.messages.length,
+        hasAttachment: !!data.attachmentBase64,
         createdAt: data.createdAt,
         updatedAt: data.updatedAt,
       }, ...prev]);
       setShowModal(false);
       setForm({ title: '', description: '', type: 'Feedback' });
+      setImagePreview(null);
       toast.success('Ticket created!');
-    } catch {
-      toast.error('Failed to create ticket.');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create ticket.');
     } finally {
       setSubmitting(false);
     }
@@ -139,6 +175,11 @@ export default function TicketsPage() {
                     <MessageSquare className="h-3 w-3" />
                     {t.messageCount} {t.messageCount === 1 ? 'message' : 'messages'}
                   </span>
+                  {t.hasAttachment && (
+                    <span className="flex items-center gap-0.5 text-brand-500" title="Has attachment">
+                      <Paperclip className="h-3 w-3" />
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -155,8 +196,8 @@ export default function TicketsPage() {
 
       {/* Create Ticket Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl flex flex-col max-h-full">
             {/* Modal header */}
             <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
               <h2 className="text-lg font-semibold text-gray-900">New Ticket</h2>
@@ -166,12 +207,17 @@ export default function TicketsPage() {
             </div>
 
             {/* Modal body */}
-            <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+            <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4 overflow-y-auto">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
                 <select
                   value={form.type}
-                  onChange={e => setForm(f => ({ ...f, type: e.target.value as TicketType }))}
+                  onChange={e => {
+                    const t = e.target.value as TicketType;
+                    setForm(f => ({ ...f, type: t }));
+                    // clear attachment when switching to Feedback
+                    if (t === 'Feedback') clearImage();
+                  }}
                   className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 >
                   <option value="Bug">🐛 Bug Report</option>
@@ -202,6 +248,46 @@ export default function TicketsPage() {
                   className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
                 />
               </div>
+
+              {/* Attachment — only for Bug / FeatureRequest */}
+              {(form.type === 'Bug' || form.type === 'FeatureRequest') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Screenshot / Image
+                    <span className="ml-1 text-xs font-normal text-gray-400">(optional, max 2 MB)</span>
+                  </label>
+                  {imagePreview ? (
+                    <div className="relative inline-block">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={imagePreview}
+                        alt="Attachment preview"
+                        className="max-h-36 max-w-full rounded-xl border border-gray-200 object-contain"
+                      />
+                      <button
+                        type="button"
+                        onClick={clearImage}
+                        className="absolute -top-2 -right-2 rounded-full bg-red-500 p-0.5 text-white hover:bg-red-600"
+                        title="Remove image"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    /* Use <label> instead of programmatic .click() for better browser compatibility */
+                    <label className="flex items-center gap-2 rounded-xl border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-500 hover:border-brand-400 hover:text-brand-600 transition-colors w-full justify-center cursor-pointer">
+                      <Paperclip className="h-4 w-4" />
+                      Attach a screenshot
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/gif,image/webp"
+                        className="hidden"
+                        onChange={handleImageChange}
+                      />
+                    </label>
+                  )}
+                </div>
+              )}
 
               <div className="flex justify-end gap-3 pt-2">
                 <button

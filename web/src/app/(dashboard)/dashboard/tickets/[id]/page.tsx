@@ -192,6 +192,31 @@ export default function TicketDetailPage() {
         <h1 className="text-xl font-bold text-gray-900 mb-2">{ticket.title}</h1>
         <p className="text-gray-600 text-sm whitespace-pre-wrap">{ticket.description}</p>
 
+        {/* Attachment image */}
+        {ticket.attachmentBase64 && ticket.attachmentContentType && (
+          <div className="mt-4">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Attachment</p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`data:${ticket.attachmentContentType};base64,${ticket.attachmentBase64}`}
+              alt="Ticket attachment"
+              className="max-h-64 max-w-full rounded-xl border border-gray-200 object-contain cursor-pointer hover:opacity-90 transition-opacity"
+              onClick={() => {
+                // Convert base64 → Blob → object URL to bypass browser data: URL navigation block
+                const byteChars = atob(ticket.attachmentBase64!);
+                const bytes = new Uint8Array(byteChars.length);
+                for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
+                const blob = new Blob([bytes], { type: ticket.attachmentContentType! });
+                const url  = URL.createObjectURL(blob);
+                const win  = window.open(url, '_blank');
+                // Revoke after a delay so the new tab can load it
+                if (win) setTimeout(() => URL.revokeObjectURL(url), 10_000);
+              }}
+              title="Click to open full size"
+            />
+          </div>
+        )}
+
         <div className="flex items-center gap-4 mt-4 text-xs text-gray-400">
           <span className="flex items-center gap-1">
             <Tag className="h-3 w-3" />

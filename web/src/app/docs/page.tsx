@@ -195,14 +195,16 @@ const SECTIONS: Section[] = [
       {
         id: 'create-ticket', method: 'POST', path: '/api/tickets',
         title: 'Create Ticket',
-        description: 'Raise a new support ticket for the authenticated user. Status is automatically set to Open.',
+        description: 'Raise a new support ticket for the authenticated user. Status is automatically set to Open.\n\nAn optional image attachment (base64) can be included for Bug and FeatureRequest tickets only. Feedback tickets do not support attachments.\n\nSupported image types: image/jpeg · image/png · image/gif · image/webp',
         auth: 'bearer',
-        body: JSON.stringify({ title: 'Login page crashes on mobile', description: 'Tapping the login button on iOS Safari causes a white screen.', type: 'Bug' }, null, 2),
-        response: JSON.stringify({ id: 'uuid', userId: 'uuid', userName: 'Jane Doe', userEmail: 'jane@example.com', title: 'Login page crashes on mobile', description: '...', type: 'Bug', status: 'Open', priority: null, createdAt: '2026-04-18T10:00:00Z', updatedAt: null, messages: [] }, null, 2),
+        body: JSON.stringify({ title: 'Login page crashes on mobile', description: 'Tapping the login button on iOS Safari causes a white screen.', type: 'Bug', attachmentBase64: '<base64-encoded-image — optional, Bug/FeatureRequest only>', attachmentContentType: 'image/png' }, null, 2),
+        response: JSON.stringify({ id: 'uuid', userId: 'uuid', userName: 'Jane Doe', userEmail: 'jane@example.com', title: 'Login page crashes on mobile', description: '...', type: 'Bug', status: 'Open', priority: null, attachmentBase64: '<base64>', attachmentContentType: 'image/png', createdAt: '2026-04-18T10:00:00Z', updatedAt: null, messages: [] }, null, 2),
         params: [
           { name: 'title', type: 'string', required: true, description: 'Short summary of the issue' },
           { name: 'description', type: 'string', required: true, description: 'Full description' },
           { name: 'type', type: 'string', required: true, description: '`Bug` | `Feedback` | `FeatureRequest`' },
+          { name: 'attachmentBase64', type: 'string', required: false, description: 'Base64-encoded image. Bug and FeatureRequest only.' },
+          { name: 'attachmentContentType', type: 'string', required: false, description: 'MIME type: image/jpeg | image/png | image/gif | image/webp. Required when attachmentBase64 is provided.' },
         ],
       },
       {

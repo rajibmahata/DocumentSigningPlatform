@@ -18,6 +18,10 @@ public class Ticket
     /// <summary>Low | Medium | High</summary>
     public string? Priority    { get; set; }
 
+    /// <summary>Optional image attachment (base64). Only valid for Bug and FeatureRequest.</summary>
+    public string? AttachmentBase64      { get; set; }
+    public string? AttachmentContentType { get; set; }
+
     public DateTime  CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 

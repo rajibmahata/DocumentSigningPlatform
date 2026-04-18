@@ -36,13 +36,32 @@ public class TicketsController : ControllerBase
         if (!validTypes.Contains(req.Type))
             return BadRequest("Type must be Bug, Feedback, or FeatureRequest.");
 
+        // Attachment only allowed for Bug and FeatureRequest
+        var attachmentTypes = new[] { "Bug", "FeatureRequest" };
+        if (req.AttachmentBase64 is not null && !attachmentTypes.Contains(req.Type))
+            return BadRequest("Attachments are only supported for Bug and FeatureRequest tickets.");
+
+        // Validate base64 and content type when attachment is supplied
+        if (req.AttachmentBase64 is not null)
+        {
+            var allowedContentTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp" };
+            if (string.IsNullOrWhiteSpace(req.AttachmentContentType) ||
+                !allowedContentTypes.Contains(req.AttachmentContentType))
+                return BadRequest("AttachmentContentType must be image/jpeg, image/png, image/gif, or image/webp.");
+
+            try { Convert.FromBase64String(req.AttachmentBase64); }
+            catch { return BadRequest("AttachmentBase64 is not valid base64."); }
+        }
+
         var ticket = new Ticket
         {
-            UserId      = CurrentUserId,
-            Title       = req.Title.Trim(),
-            Description = req.Description.Trim(),
-            Type        = req.Type,
-            Status      = "Open",
+            UserId               = CurrentUserId,
+            Title                = req.Title.Trim(),
+            Description          = req.Description.Trim(),
+            Type                 = req.Type,
+            Status               = "Open",
+            AttachmentBase64      = req.AttachmentBase64,
+            AttachmentContentType = req.AttachmentBase64 is not null ? req.AttachmentContentType : null,
         };
 
         await _repo.AddTicketAsync(ticket, ct);
@@ -129,6 +148,8 @@ public class TicketsController : ControllerBase
             t.Type,
             t.Status,
             t.Priority,
+            t.AttachmentBase64,
+            t.AttachmentContentType,
             t.CreatedAt,
             t.UpdatedAt,
             t.Messages.OrderBy(m => m.CreatedAt)
@@ -145,6 +166,7 @@ public class TicketsController : ControllerBase
             t.Status,
             t.Priority,
             t.Messages.Count,
+            t.AttachmentBase64 is not null,
             t.CreatedAt,
             t.UpdatedAt);
 }

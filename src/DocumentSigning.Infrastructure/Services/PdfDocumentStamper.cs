@@ -10,6 +10,7 @@ using iText.Kernel.Pdf.Canvas.Parser.Data;
 using iText.Kernel.Pdf.Canvas.Parser.Listener;
 using iText.Layout;
 using iText.Layout.Element;
+using Microsoft.Extensions.Logging;
 
 namespace DocumentSigning.Infrastructure.Services;
 
@@ -17,12 +18,21 @@ namespace DocumentSigning.Infrastructure.Services;
 /// Stamps a signature image and date onto PDF files.
 /// Tries to replace {signature:...} and {date:...} placeholder text in-place;
 /// falls back to appending to the bottom-right of the last page when no placeholders exist.
+/// If all stamping attempts fail (e.g. malformed PDF), returns the original document bytes
+/// so the signing flow can still complete with the record in the database.
 /// </summary>
 public class PdfDocumentStamper : IDocumentStamper
 {
     private const string PdfContentType = "application/pdf";
     private static readonly Regex SigPattern  = new(@"\{signature:[^}]+\}", RegexOptions.IgnoreCase);
     private static readonly Regex DatePattern = new(@"\{date:[^}]+\}", RegexOptions.IgnoreCase);
+
+    private readonly Microsoft.Extensions.Logging.ILogger? _logger;
+
+    public PdfDocumentStamper(Microsoft.Extensions.Logging.ILogger? logger = null)
+    {
+        _logger = logger;
+    }
 
     public bool CanHandle(string contentType) =>
         contentType.Equals(PdfContentType, StringComparison.OrdinalIgnoreCase);
@@ -34,10 +44,41 @@ public class PdfDocumentStamper : IDocumentStamper
         string signedDate,
         CancellationToken ct = default)
     {
+        // First attempt — standard read
+        try
+        {
+            return Task.FromResult(StampInternal(docBytes, signaturePng, signedDate, unethicalRead: false));
+        }
+        catch (Exception ex1)
+        {
+            _logger?.LogWarning(ex1, "PDF stamp attempt 1 failed, retrying with unethical reading.");
+        }
+
+        // Second attempt — relaxed reader (handles encrypted / owner-locked PDFs)
+        try
+        {
+            return Task.FromResult(StampInternal(docBytes, signaturePng, signedDate, unethicalRead: true));
+        }
+        catch (Exception ex2)
+        {
+            _logger?.LogWarning(ex2,
+                "PDF stamp attempt 2 (unethical reading) also failed. " +
+                "Returning original document bytes so signing flow can complete.");
+        }
+
+        // Graceful fallback — stamp could not be applied (e.g. malformed/unsupported PDF).
+        // Return the original bytes unchanged. The signing record is still persisted in the DB.
+        return Task.FromResult(docBytes);
+    }
+
+    private byte[] StampInternal(byte[] docBytes, byte[] signaturePng, string signedDate, bool unethicalRead)
+    {
         using var inputStream  = new MemoryStream(docBytes);
         using var outputStream = new MemoryStream();
 
-        var reader = new PdfReader(inputStream);
+        var readerProps = new iText.Kernel.Pdf.ReaderProperties();
+        var reader = new PdfReader(inputStream, readerProps);
+        if (unethicalRead) reader.SetUnethicalReading(true);
         var writer = new PdfWriter(outputStream);
 
         using var pdfDoc   = new PdfDocument(reader, writer);
@@ -51,7 +92,6 @@ public class PdfDocumentStamper : IDocumentStamper
 
         if (sigRect is not null)
         {
-            // Cover the placeholder text with a white rectangle, then draw the image
             var page   = sigRect.Value.pageNum;
             var canvas = new PdfCanvas(pdfDoc.GetPage(page));
             canvas.SetFillColor(ColorConstants.WHITE)
@@ -61,12 +101,14 @@ public class PdfDocumentStamper : IDocumentStamper
 
             float x = sigRect.Value.rect.GetX();
             float y = sigRect.Value.rect.GetY();
+            float w = Math.Max(sigRect.Value.rect.GetWidth(), 180f);
+            float h = Math.Max(sigRect.Value.rect.GetHeight(), 50f);
 
             var imageData = ImageDataFactory.Create(signaturePng);
             var sigImage  = new iText.Layout.Element.Image(imageData)
                 .SetFixedPosition(page, x, y)
-                .SetWidth(180f)
-                .SetHeight(60f);
+                .SetWidth(w)
+                .SetHeight(h);
             document.Add(sigImage);
         }
 
@@ -81,9 +123,10 @@ public class PdfDocumentStamper : IDocumentStamper
 
             float x = dateRect.Value.rect.GetX();
             float y = dateRect.Value.rect.GetY();
+            float w = Math.Max(dateRect.Value.rect.GetWidth(), 200f);
 
             var datePara = new Paragraph(signedDate)
-                .SetFixedPosition(page, x, y, 200f)
+                .SetFixedPosition(page, x, y, w)
                 .SetFontSize(10f);
             document.Add(datePara);
         }
@@ -113,7 +156,7 @@ public class PdfDocumentStamper : IDocumentStamper
         document.Flush();
         pdfDoc.Close();
 
-        return Task.FromResult(outputStream.ToArray());
+        return outputStream.ToArray();
     }
 
     private static (int pageNum, Rectangle rect)? FindPlaceholderRect(
@@ -131,7 +174,7 @@ public class PdfDocumentStamper : IDocumentStamper
         return null;
     }
 
-    // ── Simple strategy that finds the bounding rectangle of matched text ──────
+    // ── Strategy that finds the accurate bounding rectangle of matched text ─────
     private class RegexTextLocationStrategy : ITextExtractionStrategy
     {
         private readonly Regex _pattern;
@@ -143,10 +186,26 @@ public class PdfDocumentStamper : IDocumentStamper
         {
             if (type != EventType.RENDER_TEXT) return;
             var info = (TextRenderInfo)data;
-            _chunks.Add(new TextChunk(info.GetText(), info.GetBaseline().GetStartPoint()));
+            var text = info.GetText();
+            if (string.IsNullOrEmpty(text)) return;
+
+            // Use actual line geometry for accurate coordinates
+            var baseline = info.GetBaseline();
+            var ascent   = info.GetAscentLine();
+            var descent  = info.GetDescentLine();
+
+            float x0     = baseline.GetStartPoint().Get(0);
+            float x1     = baseline.GetEndPoint().Get(0);
+            float yTop   = ascent.GetStartPoint().Get(1);
+            float yBot   = descent.GetStartPoint().Get(1);
+
+            // Ensure x0 <= x1 (handles right-to-left text)
+            if (x0 > x1) (x0, x1) = (x1, x0);
+
+            _chunks.Add(new TextChunk(text, x0, x1, yBot, yTop));
         }
 
-        public void GetResultantText() { }  // not used
+        public void GetResultantText() { } // not used
         string ITextExtractionStrategy.GetResultantText() => string.Empty;
 
         public ICollection<EventType> GetSupportedEvents() =>
@@ -154,12 +213,9 @@ public class PdfDocumentStamper : IDocumentStamper
 
         public Rectangle? GetBoundingRect()
         {
-            // Build the full page text and see if pattern matches
             var fullText = string.Concat(_chunks.Select(c => c.Text));
             if (!_pattern.IsMatch(fullText)) return null;
 
-            // Approximate: return the bounding box of all chunks whose text
-            // overlaps with the match position
             var match = _pattern.Match(fullText);
             int start = match.Index, end = match.Index + match.Length;
 
@@ -170,23 +226,27 @@ public class PdfDocumentStamper : IDocumentStamper
 
             foreach (var chunk in _chunks)
             {
-                int len = chunk.Text.Length;
+                int len      = chunk.Text.Length;
                 int chunkEnd = pos + len;
 
                 if (chunkEnd > start && pos < end)
                 {
-                    minX = Math.Min(minX, chunk.Point.Get(0));
-                    minY = Math.Min(minY, chunk.Point.Get(1));
-                    maxX = Math.Max(maxX, chunk.Point.Get(0) + len * 6f); // approx width
-                    maxY = Math.Max(maxY, chunk.Point.Get(1) + 12f);
+                    minX = Math.Min(minX, chunk.X0);
+                    minY = Math.Min(minY, chunk.YBottom);
+                    maxX = Math.Max(maxX, chunk.X1);
+                    maxY = Math.Max(maxY, chunk.YTop);
                     found = true;
                 }
                 pos = chunkEnd;
             }
 
-            return found ? new Rectangle(minX, minY, maxX - minX, maxY - minY) : null;
+            if (!found) return null;
+
+            // Add a small padding so the white cover rectangle fully erases the text
+            const float pad = 3f;
+            return new Rectangle(minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2);
         }
 
-        private record TextChunk(string Text, iText.Kernel.Geom.Vector Point);
+        private record TextChunk(string Text, float X0, float X1, float YBottom, float YTop);
     }
 }

@@ -28,7 +28,8 @@ public class AdminTicketsController : ControllerBase
         return Ok(tickets.Select(t => new TicketSummary(
             t.Id, t.User.Name, t.User.Email,
             t.Title, t.Type, t.Status, t.Priority,
-            t.Messages.Count, t.CreatedAt, t.UpdatedAt)).ToList());
+            t.Messages.Count, t.AttachmentBase64 is not null,
+            t.CreatedAt, t.UpdatedAt)).ToList());
     }
 
     // ── PUT /api/admin/tickets/{id}/status ────────────────────────────────────

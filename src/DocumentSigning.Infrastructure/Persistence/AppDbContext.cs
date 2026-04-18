@@ -160,6 +160,8 @@ public class AppDbContext : DbContext
             e.Property(x => x.Type).HasMaxLength(50).IsRequired();
             e.Property(x => x.Status).HasMaxLength(50).IsRequired().HasDefaultValue("Open");
             e.Property(x => x.Priority).HasMaxLength(50);
+            e.Property(x => x.AttachmentBase64).HasColumnType("nvarchar(max)");
+            e.Property(x => x.AttachmentContentType).HasMaxLength(100);
             e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
             e.HasMany(x => x.Messages).WithOne(m => m.Ticket).HasForeignKey(m => m.TicketId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => x.UserId);

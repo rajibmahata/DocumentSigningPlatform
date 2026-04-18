@@ -80,6 +80,87 @@ public class TicketsControllerTests
 
     [Theory]
     [InlineData("Bug")]
+    [InlineData("FeatureRequest")]
+    public async Task Create_WithValidAttachment_SavesAttachmentOnTicket(string type)
+    {
+        var base64 = Convert.ToBase64String(new byte[] { 1, 2, 3 });
+        Ticket? captured = null;
+
+        _repo.Setup(r => r.AddTicketAsync(It.IsAny<Ticket>(), It.IsAny<CancellationToken>()))
+             .Callback<Ticket, CancellationToken>((t, _) => captured = t)
+             .Returns(Task.CompletedTask);
+        _repo.Setup(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()))
+             .Returns(Task.CompletedTask);
+        _repo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+             .ReturnsAsync(MakeTicket());
+
+        await CreateController().Create(
+            new CreateTicketRequest("Title", "Desc", type, base64, "image/png"),
+            CancellationToken.None);
+
+        captured.Should().NotBeNull();
+        captured!.AttachmentBase64.Should().Be(base64);
+        captured.AttachmentContentType.Should().Be("image/png");
+    }
+
+    [Fact]
+    public async Task Create_AttachmentOnFeedback_Returns400()
+    {
+        var base64 = Convert.ToBase64String(new byte[] { 1, 2, 3 });
+
+        var result = await CreateController().Create(
+            new CreateTicketRequest("Title", "Desc", "Feedback", base64, "image/png"),
+            CancellationToken.None);
+
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task Create_InvalidBase64Attachment_Returns400()
+    {
+        var result = await CreateController().Create(
+            new CreateTicketRequest("Title", "Desc", "Bug", "not-valid-base64!!!", "image/png"),
+            CancellationToken.None);
+
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task Create_UnsupportedAttachmentContentType_Returns400()
+    {
+        var base64 = Convert.ToBase64String(new byte[] { 1, 2, 3 });
+
+        var result = await CreateController().Create(
+            new CreateTicketRequest("Title", "Desc", "Bug", base64, "application/pdf"),
+            CancellationToken.None);
+
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task Create_NoAttachment_AttachmentFieldsAreNull()
+    {
+        Ticket? captured = null;
+
+        _repo.Setup(r => r.AddTicketAsync(It.IsAny<Ticket>(), It.IsAny<CancellationToken>()))
+             .Callback<Ticket, CancellationToken>((t, _) => captured = t)
+             .Returns(Task.CompletedTask);
+        _repo.Setup(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()))
+             .Returns(Task.CompletedTask);
+        _repo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+             .ReturnsAsync(MakeTicket());
+
+        await CreateController().Create(
+            new CreateTicketRequest("Title", "Desc", "Bug"),
+            CancellationToken.None);
+
+        captured.Should().NotBeNull();
+        captured!.AttachmentBase64.Should().BeNull();
+        captured.AttachmentContentType.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("Bug")]
     [InlineData("Feedback")]
     [InlineData("FeatureRequest")]
     public async Task Create_AllValidTypes_Returns201(string type)

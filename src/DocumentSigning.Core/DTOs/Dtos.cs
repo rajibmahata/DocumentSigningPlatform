@@ -117,7 +117,9 @@ public record SendEmailPayload(
     string ToName,
     string SigningLink,
     DateTime ExpiresAt,
-    string EmailType);
+    string EmailType,
+    string EnvelopeTitle = "",
+    string SenderName    = "");
 
 public record StampPdfPayload(
     Guid DocumentId,
@@ -146,6 +148,13 @@ public record PasswordResetEmailPayload(
     string To,
     string ToName,
     string ResetLink);
+
+public record MerchantSignedDocPayload(
+    string To,
+    string ToName,
+    string SignerName,
+    string EnvelopeTitle,
+    Guid SignedDocumentId);
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -198,7 +207,9 @@ public record UpdateMerchantRequest(
 public record CreateTicketRequest(
     string Title,
     string Description,
-    string Type);          // Bug | Feedback | FeatureRequest
+    string Type,           // Bug | Feedback | FeatureRequest
+    string? AttachmentBase64      = null,
+    string? AttachmentContentType = null);
 
 public record AddTicketMessageRequest(
     string Message);
@@ -224,6 +235,8 @@ public record TicketResponse(
     string   Type,
     string   Status,
     string?  Priority,
+    string?  AttachmentBase64,
+    string?  AttachmentContentType,
     DateTime CreatedAt,
     DateTime? UpdatedAt,
     List<TicketMessageResponse> Messages);
@@ -237,5 +250,6 @@ public record TicketSummary(
     string   Status,
     string?  Priority,
     int      MessageCount,
+    bool     HasAttachment,
     DateTime CreatedAt,
     DateTime? UpdatedAt);
