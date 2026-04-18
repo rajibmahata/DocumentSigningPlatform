@@ -300,17 +300,107 @@ curl "http://localhost:5163/api/analytics/trends?days=30" \
 
 ---
 
+## Tickets
+
+> All ticket endpoints require **`Authorization: Bearer <jwt>`**.  
+> Valid **`type`** values: `Bug` | `Feedback` | `FeatureRequest` (case-sensitive).  
+> Valid **`status`** values: `Open` | `InProgress` | `Resolved` | `Closed` (case-sensitive).  
+> Valid **`priority`** values: `Low` | `Medium` | `High`.
+
+### Create Ticket  ✅ Required: title, description, type
+```bash
+curl -X POST http://localhost:5163/api/tickets \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <jwt>" \
+  -d '{
+    "title": "Login page crashes on mobile",
+    "description": "Tapping the login button on iOS Safari causes a white screen.",
+    "type": "Bug"
+  }'
+```
+> Returns `201 Created` with the full `TicketResponse` (including `id`). Status is always `Open` on creation.
+
+### Get My Tickets  — list all tickets for the authenticated user
+```bash
+curl http://localhost:5163/api/tickets/my \
+  -H "Authorization: Bearer <jwt>"
+```
+> Returns `TicketSummary[]` sorted by creation date descending.
+
+### Get Ticket by ID  ✅ Required: id (URL path)
+```bash
+curl http://localhost:5163/api/tickets/<ticket-id> \
+  -H "Authorization: Bearer <jwt>"
+```
+> Returns full ticket with all chat messages. Returns `403` if the ticket belongs to another user (admin bypasses this check).
+
+### Add Message to Ticket  ✅ Required: id (URL path), message (body)
+```bash
+curl -X POST http://localhost:5163/api/tickets/<ticket-id>/message \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <jwt>" \
+  -d '{
+    "message": "I can reproduce this consistently on iPhone 14 running iOS 17."
+  }'
+```
+> `senderType` is set automatically: `"User"` for regular users, `"Admin"` for admin users.  
+> Returns `201 Created` with `TicketMessageResponse`.
+
+---
+
+## Tickets — Admin Endpoints
+
+> All admin ticket endpoints require **`Authorization: Bearer <jwt>`** with **Admin** role.
+
+### Get All Tickets (admin)  — across all users
+```bash
+curl http://localhost:5163/api/admin/tickets \
+  -H "Authorization: Bearer <jwt>"
+```
+> Returns `TicketSummary[]` for every ticket in the system.
+
+### Update Ticket Status & Priority (admin)  ✅ Required: status  |  ❌ Optional: priority
+```bash
+curl -X PUT http://localhost:5163/api/admin/tickets/<ticket-id>/status \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <jwt>" \
+  -d '{
+    "status": "InProgress",
+    "priority": "High"
+  }'
+```
+> Returns `204 No Content` on success.  
+> Omit `priority` or set to `null` to clear the current priority value.
+
+**Status transition guide**
+| From | Typical next | Notes |
+|---|---|---|
+| `Open` | `InProgress` | Admin has picked up the ticket |
+| `InProgress` | `Resolved` | Fix deployed / answer given |
+| `Resolved` | `Closed` | User confirmed resolution |
+| Any | `Closed` | Force-close without resolution |
+
+---
+
 ## Quick Workflow (end-to-end test sequence)
 
 ```
-1.  POST /api/auth/register                   → create user + auto-creates default merchant (if none exists)
-2.  GET  /api/auth/verify-email/:t            → verify email (token from email)
-3.  POST /api/auth/login                      → get JWT, note userId from `sub` claim
-4.  GET  /api/merchants/by-user/:userId       → list merchant(s), note apiKey + merchantId
-    (optional) POST /api/merchants            → create an additional merchant for the same user
-5.  POST /api/envelopes                       → create envelope (X-Api-Key header)
-6.  GET  /api/envelopes/:id                   → confirm status = "Sent"
-7.  GET  /api/portal/validate/:t              → signer validates token (t from email)
-8.  POST /api/portal/submit/:t                → signer submits signature
-9.  GET  /api/envelopes/:id/signed-documents  → download signed doc (base64)
+1.  POST /api/auth/register                         → create user + auto-creates default merchant (if none exists)
+2.  GET  /api/auth/verify-email/:t                  → verify email (token from email)
+3.  POST /api/auth/login                            → get JWT, note userId from `sub` claim
+4.  GET  /api/merchants/by-user/:userId             → list merchant(s), note apiKey + merchantId
+    (optional) POST /api/merchants                  → create an additional merchant for the same user
+5.  POST /api/envelopes                             → create envelope (X-Api-Key header)
+6.  GET  /api/envelopes/:id                         → confirm status = "Sent"
+7.  GET  /api/portal/validate/:t                    → signer validates token (t from email)
+8.  POST /api/portal/submit/:t                      → signer submits signature
+9.  GET  /api/envelopes/:id/signed-documents        → download signed doc (base64)
+
+── Tickets ─────────────────────────────────────────────────────────────────
+10. POST /api/tickets                               → user raises a Bug / Feedback / FeatureRequest
+11. GET  /api/tickets/my                            → user lists their own tickets
+12. POST /api/tickets/:id/message                   → user adds a follow-up message
+13. GET  /api/admin/tickets                         → admin lists all tickets  (Admin JWT)
+14. PUT  /api/admin/tickets/:id/status              → admin sets status + priority  (Admin JWT)
+15. POST /api/tickets/:id/message (admin JWT)       → admin replies to the ticket
 ```

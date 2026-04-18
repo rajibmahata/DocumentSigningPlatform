@@ -492,6 +492,110 @@
         }
 
       ]
+    },
+
+    {
+      "name": "Tickets",
+      "description": "Support ticket system — users raise tickets, admins manage them.\n\n**User endpoints** require `Authorization: Bearer <jwt>`.\n**Admin endpoints** require `Authorization: Bearer <admin-jwt>`.\n\nValid `type` values: `Bug` | `Feedback` | `FeatureRequest`\nValid `status` values: `Open` | `InProgress` | `Resolved` | `Closed`\nValid `priority` values: `Low` | `Medium` | `High`",
+      "item": [
+
+        {
+          "name": "Create Ticket",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/tickets", "host": ["{{baseUrl}}"], "path": ["api","tickets"] },
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — authenticated user JWT" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Login page crashes on mobile\",\n  \"description\": \"Tapping the login button on iOS Safari causes a white screen.\",\n  \"type\": \"Bug\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Creates a new support ticket for the authenticated user. Status is always `Open` on creation.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `title` | string | ✅ | Short summary |\n| `description` | string | ✅ | Full description |\n| `type` | string | ✅ | `Bug` \\| `Feedback` \\| `FeatureRequest` |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Get My Tickets",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/tickets/my", "host": ["{{baseUrl}}"], "path": ["api","tickets","my"] },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — authenticated user JWT" }
+            ],
+            "description": "Returns all tickets raised by the currently authenticated user, sorted by creation date descending."
+          },
+          "response": []
+        },
+
+        {
+          "name": "Get Ticket by ID",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/tickets/:ticketId", "host": ["{{baseUrl}}"], "path": ["api","tickets",":ticketId"], "variable": [{ "key": "ticketId", "value": "" }] },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — own user or Admin JWT" }
+            ],
+            "description": "Returns full ticket detail including all messages. Regular users may only access their own tickets (returns 403 otherwise). Admins can access any ticket."
+          },
+          "response": []
+        },
+
+        {
+          "name": "Add Message to Ticket",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/tickets/:ticketId/message", "host": ["{{baseUrl}}"], "path": ["api","tickets",":ticketId","message"], "variable": [{ "key": "ticketId", "value": "" }] },
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — own user or Admin JWT" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"I can reproduce this consistently on iPhone 14 running iOS 17.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Appends a message to the ticket thread. `senderType` is set automatically: `\"User\"` for regular users, `\"Admin\"` for admin users. Returns `201 Created` with the new `TicketMessageResponse`."
+          },
+          "response": []
+        },
+
+        {
+          "name": "Get All Tickets (Admin)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/admin/tickets", "host": ["{{baseUrl}}"], "path": ["api","admin","tickets"] },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — Admin JWT" }
+            ],
+            "description": "Returns all tickets across all users, sorted by creation date descending. **Admin role required.**"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Update Ticket Status (Admin)",
+          "request": {
+            "method": "PUT",
+            "url": { "raw": "{{baseUrl}}/api/admin/tickets/:ticketId/status", "host": ["{{baseUrl}}"], "path": ["api","admin","tickets",":ticketId","status"], "variable": [{ "key": "ticketId", "value": "" }] },
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — Admin JWT" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"InProgress\",\n  \"priority\": \"High\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Updates ticket status and optionally sets priority. Returns `204 No Content` on success. **Admin role required.**\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `status` | string | ✅ | `Open` \\| `InProgress` \\| `Resolved` \\| `Closed` |\n| `priority` | string | ❌ | `Low` \\| `Medium` \\| `High`; omit or `null` to clear |"
+          },
+          "response": []
+        }
+
+      ]
     }
 
   ]

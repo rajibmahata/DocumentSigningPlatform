@@ -125,3 +125,28 @@ export const analyticsApi = {
   getTrends: (days = 30) =>
     apiClient.get<AnalyticsTrends>(`/analytics/trends?days=${days}`),
 };
+
+// ── Tickets ───────────────────────────────────────────────────────────────────
+
+import type {
+  CreateTicketRequest, AddTicketMessageRequest, UpdateTicketStatusRequest,
+  TicketResponse, TicketSummary, TicketMessageResponse,
+} from '@/types';
+
+export const ticketsApi = {
+  // User endpoints
+  create: (data: CreateTicketRequest) =>
+    apiClient.post<TicketResponse>('/tickets', data),
+  getMy: () =>
+    apiClient.get<TicketSummary[]>('/tickets/my'),
+  getById: (id: string) =>
+    apiClient.get<TicketResponse>(`/tickets/${id}`),
+  addMessage: (id: string, data: AddTicketMessageRequest) =>
+    apiClient.post<TicketMessageResponse>(`/tickets/${id}/message`, data),
+
+  // Admin endpoints
+  adminGetAll: () =>
+    apiClient.get<TicketSummary[]>('/admin/tickets'),
+  adminUpdateStatus: (id: string, data: UpdateTicketStatusRequest) =>
+    apiClient.put(`/admin/tickets/${id}/status`, data),
+};

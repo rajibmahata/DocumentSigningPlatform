@@ -190,6 +190,64 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'tickets', title: 'Tickets',
+    endpoints: [
+      {
+        id: 'create-ticket', method: 'POST', path: '/api/tickets',
+        title: 'Create Ticket',
+        description: 'Raise a new support ticket for the authenticated user. Status is automatically set to Open.',
+        auth: 'bearer',
+        body: JSON.stringify({ title: 'Login page crashes on mobile', description: 'Tapping the login button on iOS Safari causes a white screen.', type: 'Bug' }, null, 2),
+        response: JSON.stringify({ id: 'uuid', userId: 'uuid', userName: 'Jane Doe', userEmail: 'jane@example.com', title: 'Login page crashes on mobile', description: '...', type: 'Bug', status: 'Open', priority: null, createdAt: '2026-04-18T10:00:00Z', updatedAt: null, messages: [] }, null, 2),
+        params: [
+          { name: 'title', type: 'string', required: true, description: 'Short summary of the issue' },
+          { name: 'description', type: 'string', required: true, description: 'Full description' },
+          { name: 'type', type: 'string', required: true, description: '`Bug` | `Feedback` | `FeatureRequest`' },
+        ],
+      },
+      {
+        id: 'get-my-tickets', method: 'GET', path: '/api/tickets/my',
+        title: 'Get My Tickets',
+        description: 'Returns all tickets raised by the currently authenticated user, sorted by creation date descending.',
+        auth: 'bearer',
+        response: JSON.stringify([{ id: 'uuid', title: 'Login crash', type: 'Bug', status: 'Open', priority: null, messageCount: 2, createdAt: '2026-04-18T10:00:00Z', updatedAt: null }], null, 2),
+      },
+      {
+        id: 'get-ticket', method: 'GET', path: '/api/tickets/{id}',
+        title: 'Get Ticket by ID',
+        description: 'Returns full ticket detail including all messages. Regular users may only access their own tickets (403 otherwise). Admins can access any ticket.',
+        auth: 'bearer',
+        params: [{ name: 'id', type: 'string', required: true, description: 'Ticket UUID' }],
+        response: JSON.stringify({ id: 'uuid', title: 'Login crash', status: 'Open', messages: [{ id: 'uuid', senderType: 'User', message: 'Still happening.', createdAt: '2026-04-18T10:05:00Z' }] }, null, 2),
+      },
+      {
+        id: 'add-message', method: 'POST', path: '/api/tickets/{id}/message',
+        title: 'Add Message to Ticket',
+        description: 'Appends a message to the ticket thread. `senderType` is set automatically — `User` for regular users, `Admin` for admin users.',
+        auth: 'bearer',
+        params: [{ name: 'id', type: 'string', required: true, description: 'Ticket UUID' }],
+        body: JSON.stringify({ message: 'I can reproduce this consistently on iPhone 14 running iOS 17.' }, null, 2),
+        response: JSON.stringify({ id: 'uuid', senderType: 'User', message: 'I can reproduce this consistently on iPhone 14 running iOS 17.', createdAt: '2026-04-18T10:06:00Z' }, null, 2),
+      },
+      {
+        id: 'admin-get-all-tickets', method: 'GET', path: '/api/admin/tickets',
+        title: 'Get All Tickets (Admin)',
+        description: 'Returns all tickets across all users, sorted by creation date descending. Requires Admin role.',
+        auth: 'bearer',
+        response: JSON.stringify([{ id: 'uuid', userName: 'Jane Doe', userEmail: 'jane@example.com', title: 'Login crash', type: 'Bug', status: 'Open', priority: 'High', messageCount: 3, createdAt: '2026-04-18T10:00:00Z' }], null, 2),
+      },
+      {
+        id: 'admin-update-status', method: 'PUT', path: '/api/admin/tickets/{id}/status',
+        title: 'Update Ticket Status (Admin)',
+        description: 'Updates ticket status and optionally sets priority. Returns 204 No Content. Requires Admin role.\n\nValid status: `Open` | `InProgress` | `Resolved` | `Closed`\nValid priority: `Low` | `Medium` | `High`',
+        auth: 'bearer',
+        params: [{ name: 'id', type: 'string', required: true, description: 'Ticket UUID' }],
+        body: JSON.stringify({ status: 'InProgress', priority: 'High' }, null, 2),
+        response: '204 No Content',
+      },
+    ],
+  },
+  {
     id: 'portal', title: 'Sign Portal',
     endpoints: [
       {
