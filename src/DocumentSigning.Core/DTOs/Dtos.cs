@@ -192,3 +192,50 @@ public record UpdateMerchantRequest(
     bool IsActive,
     int RequestLimit,
     DateTime? SubscriptionEnd);
+
+// ── Tickets ───────────────────────────────────────────────────────────────────
+
+public record CreateTicketRequest(
+    string Title,
+    string Description,
+    string Type);          // Bug | Feedback | FeatureRequest
+
+public record AddTicketMessageRequest(
+    string Message);
+
+public record UpdateTicketStatusRequest(
+    string Status,
+    string? Priority);
+
+public record TicketMessageResponse(
+    Guid     Id,
+    string   SenderType,
+    string   Message,
+    DateTime CreatedAt);
+
+public record TicketResponse(
+    Guid     Id,
+    Guid     UserId,
+    string   UserName,
+    string   UserEmail,
+    Guid?    MerchantId,
+    string   Title,
+    string   Description,
+    string   Type,
+    string   Status,
+    string?  Priority,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt,
+    List<TicketMessageResponse> Messages);
+
+public record TicketSummary(
+    Guid     Id,
+    string   UserName,
+    string   UserEmail,
+    string   Title,
+    string   Type,
+    string   Status,
+    string?  Priority,
+    int      MessageCount,
+    DateTime CreatedAt,
+    DateTime? UpdatedAt);

@@ -29,6 +29,7 @@ builder.Services.AddScoped<ISigningEnvelopeRepository, SigningEnvelopeRepository
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IEmailVerificationTokenRepository, EmailVerificationTokenRepository>();
 builder.Services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
+builder.Services.AddScoped<ITicketRepository, TicketRepository>();
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<MerchantApiKeyFilter>();
@@ -149,6 +150,19 @@ builder.Services.AddSwaggerGen(c =>
     c.EnableAnnotations();
     c.OperationFilter<DocumentSigning.Api.Swagger.CreateMerchantExampleFilter>();
     c.OperationFilter<DocumentSigning.Api.Swagger.ApiKeyHeaderFilter>();
+
+    // Map controller names to clean Swagger tag names
+    c.TagActionsBy(api =>
+    {
+        var controller = api.ActionDescriptor.RouteValues["controller"] ?? string.Empty;
+        var tag = controller switch
+        {
+            "AdminTickets" => "Tickets — Admin",
+            "Tickets"      => "Tickets",
+            _              => controller
+        };
+        return new[] { tag };
+    });
 
     // JWT Bearer security definition
     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme

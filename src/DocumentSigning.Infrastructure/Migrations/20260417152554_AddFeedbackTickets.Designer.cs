@@ -4,6 +4,7 @@ using DocumentSigning.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DocumentSigning.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260417152554_AddFeedbackTickets")]
+    partial class AddFeedbackTickets
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -169,7 +172,7 @@ namespace DocumentSigning.Infrastructure.Migrations
                     b.ToTable("EmailVerificationTokens");
                 });
 
-            modelBuilder.Entity("DocumentSigning.Core.Entities.TicketMessage", b =>
+            modelBuilder.Entity("DocumentSigning.Core.Entities.FeedbackMessage", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -194,10 +197,10 @@ namespace DocumentSigning.Infrastructure.Migrations
 
                     b.HasIndex("TicketId");
 
-                    b.ToTable("TicketMessages");
+                    b.ToTable("FeedbackMessages");
                 });
 
-            modelBuilder.Entity("DocumentSigning.Core.Entities.Ticket", b =>
+            modelBuilder.Entity("DocumentSigning.Core.Entities.FeedbackTicket", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -246,7 +249,7 @@ namespace DocumentSigning.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Tickets");
+                    b.ToTable("FeedbackTickets");
                 });
 
             modelBuilder.Entity("DocumentSigning.Core.Entities.Merchant", b =>
@@ -579,9 +582,9 @@ namespace DocumentSigning.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("DocumentSigning.Core.Entities.TicketMessage", b =>
+            modelBuilder.Entity("DocumentSigning.Core.Entities.FeedbackMessage", b =>
                 {
-                    b.HasOne("DocumentSigning.Core.Entities.Ticket", "Ticket")
+                    b.HasOne("DocumentSigning.Core.Entities.FeedbackTicket", "Ticket")
                         .WithMany("Messages")
                         .HasForeignKey("TicketId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -590,7 +593,7 @@ namespace DocumentSigning.Infrastructure.Migrations
                     b.Navigation("Ticket");
                 });
 
-            modelBuilder.Entity("DocumentSigning.Core.Entities.Ticket", b =>
+            modelBuilder.Entity("DocumentSigning.Core.Entities.FeedbackTicket", b =>
                 {
                     b.HasOne("DocumentSigning.Core.Entities.User", "User")
                         .WithMany()
@@ -645,7 +648,7 @@ namespace DocumentSigning.Infrastructure.Migrations
                     b.Navigation("Merchant");
                 });
 
-            modelBuilder.Entity("DocumentSigning.Core.Entities.Ticket", b =>
+            modelBuilder.Entity("DocumentSigning.Core.Entities.FeedbackTicket", b =>
                 {
                     b.Navigation("Messages");
                 });

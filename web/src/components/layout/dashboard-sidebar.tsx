@@ -7,23 +7,25 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, FileText, Send, Building2, User, BookOpen,
   LogOut, FileSignature, ChevronLeft, ChevronRight,
-  BarChart2, Users, Store,
+  BarChart2, Users, Store, MessageSquare, Ticket,
 } from 'lucide-react';
 import { useState } from 'react';
 
 const NAV_ITEMS = [
-  { href: '/dashboard',           label: 'Dashboard',     icon: LayoutDashboard },
-  { href: '/dashboard/envelopes', label: 'Envelopes',     icon: FileText },
-  { href: '/dashboard/send',      label: 'Send Document', icon: Send },
-  { href: '/dashboard/merchant',  label: 'Merchant',      icon: Building2 },
-  { href: '/docs',                label: 'API Docs',      icon: BookOpen },
-  { href: '/dashboard/profile',   label: 'Profile',       icon: User },
+  { href: '/dashboard',                label: 'Dashboard',          icon: LayoutDashboard },
+  { href: '/dashboard/envelopes',      label: 'Envelopes',          icon: FileText },
+  { href: '/dashboard/send',           label: 'Send Document',      icon: Send },
+  { href: '/dashboard/merchant',       label: 'Merchant',           icon: Building2 },
+  { href: '/dashboard/tickets',        label: 'Support Tickets',    icon: MessageSquare },
+  { href: '/docs',                     label: 'API Docs',           icon: BookOpen },
+  { href: '/dashboard/profile',        label: 'Profile',            icon: User },
 ];
 
 const ADMIN_NAV_ITEMS = [
-  { href: '/dashboard/analytics',        label: 'Analytics',           icon: BarChart2 },
-  { href: '/dashboard/admin/users',      label: 'User Management',     icon: Users },
-  { href: '/dashboard/admin/merchants',  label: 'Merchant Management', icon: Store },
+  { href: '/dashboard/analytics',          label: 'Analytics',           icon: BarChart2 },
+  { href: '/dashboard/admin/users',        label: 'User Management',     icon: Users },
+  { href: '/dashboard/admin/merchants',    label: 'Merchant Management', icon: Store },
+  { href: '/dashboard/admin/tickets',      label: 'Support Tickets',     icon: Ticket },
 ];
 
 export function DashboardSidebar() {

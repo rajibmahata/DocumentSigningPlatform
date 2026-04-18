@@ -17,6 +17,8 @@ public class PortalControllerTests
     private readonly Mock<IClaimRepository> _claimRepo = new();
     private readonly Mock<IAuditLogRepository> _auditRepo = new();
     private readonly Mock<ITokenService> _tokenService = new();
+    private readonly Mock<ISigningEnvelopeRepository> _envelopeRepo = new();
+    private readonly Mock<ISignedDocumentRepository> _signedDocRepo = new();
 
     private PortalController CreateController()
     {
@@ -25,7 +27,9 @@ public class PortalControllerTests
             _docRepo.Object,
             _claimRepo.Object,
             _auditRepo.Object,
-            _tokenService.Object);
+            _tokenService.Object,
+            _envelopeRepo.Object,
+            _signedDocRepo.Object);
 
         controller.ControllerContext = new ControllerContext
         {

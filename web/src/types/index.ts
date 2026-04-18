@@ -159,6 +159,63 @@ export interface AnalyticsSummary {
   totalDocumentsSigned: number;
 }
 
+// ── Tickets ──────────────────────────────────────────────────────────────────
+
+export type TicketType     = 'Bug' | 'Feedback' | 'FeatureRequest';
+export type TicketStatus   = 'Open' | 'InProgress' | 'Resolved' | 'Closed';
+export type TicketPriority = 'Low' | 'Medium' | 'High';
+
+export interface CreateTicketRequest {
+  title: string;
+  description: string;
+  type: TicketType;
+}
+
+export interface AddTicketMessageRequest {
+  message: string;
+}
+
+export interface UpdateTicketStatusRequest {
+  status: TicketStatus;
+  priority?: TicketPriority;
+}
+
+export interface TicketMessageResponse {
+  id: string;
+  senderType: 'User' | 'Admin';
+  message: string;
+  createdAt: string;
+}
+
+export interface TicketResponse {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  merchantId?: string;
+  title: string;
+  description: string;
+  type: TicketType;
+  status: TicketStatus;
+  priority?: TicketPriority;
+  createdAt: string;
+  updatedAt?: string;
+  messages: TicketMessageResponse[];
+}
+
+export interface TicketSummary {
+  id: string;
+  userName: string;
+  userEmail: string;
+  title: string;
+  type: TicketType;
+  status: TicketStatus;
+  priority?: TicketPriority;
+  messageCount: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export interface AnalyticsTrends {
   userRegistrations: DailyCount[];
   envelopesSent: DailyCount[];

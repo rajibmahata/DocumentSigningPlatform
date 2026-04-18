@@ -20,6 +20,8 @@ public class AppDbContext : DbContext
     public DbSet<User>                    Users                    => Set<User>();
     public DbSet<EmailVerificationToken>  EmailVerificationTokens  => Set<EmailVerificationToken>();
     public DbSet<PasswordResetToken>      PasswordResetTokens      => Set<PasswordResetToken>();
+    public DbSet<Ticket>                  Tickets                  => Set<Ticket>();
+    public DbSet<TicketMessage>           TicketMessages           => Set<TicketMessage>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -147,6 +149,29 @@ public class AppDbContext : DbContext
             e.Property(x => x.Token).HasMaxLength(128).IsRequired();
             e.HasIndex(x => x.Token).IsUnique();
             e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Tickets
+        model.Entity<Ticket>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("Tickets");
+            e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Type).HasMaxLength(50).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(50).IsRequired().HasDefaultValue("Open");
+            e.Property(x => x.Priority).HasMaxLength(50);
+            e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+            e.HasMany(x => x.Messages).WithOne(m => m.Ticket).HasForeignKey(m => m.TicketId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.UserId);
+            e.HasIndex(x => x.Status);
+        });
+
+        // TicketMessages
+        model.Entity<TicketMessage>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("TicketMessages");
+            e.Property(x => x.SenderType).HasMaxLength(20).IsRequired();
         });
     }
 }
