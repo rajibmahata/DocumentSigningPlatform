@@ -20,7 +20,7 @@ function statusBadge(status: string) {
     case 'InProgress': return <Badge className="bg-amber-100 text-amber-700 border-0">In Progress</Badge>;
     case 'Completed':  return <Badge className="bg-green-100 text-green-700 border-0">Completed</Badge>;
     case 'Cancelled':  return <Badge className="bg-red-100 text-red-700 border-0">Cancelled</Badge>;
-    default:           return <Badge variant="outline">{status}</Badge>;
+    default:           return <Badge variant="secondary">{status}</Badge>;
   }
 }
 
