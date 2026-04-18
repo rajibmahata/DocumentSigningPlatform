@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/providers/auth-provider';
 import { ticketsApi } from '@/lib/api';
 import type { TicketSummary, TicketStatus, TicketType } from '@/types';
-import { MessageSquare, Clock, ChevronRight, Filter } from 'lucide-react';
+import { MessageSquare, Clock, ChevronRight, Filter, Paperclip } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 
@@ -151,6 +151,11 @@ export default function AdminTicketsPage() {
                     {fmt(t.createdAt)}
                     <MessageSquare className="h-3 w-3 ml-1" />
                     {t.messageCount}
+                    {t.hasAttachment && (
+                      <span className="flex items-center gap-0.5 text-brand-500" title="Has attachment">
+                        <Paperclip className="h-3 w-3" />
+                      </span>
+                    )}
                   </div>
                 </div>
 

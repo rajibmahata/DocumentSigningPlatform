@@ -169,6 +169,8 @@ export interface CreateTicketRequest {
   title: string;
   description: string;
   type: TicketType;
+  attachmentBase64?: string;
+  attachmentContentType?: string;
 }
 
 export interface AddTicketMessageRequest {
@@ -198,6 +200,8 @@ export interface TicketResponse {
   type: TicketType;
   status: TicketStatus;
   priority?: TicketPriority;
+  attachmentBase64?: string;
+  attachmentContentType?: string;
   createdAt: string;
   updatedAt?: string;
   messages: TicketMessageResponse[];
@@ -212,6 +216,7 @@ export interface TicketSummary {
   status: TicketStatus;
   priority?: TicketPriority;
   messageCount: number;
+  hasAttachment: boolean;
   createdAt: string;
   updatedAt?: string;
 }
@@ -231,6 +236,25 @@ export interface DocumentPreviewResponse {
   // portal endpoint also exposes these via signer record
   signerEmail?: string;
   message?: string;
+}
+
+// ── My Envelopes (signer portal) ─────────────────────────────────────────────
+
+export interface MyEnvelopeDocumentSummary {
+  documentTitle: string;
+  documentFileName: string;
+}
+
+export interface MyEnvelopeResponse {
+  envelopeId: string;
+  title: string;
+  status: EnvelopeStatus;
+  createdAt: string;
+  createdByName: string;
+  signerRole: string;
+  signingToken: string;
+  expiresAt: string;
+  documents: MyEnvelopeDocumentSummary[];
 }
 
 export interface SubmitSignatureRequest {

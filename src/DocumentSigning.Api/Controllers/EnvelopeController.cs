@@ -197,7 +197,9 @@ public class EnvelopeController : ControllerBase
                 signer.Name,
                 signingLink,
                 expiry,
-                "Invitation"));
+                "Invitation",
+                envelope.Title,
+                merchant.Name));
 
             await _outboxRepo.AddAsync(new OutboxQueue
             {

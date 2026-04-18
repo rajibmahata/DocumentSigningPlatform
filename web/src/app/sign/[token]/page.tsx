@@ -5,17 +5,63 @@ import { useParams } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { portalApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { base64ToBlob } from '@/lib/utils';
-import { CheckCircle, Eraser, PenLine, FileText, AlertTriangle } from 'lucide-react';
+import {
+  CheckCircle, Eraser, PenLine, FileText, AlertTriangle,
+  Clock, Shield, ClipboardList, MonitorCheck,
+} from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
 
+// ── Step indicator ────────────────────────────────────────────────────────────
+
+function StepBar({ step }: { step: 1 | 2 | 3 }) {
+  const steps = [
+    { n: 1, label: 'Review' },
+    { n: 2, label: 'Sign' },
+    { n: 3, label: 'Done' },
+  ] as const;
+
+  return (
+    <div className="flex items-center gap-0 mt-4">
+      {steps.map(({ n, label }, i) => {
+        const active   = step === n;
+        const complete = step > n;
+        return (
+          <div key={n} className="flex items-center" style={{ flex: i < steps.length - 1 ? '1' : undefined }}>
+            <div className="flex flex-col items-center">
+              <div
+                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-colors
+                  ${active   ? 'bg-blue-600 text-white ring-4 ring-blue-100'  : ''}
+                  ${complete ? 'bg-blue-600 text-white'                        : ''}
+                  ${!active && !complete ? 'bg-gray-200 text-gray-500'         : ''}`}
+              >
+                {complete ? <CheckCircle className="h-4 w-4" /> : n}
+              </div>
+              <span className={`mt-1 text-[11px] font-medium ${active ? 'text-blue-600' : 'text-gray-400'}`}>
+                {label}
+              </span>
+            </div>
+            {i < steps.length - 1 && (
+              <div className={`h-0.5 flex-1 mx-2 mb-4 rounded-full ${step > n ? 'bg-blue-600' : 'bg-gray-200'}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
 export default function SignPage() {
-  const { token }     = useParams<{ token: string }>();
-  const sigRef        = useRef<SignatureCanvas>(null);
-  const [done, setDone] = useState(false);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const { token }   = useParams<{ token: string }>();
+  const sigRef      = useRef<SignatureCanvas>(null);
+  const [done, setDone]       = useState(false);
+  const [pdfUrl, setPdfUrl]   = useState<string | null>(null);
+  const [mode, setMode]       = useState<'draw' | 'type'>('draw');
+  const [typedName, setTypedName] = useState('');
+  const [agreed, setAgreed]   = useState(false);
 
   const { data: preview, isLoading, isError } = useQuery({
     queryKey: ['portal', token],
@@ -32,6 +78,11 @@ export default function SignPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preview]);
 
+  // Pre-fill typed name from claimant
+  useEffect(() => {
+    if (preview?.claimantName && !typedName) setTypedName(preview.claimantName);
+  }, [preview]);
+
   const mutation = useMutation({
     mutationFn: (signatureBase64: string) =>
       portalApi.submit(token, { signatureBase64 }),
@@ -42,135 +93,346 @@ export default function SignPage() {
     onError: () => toast.error('Failed to submit signature. The link may have expired.'),
   });
 
+  /** Render typed name onto a canvas and return base64 */
+  const getTypedSignatureBase64 = (): string | null => {
+    if (!typedName.trim()) return null;
+    const canvas = document.createElement('canvas');
+    canvas.width  = 600;
+    canvas.height = 150;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle   = '#1e3a8a';
+    ctx.font        = "italic 64px 'Georgia', serif";
+    ctx.textBaseline = 'middle';
+    ctx.fillText(typedName.trim(), 20, canvas.height / 2);
+    return canvas.toDataURL('image/png').split(',')[1];
+  };
+
   const handleSign = () => {
-    if (!sigRef.current || sigRef.current.isEmpty()) {
-      toast.error('Please draw your signature first.');
+    if (!agreed) {
+      toast.error('Please confirm you have read the document and agree to sign.');
       return;
     }
-    const dataUrl = sigRef.current.getTrimmedCanvas().toDataURL('image/png');
-    const base64 = dataUrl.split(',')[1];
-    mutation.mutate(base64);
+
+    if (mode === 'draw') {
+      if (!sigRef.current || sigRef.current.isEmpty()) {
+        toast.error('Please draw your signature first.');
+        return;
+      }
+      const base64 = sigRef.current.getTrimmedCanvas().toDataURL('image/png').split(',')[1];
+      mutation.mutate(base64);
+    } else {
+      const base64 = getTypedSignatureBase64();
+      if (!base64) {
+        toast.error('Please type your full name as your signature.');
+        return;
+      }
+      mutation.mutate(base64);
+    }
   };
+
+  const expiresAt = preview?.expiresAt
+    ? new Date(preview.expiresAt).toLocaleString('en-GB', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', timeZone: 'UTC', timeZoneName: 'short',
+      })
+    : null;
+
+  // ── Loading ──────────────────────────────────────────────────────────────
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-brand-600 border-t-transparent" />
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
       </div>
     );
   }
+
+  // ── Error ────────────────────────────────────────────────────────────────
 
   if (isError) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-6">
-        <Card className="max-w-md w-full">
-          <CardContent className="flex flex-col items-center py-12 text-center">
-            <AlertTriangle className="h-14 w-14 text-red-400 mb-4" />
-            <h2 className="text-xl font-bold text-gray-900">Invalid or Expired Link</h2>
-            <p className="mt-2 text-sm text-gray-500">
-              This signing link is invalid or has already been used.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
+        <div className="w-full max-w-md rounded-2xl border border-red-100 bg-white p-10 text-center shadow-sm">
+          <AlertTriangle className="mx-auto h-14 w-14 text-red-400 mb-4" />
+          <h2 className="text-xl font-bold text-gray-900">Invalid or Expired Link</h2>
+          <p className="mt-2 text-sm text-gray-500">
+            This signing link is invalid, has expired, or has already been used.
+          </p>
+        </div>
       </div>
     );
   }
+
+  // ── Done ─────────────────────────────────────────────────────────────────
 
   if (done) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-6">
-        <Card className="max-w-md w-full">
-          <CardContent className="flex flex-col items-center py-12 text-center">
-            <CheckCircle className="h-16 w-16 text-green-500 mb-4 animate-bounce" />
-            <h2 className="text-2xl font-bold text-gray-900">Document Signed!</h2>
-            <p className="mt-2 text-sm text-gray-500">
-              Your signature has been recorded. You will receive a copy by email shortly.
-            </p>
-          </CardContent>
-        </Card>
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
+        <div className="w-full max-w-md rounded-2xl border border-green-100 bg-white p-10 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-green-50">
+            <CheckCircle className="h-12 w-12 text-green-500" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">Signing Complete!</h2>
+          <p className="mt-2 text-sm text-gray-500">
+            Your signature has been recorded. A signed copy will be sent to your email shortly.
+          </p>
+          <div className="mt-6 flex items-center justify-center gap-5 text-xs text-gray-400">
+            <span className="flex items-center gap-1"><Shield className="h-3.5 w-3.5" /> 256-bit encrypted</span>
+            <span className="flex items-center gap-1"><ClipboardList className="h-3.5 w-3.5" /> Full audit trail</span>
+            <span className="flex items-center gap-1"><MonitorCheck className="h-3.5 w-3.5" /> eIDAS compliant</span>
+          </div>
+        </div>
       </div>
     );
   }
 
+  // ── Main layout ───────────────────────────────────────────────────────────
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="sticky top-0 z-10 border-b border-gray-200 bg-white px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2 font-bold text-brand-700 text-lg">
-          <FileText className="h-5 w-5" /> DocSignerHub
+    <div className="min-h-screen bg-[#f3f4f6]">
+
+      {/* ── Top navbar ─────────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-20 border-b border-gray-200 bg-white px-6 py-3 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-2 font-bold text-blue-700 text-base">
+          <FileText className="h-5 w-5" />
+          DocSignerHub
         </div>
-        <p className="text-sm text-gray-500 truncate max-w-xs">{preview?.documentFileName}</p>
+        <p className="text-xs text-gray-400 hidden sm:block truncate max-w-xs">
+          {preview?.documentFileName}
+        </p>
       </header>
 
-      <div className="mx-auto max-w-4xl px-4 py-8 space-y-6">
-        {/* Signer info */}
-        <div className="rounded-xl bg-brand-50 border border-brand-100 px-5 py-3 text-sm text-brand-800">
-          Signing as <strong>{preview?.claimantName}</strong>
-          {preview?.signerEmail && <> · {preview.signerEmail}</>}
-        </div>
+      {/* ── Two-column body ────────────────────────────────────────────── */}
+      <div className="mx-auto max-w-7xl px-4 py-6 lg:grid lg:grid-cols-[1fr_380px] lg:gap-6 lg:items-start">
 
-        {/* Message */}
-        {preview?.message && (
-          <Card>
-            <CardContent className="px-5 py-3">
+        {/* ══ LEFT: review panel ══════════════════════════════════════════ */}
+        <div className="space-y-4">
+
+          {/* Info card */}
+          <div className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">
+              You have a document to sign
+            </p>
+            <h1 className="text-2xl font-bold text-gray-900">
+              Hello, <span className="text-blue-600">{preview?.claimantName}</span>&nbsp;👋
+            </h1>
+            <p className="mt-1.5 text-sm text-gray-500">
+              Please review the document below, then add your signature in the panel on the right.
+            </p>
+
+            {/* Expiry notice */}
+            {expiresAt && (
+              <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <Clock className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <div>
+                  <p className="text-xs font-semibold text-amber-700">Link expires</p>
+                  <p className="text-xs text-amber-600">{expiresAt}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Step bar */}
+            <StepBar step={1} />
+          </div>
+
+          {/* Message from sender */}
+          {preview?.message && (
+            <div className="rounded-2xl bg-white border border-gray-100 shadow-sm px-5 py-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">
+                Message from sender
+              </p>
               <p className="text-sm text-gray-600 italic">&ldquo;{preview.message}&rdquo;</p>
-            </CardContent>
-          </Card>
-        )}
+            </div>
+          )}
 
-        {/* PDF Preview */}
-        {pdfUrl && (
-          <Card>
-            <CardHeader><CardTitle className="text-base">Document Preview</CardTitle></CardHeader>
-            <CardContent className="p-0 overflow-hidden rounded-b-xl">
+          {/* Document card */}
+          <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+            {/* Document header */}
+            <div className="flex items-center gap-3 border-b border-gray-100 px-5 py-4">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50">
+                <FileText className="h-5 w-5 text-blue-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-800 truncate">Document to Sign</p>
+                <p className="text-xs text-gray-400 truncate">{preview?.documentFileName}</p>
+              </div>
+              <span className="shrink-0 rounded-md bg-blue-600 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">
+                PDF
+              </span>
+            </div>
+
+            {/* PDF viewer */}
+            {pdfUrl ? (
               <iframe
                 src={pdfUrl}
                 title="Document Preview"
-                className="w-full h-[600px] border-0"
+                className="w-full border-0"
+                style={{ height: '70vh', minHeight: '500px' }}
               />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Signature Pad */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <PenLine className="h-4 w-4" /> Draw Your Signature
-            </CardTitle>
-            <Button type="button" variant="ghost" size="sm" onClick={() => sigRef.current?.clear()}>
-              <Eraser className="h-4 w-4" /> Clear
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-xl border-2 border-dashed border-gray-200 bg-white overflow-hidden">
-              <SignatureCanvas
-                ref={sigRef}
-                penColor="#1e40af"
-                canvasProps={{
-                  className: 'w-full',
-                  height: 200,
-                }}
-              />
-            </div>
-            <p className="mt-2 text-xs text-gray-400 text-center">
-              Draw your signature in the box above.
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Submit */}
-        <div className="flex justify-end">
-          <Button
-            size="lg"
-            onClick={handleSign}
-            loading={mutation.isPending}
-            className="w-full sm:w-auto"
-          >
-            <CheckCircle className="h-5 w-5" />
-            Submit Signature
-          </Button>
+            ) : (
+              <div className="flex h-64 items-center justify-center text-sm text-gray-400">
+                Loading document…
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* ══ RIGHT: signature panel (sticky) ═════════════════════════════ */}
+        <div className="mt-4 lg:mt-0 lg:sticky lg:top-[65px]">
+          <div className="rounded-2xl bg-white border border-gray-100 shadow-sm overflow-hidden">
+
+            {/* Panel header */}
+            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+              <div className="flex items-center gap-2">
+                <PenLine className="h-4 w-4 text-gray-700" />
+                <span className="text-sm font-semibold text-gray-800">Your Signature</span>
+              </div>
+              <span className="rounded-full border border-amber-400 bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-600">
+                Required
+              </span>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Draw / Type tabs */}
+              <div className="flex rounded-xl border border-gray-200 bg-gray-50 p-1">
+                <button
+                  onClick={() => setMode('draw')}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition-all
+                    ${mode === 'draw'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  <PenLine className="h-4 w-4" />
+                  Draw
+                </button>
+                <button
+                  onClick={() => setMode('type')}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-semibold transition-all
+                    ${mode === 'type'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                    <path d="M8 12h8M12 8v8" />
+                  </svg>
+                  Type
+                </button>
+              </div>
+
+              {/* Draw canvas */}
+              {mode === 'draw' && (
+                <div>
+                  <div className="relative rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 overflow-hidden">
+                    <SignatureCanvas
+                      ref={sigRef}
+                      penColor="#1e3a8a"
+                      canvasProps={{ className: 'w-full', height: 160 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => sigRef.current?.clear()}
+                      className="absolute top-2 right-2 flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 transition-colors"
+                    >
+                      <Eraser className="h-3 w-3" /> Clear
+                    </button>
+                  </div>
+                  <p className="mt-1.5 text-center text-xs text-gray-400">
+                    Draw your signature in the box above.
+                  </p>
+                </div>
+              )}
+
+              {/* Type signature */}
+              {mode === 'type' && (
+                <div>
+                  <p className="mb-1.5 text-xs text-gray-500">Type your full name as your signature.</p>
+                  <div className="relative rounded-xl border-2 border-gray-200 bg-gray-50 px-4 py-3">
+                    <input
+                      value={typedName}
+                      onChange={(e) => setTypedName(e.target.value)}
+                      placeholder="Your Full Name"
+                      className="w-full bg-transparent text-3xl outline-none placeholder:text-gray-300"
+                      style={{ fontFamily: "'Dancing Script', 'Brush Script MT', cursive", color: '#1e3a8a' }}
+                    />
+                  </div>
+                  {typedName && (
+                    <p className="mt-1.5 text-center text-xs text-gray-400">
+                      This will be rendered as your signature image.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Legal notice */}
+              <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 space-y-1">
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-gray-700">
+                  <ClipboardList className="h-3.5 w-3.5 shrink-0 text-gray-500" />
+                  Legal Notice
+                </p>
+                <p className="text-xs leading-relaxed text-gray-500">
+                  By signing, you agree your electronic signature is{' '}
+                  <span className="font-semibold text-gray-700">legally binding</span>. Your IP
+                  address, browser info, and timestamp will be recorded in the audit trail.
+                </p>
+              </div>
+
+              {/* Consent checkbox */}
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={agreed}
+                  onChange={(e) => setAgreed(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 cursor-pointer accent-blue-600"
+                />
+                <span className="text-xs leading-relaxed text-gray-600">
+                  I have read the document and confirm my electronic signature is{' '}
+                  <span className="font-semibold text-gray-800">legally binding</span>.
+                </span>
+              </label>
+
+              {/* Sign button */}
+              <button
+                onClick={handleSign}
+                disabled={mutation.isPending || !agreed}
+                className="relative w-full rounded-xl bg-blue-600 py-3.5 text-sm font-bold text-white
+                           hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed
+                           transition-colors flex items-center justify-center gap-2"
+              >
+                {mutation.isPending ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Submitting…
+                  </>
+                ) : (
+                  <>
+                    <Shield className="h-4 w-4" />
+                    Sign Document Securely
+                  </>
+                )}
+              </button>
+
+              {/* Trust badges */}
+              <div className="flex items-center justify-center gap-4 pt-1">
+                <span className="flex items-center gap-1 text-[11px] text-gray-400">
+                  <Shield className="h-3 w-3" /> 256-bit encrypted
+                </span>
+                <span className="flex items-center gap-1 text-[11px] text-gray-400">
+                  <ClipboardList className="h-3 w-3" /> Full audit trail
+                </span>
+                <span className="flex items-center gap-1 text-[11px] text-gray-400">
+                  <MonitorCheck className="h-3 w-3" /> eIDAS compliant
+                </span>
+              </div>
+
+            </div>
+          </div>
+        </div>
+        {/* ══ end RIGHT ══ */}
+
       </div>
     </div>
   );

@@ -106,7 +106,7 @@ export const envelopeApi = {
 
 // ── Portal ────────────────────────────────────────────────────────────────────
 
-import type { AnalyticsSummary, AnalyticsTrends, DocumentPreviewResponse, PlatformStats, SubmitSignatureRequest } from '@/types';
+import type { AnalyticsSummary, AnalyticsTrends, DocumentPreviewResponse, PlatformStats, SubmitSignatureRequest, MyEnvelopeResponse } from '@/types';
 
 export const portalApi = {
   validate: (token: string) =>
@@ -115,6 +115,8 @@ export const portalApi = {
     apiClient.post(`/portal/submit/${token}`, data),
   getStats: () =>
     apiClient.get<PlatformStats>('/portal/stats'),
+  getMyEnvelopes: () =>
+    apiClient.get<MyEnvelopeResponse[]>('/portal/my-envelopes'),
 };
 
 // ── Analytics ─────────────────────────────────────────────────────────────────

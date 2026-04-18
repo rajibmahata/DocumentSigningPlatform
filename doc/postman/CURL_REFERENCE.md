@@ -193,7 +193,7 @@ curl http://localhost:5163/api/envelopes/<envelope-id>/signed-documents \
 ---
 
 ## Portal (Signing Flow)
-> No auth header needed. Token is in the URL path.  
+> No auth header needed for the public signing endpoints. Token is in the URL path.  
 > Token is obtained from the signing invitation email sent to the signer.
 
 ### Validate Token & Get Document Preview  ✅ Required: token (URL path)
@@ -226,6 +226,36 @@ curl -X POST "http://localhost:5163/api/portal/submit/<signing-token>" \
 | `404` | Token not found |
 | `409` | Already being processed (duplicate submit) |
 | `410` | Token expired |
+
+### Get My Envelopes (Signer view)  ✅ Required: Authorization: Bearer `<jwt>`
+```bash
+curl http://localhost:5163/api/portal/my-envelopes \
+  -H "Authorization: Bearer <jwt>"
+```
+> Returns every envelope where the authenticated user is listed as a signer.  
+> The email claim from the JWT is used to match signer records.  
+> Use the `signingToken` field from each item to build the signing URL: `/sign/<signingToken>`.
+
+**Response shape**
+```json
+[
+  {
+    "envelopeId":   "uuid",
+    "title":        "Service Agreement – Q1 2026",
+    "status":       "Sent",
+    "createdAt":    "2026-04-18T10:00:00Z",
+    "createdByName":"WestParc Law",
+    "signerRole":   "Signer",
+    "signingToken": "abc123...token...",
+    "expiresAt":    "2026-04-25T10:00:00Z",
+    "documents": [
+      { "documentTitle": "Service Agreement", "documentFileName": "service-agreement.pdf" }
+    ]
+  }
+]
+```
+
+**`status` values:** `Sent` | `InProgress` | `Completed` | `Cancelled`
 
 ---
 
@@ -396,11 +426,15 @@ curl -X PUT http://localhost:5163/api/admin/tickets/<ticket-id>/status \
 8.  POST /api/portal/submit/:t                      → signer submits signature
 9.  GET  /api/envelopes/:id/signed-documents        → download signed doc (base64)
 
+── Signer portal ────────────────────────────────────────────────────────────
+10. GET  /api/portal/my-envelopes                   → signer views all their pending/completed envelopes (JWT)
+    → use signingToken from response to build signing URL: /sign/<signingToken>
+
 ── Tickets ─────────────────────────────────────────────────────────────────
-10. POST /api/tickets                               → user raises a Bug / Feedback / FeatureRequest
-11. GET  /api/tickets/my                            → user lists their own tickets
-12. POST /api/tickets/:id/message                   → user adds a follow-up message
-13. GET  /api/admin/tickets                         → admin lists all tickets  (Admin JWT)
-14. PUT  /api/admin/tickets/:id/status              → admin sets status + priority  (Admin JWT)
-15. POST /api/tickets/:id/message (admin JWT)       → admin replies to the ticket
+11. POST /api/tickets                               → user raises a Bug / Feedback / FeatureRequest
+12. GET  /api/tickets/my                            → user lists their own tickets
+13. POST /api/tickets/:id/message                   → user adds a follow-up message
+14. GET  /api/admin/tickets                         → admin lists all tickets  (Admin JWT)
+15. PUT  /api/admin/tickets/:id/status              → admin sets status + priority  (Admin JWT)
+16. POST /api/tickets/:id/message (admin JWT)       → admin replies to the ticket
 ```

@@ -7,6 +7,8 @@ public interface IEmailService
         string toName,
         string signingLink,
         DateTime expiresAt,
+        string envelopeTitle = "",
+        string senderName    = "",
         CancellationToken ct = default);
 
     Task SendConfirmationToClaimantAsync(
@@ -36,5 +38,14 @@ public interface IEmailService
         string toEmail,
         string toName,
         string resetLink,
+        CancellationToken ct = default);
+
+    Task SendMerchantSignedDocAsync(
+        string toEmail,
+        string toName,
+        string signerName,
+        string envelopeTitle,
+        byte[] signedDocBytes,
+        string contentType,
         CancellationToken ct = default);
 }
