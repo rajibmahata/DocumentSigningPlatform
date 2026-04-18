@@ -7,6 +7,7 @@ public interface ISigningRequestRepository
 {
     Task<SigningRequest?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<SigningRequest?> GetByTokenAsync(string token, CancellationToken ct = default);
+    Task<SigningRequest?> GetByDocumentAndEnvelopeAsync(Guid documentId, Guid envelopeId, CancellationToken ct = default);
     Task AddAsync(SigningRequest request, CancellationToken ct = default);
     Task UpdateAsync(SigningRequest request, CancellationToken ct = default);
     /// <summary>

@@ -262,10 +262,37 @@ const SECTIONS: Section[] = [
       {
         id: 'submit-signature', method: 'POST', path: '/api/portal/submit/{token}',
         title: 'Submit Signature',
-        description: 'Submit the drawn signature. The API stamps the document (PDF, DOC, or DOCX) and marks the request signed.',
+        description: 'Submit the drawn or typed signature. The API stamps the document (PDF, DOC, or DOCX) and marks the request signed.',
         params: [{ name: 'token', type: 'string', required: true, description: 'Signing token UUID' }],
         body: JSON.stringify({ signatureBase64: 'base64_png...' }, null, 2),
         response: JSON.stringify({ message: 'Signature submitted successfully.' }, null, 2),
+      },
+      {
+        id: 'my-envelopes', method: 'GET', path: '/api/portal/my-envelopes',
+        title: 'Get My Envelopes',
+        description: 'Returns all envelopes where the authenticated user (identified by the JWT email claim) is listed as a signer — both pending and historical. Use the `signingToken` field from each result to build the signing URL: `/sign/{signingToken}`.\n\n**Status values:** `Sent` | `InProgress` | `Completed` | `Cancelled`',
+        auth: 'bearer',
+        response: JSON.stringify([
+          {
+            envelopeId:    'uuid',
+            title:         'Service Agreement – Q1 2026',
+            status:        'Sent',
+            createdAt:     '2026-04-18T10:00:00Z',
+            createdByName: 'WestParc Law',
+            signerRole:    'Signer',
+            signingToken:  'abc123...token...',
+            expiresAt:     '2026-04-25T10:00:00Z',
+            documents: [
+              { documentTitle: 'Service Agreement', documentFileName: 'service-agreement.pdf' },
+            ],
+          },
+        ], null, 2),
+      },
+      {
+        id: 'portal-stats', method: 'GET', path: '/api/portal/stats',
+        title: 'Platform Stats',
+        description: 'Public endpoint. Returns total envelopes sent and total documents signed across the platform.',
+        response: JSON.stringify({ documentsSent: 130, documentsSigned: 98 }, null, 2),
       },
     ],
   },
@@ -413,13 +440,14 @@ export default function DocsPage() {
               </Link>
               <h1 className="text-3xl font-bold text-gray-900">API Reference</h1>
               <p className="mt-2 text-gray-500 text-sm max-w-xl">
-                All API endpoints for DocSignerHub. Base URL:{' '}
+                Complete API reference for DocSignerHub. Base URL:{' '}
                 <code className="font-mono text-brand-700">{apiBaseUrl}</code>
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Badge variant="secondary">REST / JSON</Badge>
                 <Badge variant="secondary">JWT Bearer</Badge>
                 <Badge variant="secondary">API Key (X-Api-Key)</Badge>
+                <Badge variant="secondary">Swagger UI</Badge>
               </div>
             </div>
             <a

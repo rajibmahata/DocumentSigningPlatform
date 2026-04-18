@@ -110,6 +110,23 @@ public record DocumentPreviewResponse(
 public record SubmitSignatureRequest(
     string SignatureBase64);
 
+// ── Signer "my envelopes" ─────────────────────────────────────────────────────
+
+public record MyEnvelopeDocumentSummary(
+    string DocumentTitle,
+    string DocumentFileName);
+
+public record MyEnvelopeResponse(
+    Guid   EnvelopeId,
+    string Title,
+    string Status,
+    DateTime CreatedAt,
+    string CreatedByName,        // Merchant / firm name
+    string SignerRole,
+    string SigningToken,
+    DateTime ExpiresAt,
+    List<MyEnvelopeDocumentSummary> Documents);
+
 // ── Outbox payloads ───────────────────────────────────────────────────────────
 
 public record SendEmailPayload(

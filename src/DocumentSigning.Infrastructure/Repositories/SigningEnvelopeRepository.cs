@@ -31,6 +31,15 @@ public class SigningEnvelopeRepository : ISigningEnvelopeRepository
             .OrderByDescending(e => e.CreatedAt)
             .FirstOrDefaultAsync(ct);
 
+    public async Task<IReadOnlyList<SigningEnvelope>> GetAllBySignerEmailAsync(string email, CancellationToken ct = default)
+        => await _db.SigningEnvelopes
+            .Include(e => e.Signers)
+            .Include(e => e.Documents)
+            .Include(e => e.Merchant)
+            .Where(e => e.Signers.Any(s => s.Email == email))
+            .OrderByDescending(e => e.CreatedAt)
+            .ToListAsync(ct);
+
     public async Task AddAsync(SigningEnvelope envelope, CancellationToken ct = default)
         => await _db.SigningEnvelopes.AddAsync(envelope, ct);
 

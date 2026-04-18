@@ -18,6 +18,12 @@ public class SigningRequestRepository : ISigningRequestRepository
         => await _db.SigningRequests
             .FirstOrDefaultAsync(r => r.Token == token, ct);
 
+    public async Task<SigningRequest?> GetByDocumentAndEnvelopeAsync(Guid documentId, Guid envelopeId, CancellationToken ct = default)
+        => await _db.SigningRequests
+            .Where(r => r.DocumentId == documentId)
+            .OrderBy(r => r.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+
     public async Task AddAsync(SigningRequest request, CancellationToken ct = default)
         => await _db.SigningRequests.AddAsync(request, ct);
 

@@ -157,14 +157,133 @@ public class EmailService : IEmailService
         string toEmail, string toName, byte[] signedDocBytes, string contentType,
         CancellationToken ct = default)
     {
-        var subject = "Your signed document";
-        var body = $"Dear {toName},\n\nPlease find your signed document attached.\n\nRegards,\nDocument Signing Platform";
+        var subject = $"Your signed document is ready, {toName}";
+
+        var now = DateTime.UtcNow;
+
+        var plainBody = $"""
+            Dear {toName},
+
+            Thank you for signing! Your signed document is attached to this email.
+
+            Signed on: {now:dddd, MMMM d, yyyy} at {now:HH:mm} UTC
+
+            Please keep this for your records.
+
+            Regards,
+            Document Signing Platform
+            """;
+
+        var htmlBody = $"""
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <title>Your Signed Document</title>
+            </head>
+            <body style="margin:0;padding:0;background:#f4f6f8;font-family:'Segoe UI',Arial,sans-serif;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:40px 0;">
+                <tr>
+                  <td align="center">
+                    <table width="600" cellpadding="0" cellspacing="0"
+                           style="background:#ffffff;border-radius:12px;overflow:hidden;
+                                  box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+
+                      <!-- Header -->
+                      <tr>
+                        <td style="background:linear-gradient(135deg,#7c3aed 0%,#5b21b6 100%);
+                                   padding:36px 48px;text-align:center;">
+                          <p style="margin:0;font-size:13px;color:#ddd6fe;letter-spacing:1.5px;
+                                    text-transform:uppercase;">Document Signing Platform</p>
+                          <h1 style="margin:12px 0 0;font-size:26px;font-weight:700;color:#ffffff;
+                                     letter-spacing:-0.3px;">&#9997;&nbsp; Signing Complete</h1>
+                        </td>
+                      </tr>
+
+                      <!-- Body -->
+                      <tr>
+                        <td style="padding:48px 48px 32px;">
+                          <p style="margin:0 0 8px;font-size:15px;color:#6b7280;">Dear,</p>
+                          <p style="margin:0 0 24px;font-size:20px;font-weight:600;color:#111827;">{toName}</p>
+
+                          <p style="margin:0 0 28px;font-size:15px;color:#374151;line-height:1.7;">
+                            Thank you for completing your electronic signature.
+                            Your signed document is attached to this email — please save it for your records.
+                          </p>
+
+                          <!-- Signed-on card -->
+                          <table width="100%" cellpadding="0" cellspacing="0"
+                                 style="background:#f5f3ff;border:1px solid #ddd6fe;
+                                        border-radius:8px;margin-bottom:32px;">
+                            <tr>
+                              <td style="padding:20px 24px;">
+                                <table width="100%" cellpadding="0" cellspacing="0">
+                                  <tr>
+                                    <td style="padding-bottom:12px;">
+                                      <p style="margin:0;font-size:11px;font-weight:600;color:#6b7280;
+                                                text-transform:uppercase;letter-spacing:1px;">Signed by</p>
+                                      <p style="margin:4px 0 0;font-size:16px;font-weight:700;
+                                                color:#4c1d95;">{toName}</p>
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td style="border-top:1px solid #ddd6fe;padding-top:12px;">
+                                      <p style="margin:0;font-size:11px;font-weight:600;color:#6b7280;
+                                                text-transform:uppercase;letter-spacing:1px;">Date &amp; Time</p>
+                                      <p style="margin:4px 0 0;font-size:14px;color:#374151;">
+                                        {now:dddd, MMMM d, yyyy} at {now:HH:mm} UTC
+                                      </p>
+                                    </td>
+                                  </tr>
+                                </table>
+                              </td>
+                            </tr>
+                          </table>
+
+                          <!-- Attachment notice -->
+                          <table width="100%" cellpadding="0" cellspacing="0"
+                                 style="background:#eff6ff;border:1px solid #bfdbfe;
+                                        border-radius:8px;margin-bottom:32px;">
+                            <tr>
+                              <td style="padding:14px 20px;">
+                                <p style="margin:0;font-size:13px;color:#1e40af;">
+                                  &#128206;&nbsp; Your signed document is attached. Keep it safe as your official record.
+                                </p>
+                              </td>
+                            </tr>
+                          </table>
+
+                          <p style="margin:0;font-size:13px;color:#9ca3af;line-height:1.6;">
+                            If you have any questions, please contact the party who sent you the document.
+                          </p>
+                        </td>
+                      </tr>
+
+                      <!-- Footer -->
+                      <tr>
+                        <td style="background:#f9fafb;border-top:1px solid #e5e7eb;
+                                   padding:24px 48px;text-align:center;">
+                          <p style="margin:0;font-size:12px;color:#9ca3af;">
+                            Sent securely by <strong style="color:#6b7280;">Document Signing Platform</strong>
+                          </p>
+                        </td>
+                      </tr>
+
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+            """;
+
         var extension = contentType.Contains("pdf", StringComparison.OrdinalIgnoreCase) ? "pdf"
             : contentType.Contains("msword", StringComparison.OrdinalIgnoreCase) ? "doc"
             : "docx";
         var attachment = new AttachmentDefinition($"signed-document.{extension}", signedDocBytes, contentType);
 
-        await SendAsync(toEmail, toName, subject, body, attachment, ct);
+        await SendHtmlAsync(toEmail, toName, subject, plainBody, htmlBody, attachment, ct);
     }
 
     public async Task SendFirmNotificationAsync(

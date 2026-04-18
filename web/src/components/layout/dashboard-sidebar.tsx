@@ -7,18 +7,19 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, FileText, Send, Building2, User, BookOpen,
   LogOut, FileSignature, ChevronLeft, ChevronRight,
-  BarChart2, Users, Store, MessageSquare, Ticket,
+  BarChart2, Users, Store, MessageSquare, Ticket, PenLine,
 } from 'lucide-react';
 import { useState } from 'react';
 
 const NAV_ITEMS = [
-  { href: '/dashboard',                label: 'Dashboard',          icon: LayoutDashboard },
-  { href: '/dashboard/envelopes',      label: 'Envelopes',          icon: FileText },
-  { href: '/dashboard/send',           label: 'Send Document',      icon: Send },
-  { href: '/dashboard/merchant',       label: 'Merchant',           icon: Building2 },
-  { href: '/dashboard/tickets',        label: 'Support Tickets',    icon: MessageSquare },
-  { href: '/docs',                     label: 'API Docs',           icon: BookOpen },
-  { href: '/dashboard/profile',        label: 'Profile',            icon: User },
+  { href: '/dashboard',                   label: 'Dashboard',              icon: LayoutDashboard },
+  { href: '/dashboard/envelopes',         label: 'Envelopes',              icon: FileText },
+  { href: '/dashboard/send',              label: 'Send Document',          icon: Send },
+  { href: '/dashboard/my-signatures',     label: 'Awaiting My Signature',  icon: PenLine },
+  { href: '/dashboard/merchant',          label: 'Merchant',               icon: Building2 },
+  { href: '/dashboard/tickets',           label: 'Support Tickets',        icon: MessageSquare },
+  { href: '/docs',                        label: 'API Docs',               icon: BookOpen },
+  { href: '/dashboard/profile',           label: 'Profile',                icon: User },
 ];
 
 const ADMIN_NAV_ITEMS = [

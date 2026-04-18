@@ -136,9 +136,27 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new()
     {
-        Title = "Document Signing API",
+        Title   = "Document Signing API",
         Version = "v1",
-        Description = "In-house electronic document signing platform — initiate signing, validate tokens, submit signatures."
+        Description = """
+            In-house electronic document signing platform.
+
+            ## Authentication
+            - **JWT Bearer** — most endpoints. Obtain a token via `POST /api/auth/login`.
+            - **X-Api-Key** — envelope endpoints. Obtain from `GET /api/merchants/by-user/{userId}`.
+
+            ## Sections
+            | Tag | Description |
+            |-----|-------------|
+            | Auth | Register, login, verify email, password reset |
+            | Users | User profile management |
+            | Analytics | Platform-wide statistics and daily trends (Admin only) |
+            | Merchants | Merchant workspaces and API key management |
+            | Envelope | Send signing envelopes and retrieve signed documents |
+            | Portal | Signing flow — validate token, submit signature, view signer's own envelopes |
+            | Tickets | Support ticket creation and messaging |
+            | Tickets — Admin | Admin-level ticket management (Admin only) |
+        """
     });
 
     // Include XML doc comments from the Api assembly
@@ -159,6 +177,8 @@ builder.Services.AddSwaggerGen(c =>
         {
             "AdminTickets" => "Tickets — Admin",
             "Tickets"      => "Tickets",
+            "Portal"       => "Portal",
+            "Envelope"     => "Envelope",
             _              => controller
         };
         return new[] { tag };
@@ -212,8 +232,10 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Document Signing API v1");
-        c.RoutePrefix = "swagger";
+        c.RoutePrefix   = "swagger";
         c.DocumentTitle = "Document Signing API";
+        c.DefaultModelsExpandDepth(-1);   // collapse schemas by default
+        c.DisplayRequestDuration();       // show response time in UI
     });
 }
 

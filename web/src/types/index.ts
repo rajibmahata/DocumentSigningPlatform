@@ -238,6 +238,25 @@ export interface DocumentPreviewResponse {
   message?: string;
 }
 
+// ── My Envelopes (signer portal) ─────────────────────────────────────────────
+
+export interface MyEnvelopeDocumentSummary {
+  documentTitle: string;
+  documentFileName: string;
+}
+
+export interface MyEnvelopeResponse {
+  envelopeId: string;
+  title: string;
+  status: EnvelopeStatus;
+  createdAt: string;
+  createdByName: string;
+  signerRole: string;
+  signingToken: string;
+  expiresAt: string;
+  documents: MyEnvelopeDocumentSummary[];
+}
+
 export interface SubmitSignatureRequest {
   signatureBase64: string;
 }
