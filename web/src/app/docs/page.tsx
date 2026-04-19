@@ -21,7 +21,13 @@ interface Endpoint {
   params?: Param[];
   response?: string;
 }
-interface Section { id: string; title: string; endpoints: Endpoint[] }
+interface WikiBlock {
+  heading: string;
+  body: string;
+  table?: { headers: string[]; rows: string[][] };
+  code?: { label: string; content: string };
+}
+interface Section { id: string; title: string; wiki?: WikiBlock[]; endpoints: Endpoint[] }
 
 /* ── Data ── */
 const SECTIONS: Section[] = [
@@ -265,6 +271,137 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'webhooks', title: 'Webhooks',
+    wiki: [
+      {
+        heading: 'Overview',
+        body: 'Webhooks let your server receive real-time HTTP POST notifications whenever events occur in your DocSignerHub account. Register an endpoint URL and select the events you care about — we deliver a signed JSON payload within seconds of each event. Each payload includes an X-DocSigner-Event header identifying the event type.',
+      },
+      {
+        heading: 'Signature Verification',
+        body: 'Every delivery includes an X-DocSigner-Signature header: an HMAC-SHA256 hex digest of the raw request body, computed with your webhook secret. Always verify this before processing the event. Compute the HMAC over the raw body bytes — do NOT re-serialize parsed JSON.',
+        code: {
+          label: 'Node.js',
+          content: `const crypto = require('crypto');
+const express = require('express');
+const app = express();
+
+// Use express.raw to capture the raw body buffer
+app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+  const sig      = req.headers['x-docsigner-signature'];
+  const event    = req.headers['x-docsigner-event'];
+
+  const expected = crypto
+    .createHmac('sha256', process.env.WEBHOOK_SECRET)
+    .update(req.body)   // req.body is a Buffer here
+    .digest('hex');
+
+  if (sig !== expected) return res.status(401).send('Unauthorized');
+
+  const payload = JSON.parse(req.body);
+  console.log('Event:', event, payload.data);
+  res.sendStatus(200);
+});`,
+        },
+      },
+      {
+        heading: 'Request Headers',
+        body: 'These headers are included on every webhook delivery:',
+        table: {
+          headers: ['Header', 'Description'],
+          rows: [
+            ['X-DocSigner-Signature', 'HMAC-SHA256 hex digest of the raw request body using your secret'],
+            ['X-DocSigner-Event', 'Event name — e.g. envelope.completed'],
+            ['Content-Type', 'application/json'],
+          ],
+        },
+      },
+      {
+        heading: 'Retry Policy',
+        body: 'If your endpoint returns a 5xx status or times out (30 s limit), delivery is retried up to 5 times with exponential back-off. 4xx responses are treated as permanent failures and are not retried.',
+        table: {
+          headers: ['Attempt', 'Delay after previous failure'],
+          rows: [
+            ['1 (initial)', 'Immediate'],
+            ['2', '1 minute'],
+            ['3', '5 minutes'],
+            ['4', '15 minutes'],
+            ['5', '1 hour'],
+            ['6 (final)', '24 hours'],
+          ],
+        },
+      },
+      {
+        heading: 'Available Events',
+        body: 'Subscribe to any combination of these events when registering a webhook endpoint.',
+        table: {
+          headers: ['Event', 'When it fires'],
+          rows: [
+            ['envelope.processing', 'Envelope accepted, preparing to dispatch invitation emails'],
+            ['envelope.sent', 'Invitation emails dispatched to all signers'],
+            ['envelope.signed', 'One signer has completed their signature'],
+            ['envelope.completed', 'All required signers have signed — envelope fully complete'],
+            ['envelope.failed', 'Internal system error during envelope processing'],
+            ['envelope.expired', 'Signing deadline passed without completion'],
+            ['envelope.rejected', 'A signer explicitly rejected the document'],
+            ['envelope.cancelled', 'Sender cancelled the envelope before completion'],
+            ['ticket.created', 'New support ticket opened'],
+            ['ticket.replied', 'A message was added to an existing support ticket'],
+          ],
+        },
+      },
+    ],
+    endpoints: [
+      {
+        id: 'create-webhook', method: 'POST', path: '/api/webhooks',
+        title: 'Register Webhook',
+        description: 'Register a new webhook endpoint for a merchant. Returns the full webhook record including the generated signing secret. Save the secret immediately — it is not retrievable later.',
+        auth: 'bearer',
+        body: JSON.stringify({ merchantId: 'merchant-uuid', url: 'https://example.com/webhooks', events: ['envelope.completed', 'envelope.signed', 'ticket.created'] }, null, 2),
+        response: JSON.stringify({ id: 'uuid', merchantId: 'merchant-uuid', url: 'https://example.com/webhooks', secret: 'whsec_...', events: ['envelope.completed', 'envelope.signed', 'ticket.created'], isActive: true, createdAt: '2026-04-19T12:00:00Z' }, null, 2),
+      },
+      {
+        id: 'list-webhooks', method: 'GET', path: '/api/webhooks',
+        title: 'List Webhooks by Merchant',
+        description: 'Returns all registered webhooks for the specified merchant. Only the authenticated owner of the merchant account may access this.',
+        auth: 'bearer',
+        params: [{ name: 'merchantId', type: 'string', required: true, description: 'Merchant UUID (query parameter)' }],
+        response: JSON.stringify([{ id: 'uuid', merchantId: 'merchant-uuid', url: 'https://example.com/webhooks', events: ['envelope.completed'], isActive: true, createdAt: '2026-04-19T12:00:00Z' }], null, 2),
+      },
+      {
+        id: 'delete-webhook', method: 'DELETE', path: '/api/webhooks/{id}',
+        title: 'Delete Webhook',
+        description: 'Permanently delete a webhook and all its delivery history. Only the authenticated owner may delete their webhooks. Returns 204 No Content.',
+        auth: 'bearer',
+        params: [{ name: 'id', type: 'string', required: true, description: 'Webhook UUID' }],
+        response: '204 No Content',
+      },
+      {
+        id: 'webhook-deliveries', method: 'GET', path: '/api/webhooks/{id}/deliveries',
+        title: 'Get Delivery History',
+        description: 'Returns paginated delivery records for a specific webhook. Use this to inspect past delivery attempts, retry counts, HTTP response codes, and error messages.',
+        auth: 'bearer',
+        params: [
+          { name: 'id',       type: 'string',  required: true,  description: 'Webhook UUID' },
+          { name: 'page',     type: 'integer', required: false, description: 'Page number (default 1)' },
+          { name: 'pageSize', type: 'integer', required: false, description: 'Items per page (default 20, max 100)' },
+        ],
+        response: JSON.stringify({
+          items: [{ id: 'uuid', webhookId: 'webhook-uuid', eventName: 'envelope.completed', status: 'Success', retryCount: 0, lastAttempt: '2026-04-19T12:05:00Z', nextAttempt: null, response: 'HTTP 200', createdAt: '2026-04-19T12:04:55Z' }],
+          page: 1, pageSize: 20, totalCount: 1, totalPages: 1,
+        }, null, 2),
+      },
+      {
+        id: 'test-webhook', method: 'POST', path: '/api/webhooks/{id}/test',
+        title: 'Test Webhook (Ping)',
+        description: 'Sends a live webhook.test ping to your registered endpoint. The request is signed with HMAC-SHA256 exactly like real events. Use this to verify your endpoint is reachable and signature verification is correctly implemented. Returns the HTTP status code, response body, and latency.',
+        auth: 'bearer',
+        params: [{ name: 'id', type: 'string', required: true, description: 'Webhook UUID' }],
+        response: JSON.stringify({ success: true, statusCode: 200, durationMs: 42, body: 'OK' }, null, 2),
+      },
+    ],
+  },
+  {
     id: 'portal', title: 'Sign Portal',
     endpoints: [
       {
@@ -339,6 +476,60 @@ function CopyButton({ text }: { text: string }) {
       {copied ? <CheckCircle className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
       {copied ? 'Copied' : 'Copy'}
     </button>
+  );
+}
+
+/* ── Wiki block card ── */
+function WikiCard({ block }: { block: WikiBlock }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="rounded-xl border border-blue-100 bg-blue-50 overflow-hidden mb-3">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center gap-3 px-5 py-3.5 text-left hover:bg-blue-100 transition-colors"
+      >
+        <span className="flex-1 text-sm font-semibold text-blue-800">{block.heading}</span>
+        {open
+          ? <svg className="h-4 w-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+          : <svg className="h-4 w-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>}
+      </button>
+      {open && (
+        <div className="border-t border-blue-100 px-5 pb-4 pt-3 space-y-3">
+          <p className="text-sm text-gray-700">{block.body}</p>
+          {block.table && (
+            <div className="overflow-x-auto rounded-lg border border-blue-200">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-blue-100">
+                    {block.table.headers.map((h) => (
+                      <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-blue-700">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {block.table.rows.map((row, i) => (
+                    <tr key={i} className="border-t border-blue-100 bg-white even:bg-blue-50">
+                      {row.map((cell, j) => (
+                        <td key={j} className={`px-3 py-2 text-xs ${j === 0 ? 'font-mono font-medium text-gray-800' : 'text-gray-600'}`}>{cell}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {block.code && (
+            <div className="rounded-xl bg-gray-900 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700">
+                <span className="text-xs text-gray-400">{block.code.label}</span>
+                <CopyButton text={block.code.content} />
+              </div>
+              <pre className="px-4 py-4 text-xs font-mono text-green-400 overflow-x-auto whitespace-pre">{block.code.content}</pre>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -524,6 +715,15 @@ export default function DocsPage() {
         {/* Content */}
         <div className="flex-1 min-w-0">
           <h2 className="text-xl font-bold text-gray-900 mb-5">{section.title}</h2>
+          {section.wiki && section.wiki.length > 0 && (
+            <div className="mb-6">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Guide &amp; Reference</p>
+              {section.wiki.map((block) => (
+                <WikiCard key={block.heading} block={block} />
+              ))}
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 mt-6">Endpoints</p>
+            </div>
+          )}
           <div className="space-y-3">
             {section.endpoints.map((ep) => (
               <EndpointCard key={ep.id} ep={ep} />
