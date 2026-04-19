@@ -600,6 +600,170 @@ Valid `entityType` values: `Envelope` | `Document` | `User` | `Merchant` | `Tick
 
 ---
 
+## Webhooks
+
+> All webhook endpoints require **`Authorization: Bearer <jwt>`**.  
+> The authenticated user must **own** the merchant (same `userId`).
+
+Webhooks deliver a signed HTTP POST to your endpoint whenever a subscribed event fires.  
+Each request includes:
+
+| Header | Value |
+|---|---|
+| `Content-Type` | `application/json` |
+| `X-DocSigner-Signature` | HMAC-SHA256 hex digest of the raw body, using the webhook secret |
+| `X-DocSigner-Event` | Event name, e.g. `envelope.completed` |
+
+**Signature verification (PowerShell)**
+```powershell
+$secret  = [System.Text.Encoding]::UTF8.GetBytes("<your-secret>")
+$payload = [System.Text.Encoding]::UTF8.GetBytes($rawBody)
+$hmac    = [System.Security.Cryptography.HMACSHA256]::new($secret)
+$sig     = [BitConverter]::ToString($hmac.ComputeHash($payload)).Replace("-","").ToLower()
+# $sig must equal the value in X-DocSigner-Signature
+```
+
+**Signature verification (bash)**
+```bash
+echo -n "$RAW_BODY" | openssl dgst -sha256 -hmac "<your-secret>" | awk '{print $2}'
+# Compare result with X-DocSigner-Signature header
+```
+
+**Retry policy** — Failed deliveries are retried up to 5 times with exponential back-off:
+1 min → 5 min → 15 min → 1 hr → 24 hr. 4xx responses are not retried.
+
+---
+
+### Supported Events
+
+| Event | Trigger |
+|---|---|
+| `envelope.processing` | Envelope accepted, preparing invitation send |
+| `envelope.sent` | Invitation emails dispatched to all signers |
+| `envelope.signed` | One signer completed (multi-signer envelope in progress) |
+| `envelope.completed` | All signers completed |
+| `envelope.failed` | System error during send or document stamping |
+| `envelope.expired` | Signing window elapsed without completion |
+| `envelope.rejected` | A signer explicitly rejected the document |
+| `envelope.cancelled` | Sender cancelled the envelope |
+| `ticket.created` | Support ticket opened by a user |
+| `ticket.replied` | Message added to an existing ticket |
+
+---
+
+### Register Webhook  ✅ Required: merchantId, url, events[]
+```bash
+curl -X POST http://localhost:5163/api/webhooks \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <jwt>" \
+  -d '{
+    "merchantId": "<merchant-id>",
+    "url": "https://example.com/webhooks/docsigner",
+    "events": [
+      "envelope.sent",
+      "envelope.completed",
+      "envelope.rejected",
+      "envelope.cancelled",
+      "ticket.created"
+    ]
+  }'
+```
+> Returns `201 Created`.  
+> **Save the `secret` field immediately — it is shown only once.**  
+> `url` must be an absolute `http://` or `https://` URL.  
+> Pass any subset of the supported events listed above.
+
+**Response shape**
+```json
+{
+  "id":        "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "merchantId":"7cb5e4a1-1111-2222-3333-000000000001",
+  "url":       "https://example.com/webhooks/docsigner",
+  "secret":    "base64-encoded-32-byte-random-secret==",
+  "isActive":  true,
+  "events":    ["envelope.sent","envelope.completed","envelope.rejected","envelope.cancelled","ticket.created"],
+  "createdAt": "2026-04-19T10:00:00Z"
+}
+```
+
+**Example payload delivered to your endpoint**
+```json
+{
+  "event":     "envelope.completed",
+  "timestamp": "2026-04-19T12:34:56Z",
+  "data": {
+    "envelopeId": "0cc06a3f-aba3-42c2-a60b-748ea1eb74cb",
+    "status":     "Completed"
+  }
+}
+```
+
+---
+
+### List Webhooks for a Merchant  ✅ Required: merchantId (query)
+```bash
+curl "http://localhost:5163/api/webhooks?merchantId=<merchant-id>" \
+  -H "Authorization: Bearer <jwt>"
+```
+> Returns `WebhookResponse[]` for the given merchant.
+
+---
+
+### Delete Webhook  ✅ Required: id (URL path)
+```bash
+curl -X DELETE http://localhost:5163/api/webhooks/<webhook-id> \
+  -H "Authorization: Bearer <jwt>"
+```
+> Returns `204 No Content`. Permanently removes the webhook and all delivery history.
+
+---
+
+### Get Delivery History  ✅ Required: id (URL path)  |  ❌ Optional: page, pageSize
+```bash
+curl "http://localhost:5163/api/webhooks/<webhook-id>/deliveries?page=1&pageSize=20" \
+  -H "Authorization: Bearer <jwt>"
+```
+> Returns paged delivery attempts, newest first.
+
+**Query parameters**
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `page` | int | `1` | 1-based page number |
+| `pageSize` | int | `20` | Results per page |
+
+**Response shape**
+```json
+{
+  "totalCount": 42,
+  "page":       1,
+  "pageSize":   20,
+  "totalPages": 3,
+  "items": [
+    {
+      "id":          "uuid",
+      "webhookId":   "uuid",
+      "eventName":   "envelope.completed",
+      "status":      "Success",
+      "retryCount":  0,
+      "response":    "200 OK",
+      "lastAttempt": "2026-04-19T12:34:57Z",
+      "nextAttempt": "2026-04-19T12:34:57Z",
+      "createdAt":   "2026-04-19T12:34:56Z"
+    }
+  ]
+}
+```
+
+**`status` values**
+| Status | Meaning |
+|---|---|
+| `Pending` | Queued, not yet attempted |
+| `Processing` | Currently being delivered |
+| `Success` | Endpoint returned 2xx |
+| `Failed` | All retries exhausted or non-retryable 4xx received |
+
+---
+
 ## Quick Workflow (end-to-end test sequence)
 
 ```

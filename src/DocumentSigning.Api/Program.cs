@@ -173,6 +173,7 @@ builder.Services.AddSwaggerGen(c =>
             | Tickets | Support ticket creation and messaging |
             | Tickets — Admin | Admin-level ticket management (Admin only) |
             | Audit Logs — Admin | Paged audit log viewer and entity timeline (Admin only) |
+            | Webhooks | Register endpoints and view delivery history |
         """
     });
 
@@ -195,9 +196,10 @@ builder.Services.AddSwaggerGen(c =>
             "AdminTickets"  => "Tickets — Admin",
             "AdminAudit"    => "Audit Logs — Admin",
             "Tickets"       => "Tickets",
-            "Portal"       => "Portal",
-            "Envelope"     => "Envelope",
-            _              => controller
+            "Portal"        => "Portal",
+            "Envelope"      => "Envelope",
+            "Webhooks"      => "Webhooks",
+            _               => controller
         };
         return new[] { tag };
     });
