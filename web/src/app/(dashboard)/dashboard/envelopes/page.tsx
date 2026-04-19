@@ -18,11 +18,17 @@ export default function EnvelopesPage() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') === 'closed' ? 'closed' : 'active';
   const [tab, setTab] = useState<'active' | 'closed'>(initialTab);
+  const [statusFilter, setStatusFilter] = useState<string>('All');
 
   useEffect(() => {
     const t = searchParams.get('tab');
     if (t === 'active' || t === 'closed') setTab(t);
   }, [searchParams]);
+
+  // Reset status filter when switching tabs
+  useEffect(() => {
+    setStatusFilter('All');
+  }, [tab]);
 
   const { data: merchants } = useQuery({
     queryKey: ['merchants', user?.id],
@@ -46,6 +52,12 @@ export default function EnvelopesPage() {
       : (CLOSED_STATUSES as readonly string[]).includes(e.status),
   ) ?? [];
 
+  const visibleStatuses = tab === 'active' ? ACTIVE_STATUSES : CLOSED_STATUSES;
+
+  const displayedEnvelopes = statusFilter === 'All'
+    ? filtered
+    : filtered.filter((e) => e.status === statusFilter);
+
   return (
     <div className="animate-fade-in space-y-6">
       <div>
@@ -65,15 +77,46 @@ export default function EnvelopesPage() {
         </TabsList>
 
         <TabsContent value={tab}>
+          {/* Status filter pills */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            {(['All', ...visibleStatuses] as string[]).map((s) => {
+              const count = s === 'All'
+                ? filtered.length
+                : filtered.filter((e) => e.status === s).length;
+              return (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors border ${
+                    statusFilter === s
+                      ? 'bg-brand-600 text-white border-brand-600'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400 hover:text-brand-600'
+                  }`}
+                >
+                  {s}
+                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                    statusFilter === s ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
           {isLoading ? (
             <div className="flex justify-center py-16">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand-600 border-t-transparent" />
             </div>
-          ) : filtered.length === 0 ? (
+          ) : displayedEnvelopes.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <FileText className="h-10 w-10 text-gray-300 mb-3" />
-              <p className="text-sm text-gray-500">No {tab === 'active' ? 'active' : 'closed'} envelopes.</p>
-              {tab === 'active' && (
+              <p className="text-sm text-gray-500">
+                {statusFilter === 'All'
+                  ? `No ${tab === 'active' ? 'active' : 'closed'} envelopes.`
+                  : `No envelopes with status "${statusFilter}".`}
+              </p>
+              {tab === 'active' && statusFilter === 'All' && (
                 <Button size="sm" className="mt-4" asChild>
                   <Link href="/dashboard/send">Send Envelope</Link>
                 </Button>
@@ -81,7 +124,7 @@ export default function EnvelopesPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {filtered.map((env) => (
+              {displayedEnvelopes.map((env) => (
                 <EnvelopeCard key={env.envelopeId} env={env} apiKey={merchant!.apiKey} tab={tab} />
               ))}
             </div>
