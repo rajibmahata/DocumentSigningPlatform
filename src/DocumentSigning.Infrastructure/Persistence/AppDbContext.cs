@@ -22,6 +22,9 @@ public class AppDbContext : DbContext
     public DbSet<PasswordResetToken>      PasswordResetTokens      => Set<PasswordResetToken>();
     public DbSet<Ticket>                  Tickets                  => Set<Ticket>();
     public DbSet<TicketMessage>           TicketMessages           => Set<TicketMessage>();
+    public DbSet<Webhook>                 Webhooks                 => Set<Webhook>();
+    public DbSet<WebhookSubscription>     WebhookSubscriptions     => Set<WebhookSubscription>();
+    public DbSet<WebhookDelivery>         WebhookDeliveries        => Set<WebhookDelivery>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -185,6 +188,50 @@ public class AppDbContext : DbContext
             e.HasKey(x => x.Id);
             e.ToTable("TicketMessages");
             e.Property(x => x.SenderType).HasMaxLength(20).IsRequired();
+        });
+
+        // Webhooks
+        model.Entity<Webhook>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("Webhooks");
+            e.Property(x => x.Url).HasMaxLength(2000).IsRequired();
+            e.Property(x => x.Secret).HasMaxLength(100).IsRequired();
+            e.HasOne(x => x.Merchant)
+             .WithMany()
+             .HasForeignKey(x => x.MerchantId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.Subscriptions)
+             .WithOne(s => s.Webhook)
+             .HasForeignKey(s => s.WebhookId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.MerchantId);
+        });
+
+        // WebhookSubscriptions
+        model.Entity<WebhookSubscription>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("WebhookSubscriptions");
+            e.Property(x => x.EventName).HasMaxLength(100).IsRequired();
+            e.HasIndex(x => new { x.WebhookId, x.EventName }).IsUnique();
+        });
+
+        // WebhookDeliveries
+        model.Entity<WebhookDelivery>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("WebhookDeliveries");
+            e.Property(x => x.EventName).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Payload).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.Status).HasConversion<int>();
+            e.Property(x => x.Response).HasMaxLength(1000);
+            e.HasOne(x => x.Webhook)
+             .WithMany()
+             .HasForeignKey(x => x.WebhookId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.Status, x.NextAttempt });
+            e.HasIndex(x => x.WebhookId);
         });
     }
 }

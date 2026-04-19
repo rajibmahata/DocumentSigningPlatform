@@ -19,6 +19,7 @@ public class SignatureSubmitController : ControllerBase
     private readonly IDocumentRepository _documentRepo;
     private readonly IClaimRepository _claimRepo;
     private readonly ISigningEnvelopeRepository _envelopeRepo;
+    private readonly IWebhookService _webhookService;
 
     public SignatureSubmitController(
         ISigningRequestRepository signingRequestRepo,
@@ -27,7 +28,8 @@ public class SignatureSubmitController : ControllerBase
         ITokenService tokenService,
         IDocumentRepository documentRepo,
         IClaimRepository claimRepo,
-        ISigningEnvelopeRepository envelopeRepo)
+        ISigningEnvelopeRepository envelopeRepo,
+        IWebhookService webhookService)
     {
         _signingRequestRepo = signingRequestRepo;
         _outboxRepo = outboxRepo;
@@ -36,6 +38,7 @@ public class SignatureSubmitController : ControllerBase
         _documentRepo = documentRepo;
         _claimRepo = claimRepo;
         _envelopeRepo = envelopeRepo;
+        _webhookService = webhookService;
     }
 
     /// <summary>
@@ -205,6 +208,22 @@ public class SignatureSubmitController : ControllerBase
         var claim = await _claimRepo.GetByIdAsync(signingRequest.ClaimId, ct);
         var merchantId       = document?.Envelope?.MerchantId;
         var merchantUserId   = document?.Envelope?.Merchant?.UserId;
+
+        // ── Webhook: envelope.rejected ───────────────────────────────────────
+        if (merchantId.HasValue)
+        {
+            await _webhookService.TriggerAsync(
+                WebhookEvents.EnvelopeRejected,
+                merchantId.Value,
+                new
+                {
+                    envelopeId  = document?.Envelope?.Id,
+                    status      = "Rejected",
+                    signerEmail = claim?.ClaimantEmail,
+                    reason      = request.Reason,
+                },
+                ct);
+        }
 
         var metadata = System.Text.Json.JsonSerializer.Serialize(new
         {

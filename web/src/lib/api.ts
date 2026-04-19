@@ -208,3 +208,26 @@ export const auditApi = {
   getByEntity: (entityType: string, entityId: string) =>
     apiClient.get<AuditLogResponse[]>(`/admin/audit-logs/entity/${entityType}/${entityId}`),
 };
+
+// ── Webhook API ───────────────────────────────────────────────────────────────
+import type {
+  CreateWebhookRequest,
+  WebhookResponse,
+  WebhookDeliveryPagedResult,
+} from '@/types';
+
+export const webhookApi = {
+  create: (data: CreateWebhookRequest) =>
+    apiClient.post<WebhookResponse>('/webhooks', data),
+
+  getByMerchant: (merchantId: string) =>
+    apiClient.get<WebhookResponse[]>(`/webhooks?merchantId=${merchantId}`),
+
+  delete: (id: string) =>
+    apiClient.delete(`/webhooks/${id}`),
+
+  getDeliveries: (id: string, page = 1, pageSize = 20) =>
+    apiClient.get<WebhookDeliveryPagedResult>(
+      `/webhooks/${id}/deliveries?page=${page}&pageSize=${pageSize}`
+    ),
+};

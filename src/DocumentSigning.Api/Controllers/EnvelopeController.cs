@@ -31,6 +31,7 @@ public class EnvelopeController : ControllerBase
     private readonly IAuditService _audit;
     private readonly ITokenService _tokenService;
     private readonly IConfiguration _config;
+    private readonly IWebhookService _webhookService;
 
     public EnvelopeController(
         IMerchantRepository merchantRepo,
@@ -41,7 +42,8 @@ public class EnvelopeController : ControllerBase
         IOutboxQueueRepository outboxRepo,
         IAuditService audit,
         ITokenService tokenService,
-        IConfiguration config)
+        IConfiguration config,
+        IWebhookService webhookService)
     {
         _merchantRepo = merchantRepo;
         _envelopeRepo = envelopeRepo;
@@ -52,6 +54,7 @@ public class EnvelopeController : ControllerBase
         _audit = audit;
         _tokenService = tokenService;
         _config = config;
+        _webhookService = webhookService;
     }
 
     /// <summary>
@@ -244,6 +247,13 @@ public class EnvelopeController : ControllerBase
         await _envelopeRepo.UpdateAsync(envelope, ct);
         await _envelopeRepo.SaveChangesAsync(ct);
 
+        // ── Webhook: envelope.sent ───────────────────────────────────────────
+        await _webhookService.TriggerAsync(
+            WebhookEvents.EnvelopeSent,
+            merchant.Id,
+            new { envelopeId = envelope.Id, title = envelope.Title, status = "Sent", signerCount = envelope.Signers.Count },
+            ct);
+
         // ── Increment merchant usage ─────────────────────────────────────────
         merchant.RequestUsed++;
         await _merchantRepo.UpdateAsync(merchant, ct);
@@ -364,6 +374,13 @@ public class EnvelopeController : ControllerBase
         envelope.Status = EnvelopeStatus.Cancelled;
         await _envelopeRepo.UpdateAsync(envelope, ct);
         await _envelopeRepo.SaveChangesAsync(ct);
+
+        // ── Webhook: envelope.cancelled ──────────────────────────────────────
+        await _webhookService.TriggerAsync(
+            WebhookEvents.EnvelopeCancelled,
+            merchant.Id,
+            new { envelopeId = envelope.Id, title = envelope.Title, status = "Cancelled" },
+            ct);
 
         _audit.Log(new AuditEntry(
             Action:      AuditActions.EnvelopeCancelled,

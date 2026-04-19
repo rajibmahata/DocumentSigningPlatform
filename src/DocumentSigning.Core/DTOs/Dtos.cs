@@ -319,3 +319,30 @@ public record TicketSummary(
     bool     HasAttachment,
     DateTime CreatedAt,
     DateTime? UpdatedAt);
+
+// ── Webhooks ──────────────────────────────────────────────────────────────────
+
+public record CreateWebhookRequest(
+    Guid         MerchantId,
+    string       Url,
+    List<string> Events);
+
+public record WebhookResponse(
+    Guid         Id,
+    Guid         MerchantId,
+    string       Url,
+    string       Secret,
+    bool         IsActive,
+    List<string> Events,
+    DateTime     CreatedAt);
+
+public record WebhookDeliveryResponse(
+    Guid      Id,
+    Guid      WebhookId,
+    string    EventName,
+    string    Status,
+    int       RetryCount,
+    string?   Response,
+    DateTime? LastAttempt,
+    DateTime  NextAttempt,
+    DateTime  CreatedAt);

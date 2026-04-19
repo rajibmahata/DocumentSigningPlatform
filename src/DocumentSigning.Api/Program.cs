@@ -46,6 +46,15 @@ builder.Services.AddScoped<StampDocJobHandler>();
 // ─── Background worker ────────────────────────────────────────────────────────
 builder.Services.AddHostedService<OutboxWorker>();
 
+// ─── Webhook system ───────────────────────────────────────────────────────────
+builder.Services.AddScoped<IWebhookRepository, WebhookRepository>();
+builder.Services.AddScoped<IWebhookService, WebhookService>();
+builder.Services.AddHostedService<WebhookDeliveryWorker>();
+builder.Services.AddHttpClient("webhook", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(35);
+});
+
 // ─── Audit service (singleton channel + hosted background flush) ──────────────
 builder.Services.AddSingleton<AuditService>();
 builder.Services.AddSingleton<DocumentSigning.Core.Interfaces.IAuditService>(
