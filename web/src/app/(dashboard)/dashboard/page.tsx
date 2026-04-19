@@ -7,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDate, getStatusColor } from '@/lib/utils';
-import { FileText, Send, CheckCircle, Clock, CreditCard, ArrowRight, PenLine } from 'lucide-react';
+import { FileText, Send, CheckCircle, Clock, CreditCard, ArrowRight, PenLine, AlertCircle, CalendarClock } from 'lucide-react';
 import Link from 'next/link';
+import { appBaseUrl } from '@/lib/config';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -40,11 +41,17 @@ export default function DashboardPage() {
   const isLoading = loadingMerchants || (!!merchant && loadingEnvelopes);
 
   const awaitingMySign = myEnvelopes?.filter(
-    (e) => (e.status === 'Sent' || e.status === 'InProgress') && !!e.signingToken && new Date(e.expiresAt) > new Date()
+    (e) => (e.status === 'Sent' || e.status === 'Processing' || e.status === 'Signed') && !!e.signingToken && new Date(e.expiresAt) > new Date()
   ).length ?? 0;
 
+  const pendingActions = myEnvelopes?.filter(
+    (e) => (e.status === 'Sent' || e.status === 'Processing' || e.status === 'Signed') &&
+            !!e.signingToken &&
+            new Date(e.expiresAt) > new Date()
+  ) ?? [];
+
   const total   = envelopes?.length ?? 0;
-  const pending = envelopes?.filter((e) => e.status === 'Sent' || e.status === 'InProgress').length ?? 0;
+  const pending = envelopes?.filter((e) => e.status === 'Processing' || e.status === 'Sent' || e.status === 'Signed').length ?? 0;
   const signed  = envelopes?.filter((e) => e.status === 'Completed').length ?? 0;
   const remaining = merchant
     ? merchant.requestLimit === 0
@@ -55,7 +62,7 @@ export default function DashboardPage() {
   const STATS = [
     { label: 'Total Envelopes',        value: total,          icon: FileText,    color: 'text-brand-600',  bg: 'bg-brand-50',   href: '/dashboard/envelopes'      },
     { label: 'Pending Signature',      value: pending,        icon: Clock,       color: 'text-amber-600',  bg: 'bg-amber-50',   href: '/dashboard/envelopes?tab=active'  },
-    { label: 'Signed',                 value: signed,         icon: CheckCircle, color: 'text-green-600',  bg: 'bg-green-50',   href: '/dashboard/envelopes?tab=completed' },
+    { label: 'Signed',                 value: signed,         icon: CheckCircle, color: 'text-green-600',  bg: 'bg-green-50',   href: '/dashboard/envelopes?tab=closed'  },
     { label: 'Awaiting My Signature',  value: awaitingMySign, icon: PenLine,     color: 'text-violet-600', bg: 'bg-violet-50',  href: '/dashboard/my-signatures'           },
     { label: 'Credits Remaining',      value: remaining,      icon: CreditCard,  color: 'text-purple-600', bg: 'bg-purple-50',  href: '/dashboard/merchant'                },
   ];
@@ -95,6 +102,82 @@ export default function DashboardPage() {
           <Button size="sm" asChild>
             <Link href="/dashboard/merchant">Create Merchant <ArrowRight className="h-4 w-4" /></Link>
           </Button>
+        </div>
+      )}
+
+      {/* ── Action Required ─────────────────────────────────────────────────── */}
+      {!loadingMyEnvelopes && pendingActions.length > 0 && (
+        <div className="rounded-xl border border-violet-200 bg-gradient-to-r from-violet-50 to-purple-50 overflow-hidden">
+          {/* Banner header */}
+          <div className="flex items-center gap-3 bg-violet-600 px-5 py-3">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20">
+              <AlertCircle className="h-4 w-4 text-white" />
+            </div>
+            <p className="text-sm font-semibold text-white">
+              Action Required — {pendingActions.length} document{pendingActions.length > 1 ? 's' : ''} awaiting your signature
+            </p>
+          </div>
+
+          {/* Items */}
+          <ul className="divide-y divide-violet-100">
+            {pendingActions.map((env) => {
+              const expiresAt = new Date(env.expiresAt);
+              const hoursLeft = Math.max(0, Math.round((expiresAt.getTime() - Date.now()) / 3_600_000));
+              const isUrgent  = hoursLeft < 24;
+              const signUrl   = `${appBaseUrl}/sign/${env.signingToken}`;
+
+              return (
+                <li key={env.envelopeId} className="flex items-center gap-4 px-5 py-4">
+                  {/* Icon */}
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-100">
+                    <PenLine className="h-5 w-5 text-violet-600" />
+                  </div>
+
+                  {/* Info */}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-gray-900">{env.title}</p>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-gray-500">
+                      <span className="flex items-center gap-1">
+                        <FileText className="h-3.5 w-3.5" />
+                        {env.signerRole}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <CalendarClock className="h-3.5 w-3.5" />
+                        Requested by <span className="font-medium text-gray-700">{env.createdByName}</span>
+                      </span>
+                      <span className={`flex items-center gap-1 font-medium ${isUrgent ? 'text-red-500' : 'text-amber-600'}`}>
+                        <Clock className="h-3.5 w-3.5" />
+                        {isUrgent
+                          ? `Expires in ${hoursLeft}h`
+                          : `Expires ${expiresAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* CTA */}
+                  <Button
+                    size="sm"
+                    className="shrink-0 bg-violet-600 hover:bg-violet-700 text-white gap-1.5"
+                    asChild
+                  >
+                    <a href={signUrl} target="_blank" rel="noopener noreferrer">
+                      <PenLine className="h-3.5 w-3.5" /> Sign Now
+                    </a>
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+
+          {/* Footer link */}
+          <div className="flex justify-end border-t border-violet-100 bg-white/50 px-5 py-2.5">
+            <Link
+              href="/dashboard/my-signatures"
+              className="flex items-center gap-1 text-xs font-medium text-violet-600 hover:text-violet-800"
+            >
+              View all my signatures <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
         </div>
       )}
 

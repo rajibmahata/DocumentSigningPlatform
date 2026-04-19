@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 
 const ACTION_OPTIONS = [
   'EnvelopeCreated', 'EnvelopeSent', 'EnvelopeViewed', 'EnvelopeSigned',
-  'EnvelopeCompleted', 'EnvelopeCancelled',
+  'EnvelopeCompleted', 'EnvelopeCancelled', 'EnvelopeRejected', 'EnvelopeFailed', 'EnvelopeExpired',
   'DocumentUploaded', 'DocumentStamped', 'SignatureSubmitted',
   'UserRegistered', 'UserLoggedIn', 'UserLoginFailed',
   'EmailVerified', 'PasswordResetRequested', 'PasswordReset', 'UserUpdated',

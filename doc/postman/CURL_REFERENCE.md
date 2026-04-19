@@ -190,6 +190,25 @@ curl http://localhost:5163/api/envelopes/<envelope-id>/signed-documents \
 ```
 > Returns each signer's signed document as `signedDocumentBase64` (null if not yet signed).
 
+### Cancel Envelope  ✅ Required: id (URL path)
+```bash
+curl -X PUT http://localhost:5163/api/envelopes/<envelope-id>/cancel \
+  -H "X-Api-Key: <api-key>"
+```
+> Cancels an envelope with status `Processing`, `Sent`, or `Signed`. Returns `204 No Content`.
+
+**Envelope status lifecycle**
+| Status | Description |
+|---|---|
+| `Processing` | Request accepted; system preparing and dispatching invitation emails |
+| `Sent` | Invitation emails queued for all signers |
+| `Signed` | At least one signer has signed (multi-signer envelope in progress) |
+| `Completed` | All signers have completed signing |
+| `Failed` | System error occurred during send or document stamping |
+| `Cancelled` | Sender cancelled the envelope before completion |
+| `Expired` | Signing window elapsed without completion |
+| `Rejected` | A signer explicitly rejected the document |
+
 ---
 
 ## Portal (Signing Flow)
@@ -227,6 +246,25 @@ curl -X POST "http://localhost:5163/api/portal/submit/<signing-token>" \
 | `409` | Already being processed (duplicate submit) |
 | `410` | Token expired |
 
+### Reject Document  ✅ Required: token (URL path)
+```bash
+curl -X POST "http://localhost:5163/api/portal/reject/<signing-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reason": "Terms are not acceptable."
+  }'
+```
+> Signer rejects the document. Sets the envelope status to `Rejected`. Token must still be valid (not expired).  
+> `reason` is optional.
+
+**Status codes**
+| Code | Meaning |
+|---|---|
+| `204` | No Content – rejection recorded |
+| `400` | Signing request no longer pending or invalid token |
+| `404` | Token not found |
+| `410` | Token expired |
+
 ### Get My Envelopes (Signer view)  ✅ Required: Authorization: Bearer `<jwt>`
 ```bash
 curl http://localhost:5163/api/portal/my-envelopes \
@@ -255,7 +293,7 @@ curl http://localhost:5163/api/portal/my-envelopes \
 ]
 ```
 
-**`status` values:** `Sent` | `InProgress` | `Completed` | `Cancelled`
+**`status` values:** `Processing` | `Sent` | `Signed` | `Completed` | `Failed` | `Cancelled` | `Expired` | `Rejected`
 
 ---
 
@@ -297,7 +335,7 @@ curl -X PUT http://localhost:5163/api/users/<user-id> \
 ## Analytics
 > All analytics endpoints require **`Authorization: Bearer <jwt>`** with **Admin** role.
 
-### Platform Summary  — counts for users, envelopes and signed documents
+### Platform Summary  — counts for users, envelopes, signed documents, and support tickets
 ```bash
 curl http://localhost:5163/api/analytics/summary \
   -H "Authorization: Bearer <jwt>"
@@ -309,9 +347,28 @@ curl http://localhost:5163/api/analytics/summary \
 >   "totalEnvelopesSent": 130,
 >   "totalEnvelopesSigned": 98,
 >   "totalEnvelopesCancelled": 5,
->   "totalDocumentsSigned": 211
+>   "totalDocumentsSigned": 211,
+>   "totalTickets": 18,
+>   "openTickets": 4,
+>   "inProgressTickets": 3,
+>   "resolvedTickets": 8,
+>   "closedTickets": 3
 > }
 > ```
+
+**Response fields**
+| Field | Type | Notes |
+|---|---|---|
+| `totalUsers` | int | All registered users |
+| `totalEnvelopesSent` | int | All envelopes created |
+| `totalEnvelopesSigned` | int | Envelopes with status `Completed` |
+| `totalEnvelopesCancelled` | int | Envelopes with status `Cancelled` |
+| `totalDocumentsSigned` | int | Individual signed document records |
+| `totalTickets` | int | All support tickets |
+| `openTickets` | int | Tickets with status `Open` |
+| `inProgressTickets` | int | Tickets with status `InProgress` |
+| `resolvedTickets` | int | Tickets with status `Resolved` |
+| `closedTickets` | int | Tickets with status `Closed` |
 
 ### Daily Trends  ❌ Optional: days (default 30, max 90)
 ```bash
@@ -323,10 +380,21 @@ curl "http://localhost:5163/api/analytics/trends?days=30" \
 > {
 >   "userRegistrations": [{ "date": "2026-03-15", "count": 3 }, "..."],
 >   "envelopesSent":      [{ "date": "2026-03-15", "count": 8 }, "..."],
->   "documentsSigned":    [{ "date": "2026-03-15", "count": 6 }, "..."]
+>   "documentsSigned":    [{ "date": "2026-03-15", "count": 6 }, "..."],
+>   "ticketsCreated":     [{ "date": "2026-03-15", "count": 2 }, "..."]
 > }
 > ```
 > `days`: valid range 7–90. Returns one entry per day that had activity.
+
+**Response fields**
+| Field | Type | Notes |
+|---|---|---|
+| `userRegistrations` | DailyCount[] | New user registrations per day |
+| `envelopesSent` | DailyCount[] | Envelopes created per day |
+| `documentsSigned` | DailyCount[] | Documents signed per day |
+| `ticketsCreated` | DailyCount[] | New support tickets opened per day |
+
+**DailyCount shape:** `{ "date": "2026-03-15", "count": 3 }`
 
 ---
 

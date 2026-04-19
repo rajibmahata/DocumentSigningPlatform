@@ -14,6 +14,9 @@ public static class AuditActions
     public const string EnvelopeSigned    = "Envelope.Signed";
     public const string EnvelopeCompleted = "Envelope.Completed";
     public const string EnvelopeCancelled = "Envelope.Cancelled";
+    public const string EnvelopeRejected  = "Envelope.Rejected";
+    public const string EnvelopeFailed    = "Envelope.Failed";
+    public const string EnvelopeExpired   = "Envelope.Expired";
 
     // ── Document ──────────────────────────────────────────────────────────────
     public const string DocumentUploaded      = "Document.Uploaded";

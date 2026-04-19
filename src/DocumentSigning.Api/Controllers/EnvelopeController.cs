@@ -57,6 +57,19 @@ public class EnvelopeController : ControllerBase
     /// <summary>
     /// Initiates a signing envelope for one or more signers and documents.
     /// </summary>
+    /// <remarks>
+    /// The envelope lifecycle:
+    /// <list type="bullet">
+    ///   <item><description><b>Processing</b> — envelope accepted; emails being prepared</description></item>
+    ///   <item><description><b>Sent</b> — invitation emails dispatched to all signers</description></item>
+    ///   <item><description><b>Signed</b> — at least one signer has signed (multi-signer in progress)</description></item>
+    ///   <item><description><b>Completed</b> — all signers have completed</description></item>
+    ///   <item><description><b>Failed</b> — system error during send or stamping</description></item>
+    ///   <item><description><b>Cancelled</b> — sender cancelled the envelope</description></item>
+    ///   <item><description><b>Expired</b> — signing window elapsed without completion</description></item>
+    ///   <item><description><b>Rejected</b> — a signer explicitly rejected the document</description></item>
+    /// </list>
+    /// </remarks>
     [HttpPost]
     [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("signing")]
     [ProducesResponseType(typeof(InitiateEnvelopeResponse), StatusCodes.Status201Created)]
@@ -132,7 +145,7 @@ public class EnvelopeController : ControllerBase
             Id         = Guid.NewGuid(),
             MerchantId = merchant.Id,
             Title      = request.Title.Trim(),
-            Status     = EnvelopeStatus.Sent,
+            Status     = EnvelopeStatus.Processing,
             CreatedAt  = DateTime.UtcNow,
             Documents  = docEntities,
             Signers    = request.Signers
@@ -226,6 +239,11 @@ public class EnvelopeController : ControllerBase
         await _signingRequestRepo.SaveChangesAsync(ct);
         await _outboxRepo.SaveChangesAsync(ct);
 
+        // ── Transition envelope to Sent — invitations have been queued ──────
+        envelope.Status = EnvelopeStatus.Sent;
+        await _envelopeRepo.UpdateAsync(envelope, ct);
+        await _envelopeRepo.SaveChangesAsync(ct);
+
         // ── Increment merchant usage ─────────────────────────────────────────
         merchant.RequestUsed++;
         await _merchantRepo.UpdateAsync(merchant, ct);
@@ -247,6 +265,9 @@ public class EnvelopeController : ControllerBase
     }
 
     /// <summary>Returns a signing envelope by ID (merchant-scoped). Documents include signed content when available.</summary>
+    /// <remarks>
+    /// Status values: <c>Processing</c> | <c>Sent</c> | <c>Signed</c> | <c>Completed</c> | <c>Failed</c> | <c>Cancelled</c> | <c>Expired</c> | <c>Rejected</c>
+    /// </remarks>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(InitiateEnvelopeResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -263,6 +284,9 @@ public class EnvelopeController : ControllerBase
     }
 
     /// <summary>Returns all envelopes for the authenticated merchant.</summary>
+    /// <remarks>
+    /// Status values: <c>Processing</c> | <c>Sent</c> | <c>Signed</c> | <c>Completed</c> | <c>Failed</c> | <c>Cancelled</c> | <c>Expired</c> | <c>Rejected</c>
+    /// </remarks>
     [HttpGet]
     [ProducesResponseType(typeof(IReadOnlyList<InitiateEnvelopeResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll(CancellationToken ct)
@@ -276,9 +300,16 @@ public class EnvelopeController : ControllerBase
 
     private static InitiateEnvelopeResponse MapToResponse(SigningEnvelope e)
     {
+        // Terminal / non-derivable statuses — respect the stored DB value
+        static bool IsTerminal(EnvelopeStatus s) =>
+            s == EnvelopeStatus.Cancelled ||
+            s == EnvelopeStatus.Failed    ||
+            s == EnvelopeStatus.Expired   ||
+            s == EnvelopeStatus.Rejected;
+
         // Derive effective status from signer states to handle any stale DB records
         var effectiveStatus = e.Status;
-        if (effectiveStatus != EnvelopeStatus.Cancelled && e.Signers.Count > 0)
+        if (!IsTerminal(effectiveStatus) && e.Signers.Count > 0)
         {
             bool allSigned = e.Signers.All(s => s.Status == SigningStatus.Signed);
             bool anySigned = e.Signers.Any(s => s.Status == SigningStatus.Signed);
@@ -286,7 +317,7 @@ public class EnvelopeController : ControllerBase
             if (allSigned)
                 effectiveStatus = EnvelopeStatus.Completed;
             else if (anySigned)
-                effectiveStatus = EnvelopeStatus.InProgress;
+                effectiveStatus = EnvelopeStatus.Signed;
         }
 
         return new(
@@ -297,6 +328,53 @@ public class EnvelopeController : ControllerBase
             e.Documents.Select(d => new DocumentSummary(d.Id, d.DocumentTitle)).ToList(),
             e.Signers.Select(s => new SignerSummary(s.Name, s.Role, s.Email, s.Status.ToString())).ToList()
         );
+    }
+
+    /// <summary>Cancels an envelope, preventing any further signing.</summary>
+    /// <remarks>
+    /// Only envelopes in <c>Processing</c>, <c>Sent</c>, or <c>Signed</c> state can be cancelled.
+    /// Terminal statuses (<c>Completed</c>, <c>Failed</c>, <c>Expired</c>, <c>Rejected</c>, <c>Cancelled</c>) cannot be changed.
+    ///
+    /// **Response codes**
+    /// - `204 No Content` — envelope cancelled successfully.
+    /// - `400 Bad Request` — envelope is already in a terminal state.
+    /// - `401 Unauthorized` — missing or invalid merchant API key.
+    /// - `404 Not Found` — envelope not found or belongs to a different merchant.
+    /// </remarks>
+    /// <param name="id">The envelope GUID to cancel.</param>
+    /// <param name="ct">Cancellation token.</param>
+    [HttpPut("{id:guid}/cancel")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Cancel(Guid id, CancellationToken ct)
+    {
+        var merchant = HttpContext.Items["Merchant"] as Merchant;
+        if (merchant is null) return Unauthorized();
+
+        var envelope = await _envelopeRepo.GetByIdAsync(id, ct);
+        if (envelope is null || envelope.MerchantId != merchant.Id)
+            return NotFound();
+
+        var cancellableStates = new[] { EnvelopeStatus.Processing, EnvelopeStatus.Sent, EnvelopeStatus.Signed };
+        if (!cancellableStates.Contains(envelope.Status))
+            return BadRequest($"Cannot cancel an envelope with status '{envelope.Status}'.");
+
+        envelope.Status = EnvelopeStatus.Cancelled;
+        await _envelopeRepo.UpdateAsync(envelope, ct);
+        await _envelopeRepo.SaveChangesAsync(ct);
+
+        _audit.Log(new AuditEntry(
+            Action:      AuditActions.EnvelopeCancelled,
+            EntityType:  AuditEntities.Envelope,
+            EntityId:    envelope.Id,
+            MerchantId:  merchant.Id,
+            Description: $"Envelope '{envelope.Title}' cancelled by merchant.",
+            IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            UserAgent:   Request.Headers.UserAgent.ToString()));
+
+        return NoContent();
     }
 
     /// <summary>Returns the envelope with each signer's signed document in base64 (null if not yet signed).</summary>

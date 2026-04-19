@@ -132,7 +132,13 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <Badge variant={signer.status === 'Signed' ? 'success' : 'warning'}>
+                <Badge
+                  variant={
+                    signer.status === 'Signed'  ? 'success' :
+                    signer.status === 'Expired' || signer.status === 'Failed' ? 'destructive' :
+                    'warning'
+                  }
+                >
                   {signer.status}
                 </Badge>
                 {signer.signedDocumentBase64 && (

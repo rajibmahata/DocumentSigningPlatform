@@ -135,7 +135,7 @@ export interface EnvelopeSignedResponse {
   signers: SignerSignedSummary[];
 }
 
-export type EnvelopeStatus = 'Sent' | 'InProgress' | 'Completed' | 'Cancelled';
+export type EnvelopeStatus = 'Processing' | 'Sent' | 'Signed' | 'Completed' | 'Failed' | 'Cancelled' | 'Expired' | 'Rejected';
 
 // ── Portal / Signing ──────────────────────────────────────────────────────────
 
@@ -157,6 +157,12 @@ export interface AnalyticsSummary {
   totalEnvelopesSigned: number;
   totalEnvelopesCancelled: number;
   totalDocumentsSigned: number;
+  // Ticket breakdown
+  totalTickets: number;
+  openTickets: number;
+  inProgressTickets: number;
+  resolvedTickets: number;
+  closedTickets: number;
 }
 
 // ── Tickets ──────────────────────────────────────────────────────────────────
@@ -225,6 +231,7 @@ export interface AnalyticsTrends {
   userRegistrations: DailyCount[];
   envelopesSent: DailyCount[];
   documentsSigned: DailyCount[];
+  ticketsCreated: DailyCount[];
 }
 
 export interface DocumentPreviewResponse {

@@ -12,7 +12,8 @@ namespace DocumentSigning.Tests.Controllers;
 
 public class TicketsControllerTests
 {
-    private readonly Mock<ITicketRepository> _repo = new();
+    private readonly Mock<ITicketRepository> _repo  = new();
+    private readonly Mock<IAuditService>     _audit = new();
     private readonly Guid _userId = Guid.NewGuid();
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -29,7 +30,7 @@ public class TicketsControllerTests
         var identity  = new ClaimsIdentity(claims, "Test");
         var principal = new ClaimsPrincipal(identity);
 
-        var controller = new TicketsController(_repo.Object)
+        var controller = new TicketsController(_repo.Object, _audit.Object)
         {
             ControllerContext = new ControllerContext
             {

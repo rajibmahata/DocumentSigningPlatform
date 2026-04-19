@@ -18,6 +18,7 @@ public class SignatureSubmitController : ControllerBase
     private readonly ITokenService _tokenService;
     private readonly IDocumentRepository _documentRepo;
     private readonly IClaimRepository _claimRepo;
+    private readonly ISigningEnvelopeRepository _envelopeRepo;
 
     public SignatureSubmitController(
         ISigningRequestRepository signingRequestRepo,
@@ -25,7 +26,8 @@ public class SignatureSubmitController : ControllerBase
         IAuditService audit,
         ITokenService tokenService,
         IDocumentRepository documentRepo,
-        IClaimRepository claimRepo)
+        IClaimRepository claimRepo,
+        ISigningEnvelopeRepository envelopeRepo)
     {
         _signingRequestRepo = signingRequestRepo;
         _outboxRepo = outboxRepo;
@@ -33,12 +35,29 @@ public class SignatureSubmitController : ControllerBase
         _tokenService = tokenService;
         _documentRepo = documentRepo;
         _claimRepo = claimRepo;
+        _envelopeRepo = envelopeRepo;
     }
 
     /// <summary>
     /// Claimant submits their drawn/typed signature for stamping.
-    /// Enqueues a StampDoc background job.
+    /// Enqueues a <c>StampDoc</c> background job.
     /// </summary>
+    /// <remarks>
+    /// The <c>token</c> is the unique signing token embedded in the invitation link sent to the signer.
+    ///
+    /// **Request body**
+    /// - `signatureBase64` (string, required) — base64-encoded PNG of the drawn or typed signature image.
+    ///
+    /// **Response codes**
+    /// - `202 Accepted` — signature queued for stamping.
+    /// - `400 Bad Request` — missing/invalid signature data or token already processed.
+    /// - `404 Not Found` — token does not exist.
+    /// - `409 Conflict` — concurrent submission detected; request already being processed.
+    /// - `410 Gone` — token has expired.
+    /// </remarks>
+    /// <param name="token">The signer's unique invitation token (from the signing link).</param>
+    /// <param name="request">Body containing the base64-encoded signature image.</param>
+    /// <param name="ct">Cancellation token.</param>
     [HttpPost("submit/{token}")]
     [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("signing")]
     [ProducesResponseType(StatusCodes.Status202Accepted)]
@@ -127,4 +146,88 @@ public class SignatureSubmitController : ControllerBase
 
         return Accepted(new { Message = "Signature received. Document will be stamped shortly." });
     }
+
+    /// <summary>
+    /// Signer rejects the document — marks the envelope as <c>Rejected</c>.
+    /// </summary>
+    /// <remarks>
+    /// Only valid when the signing request is still <c>Pending</c>.
+    /// Once rejected the envelope status is set to <c>Rejected</c> and no further signing can occur.
+    ///
+    /// **Request body**
+    /// - `reason` (string, optional) — free-text explanation from the signer.
+    ///
+    /// **Response codes**
+    /// - `204 No Content` — rejection recorded successfully.
+    /// - `400 Bad Request` — signing request is not in Pending state, or token signature is invalid.
+    /// - `404 Not Found` — token does not exist.
+    /// - `410 Gone` — token has expired.
+    /// </remarks>
+    /// <param name="token">The signer's unique invitation token (from the signing link).</param>
+    /// <param name="request">Optional body containing the rejection reason.</param>
+    /// <param name="ct">Cancellation token.</param>
+    [HttpPost("reject/{token}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status410Gone)]
+    public async Task<IActionResult> Reject(
+        string token,
+        [FromBody] RejectSignatureRequest request,
+        CancellationToken ct)
+    {
+        var signingRequest = await _signingRequestRepo.GetByTokenAsync(token, ct);
+        if (signingRequest is null) return NotFound("Token not found.");
+
+        if (signingRequest.ExpiresAt < DateTime.UtcNow)
+            return StatusCode(StatusCodes.Status410Gone, "Token has expired.");
+
+        if (signingRequest.Status != SigningStatus.Pending)
+            return BadRequest("This signing request is no longer pending.");
+
+        if (!_tokenService.ValidateTokenSignature(token, signingRequest.ClaimId, signingRequest.DocumentId))
+            return BadRequest("Invalid token signature.");
+
+        // Mark signing request as Failed (rejection is a terminal state for the request)
+        signingRequest.Status = SigningStatus.Failed;
+        await _signingRequestRepo.UpdateAsync(signingRequest, ct);
+        await _signingRequestRepo.SaveChangesAsync(ct);
+
+        // Mark envelope as Rejected
+        var document = await _documentRepo.GetWithEnvelopeAsync(signingRequest.DocumentId, ct);
+        if (document?.Envelope is not null)
+        {
+            document.Envelope.Status = EnvelopeStatus.Rejected;
+            await _envelopeRepo.UpdateAsync(document.Envelope, ct);
+            await _envelopeRepo.SaveChangesAsync(ct);
+        }
+
+        var claim = await _claimRepo.GetByIdAsync(signingRequest.ClaimId, ct);
+        var merchantId       = document?.Envelope?.MerchantId;
+        var merchantUserId   = document?.Envelope?.Merchant?.UserId;
+
+        var metadata = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            claimantName  = claim?.ClaimantName  ?? "Unknown",
+            claimantEmail = claim?.ClaimantEmail ?? "Unknown",
+            reason        = request.Reason ?? string.Empty,
+            merchantId    = merchantId?.ToString() ?? "—"
+        });
+
+        _audit.Log(new AuditEntry(
+            Action:      AuditActions.EnvelopeRejected,
+            EntityType:  AuditEntities.Envelope,
+            EntityId:    document?.Envelope?.Id ?? signingRequest.DocumentId,
+            UserId:      merchantUserId,
+            MerchantId:  merchantId,
+            Description: $"Document rejected by {claim?.ClaimantName ?? "signer"}: {request.Reason ?? "no reason given"}",
+            Metadata:    metadata,
+            IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            UserAgent:   Request.Headers.UserAgent.ToString(),
+            SigningRequestId: signingRequest.Id,
+            ClaimId:     signingRequest.ClaimId));
+
+        return NoContent();
+    }
 }
+

@@ -16,10 +16,14 @@ import { formatDate } from '@/lib/utils';
 
 function statusBadge(status: string) {
   switch (status) {
-    case 'Sent':       return <Badge className="bg-blue-100 text-blue-700 border-0">Pending</Badge>;
-    case 'InProgress': return <Badge className="bg-amber-100 text-amber-700 border-0">In Progress</Badge>;
+    case 'Processing': return <Badge className="bg-purple-100 text-purple-700 border-0">Processing</Badge>;
+    case 'Sent':       return <Badge className="bg-blue-100 text-blue-700 border-0">Sent</Badge>;
+    case 'Signed':     return <Badge className="bg-teal-100 text-teal-700 border-0">Partially Signed</Badge>;
     case 'Completed':  return <Badge className="bg-green-100 text-green-700 border-0">Completed</Badge>;
-    case 'Cancelled':  return <Badge className="bg-red-100 text-red-700 border-0">Cancelled</Badge>;
+    case 'Failed':     return <Badge className="bg-red-100 text-red-700 border-0">Failed</Badge>;
+    case 'Cancelled':  return <Badge className="bg-gray-100 text-gray-600 border-0">Cancelled</Badge>;
+    case 'Expired':    return <Badge className="bg-orange-100 text-orange-700 border-0">Expired</Badge>;
+    case 'Rejected':   return <Badge className="bg-red-200 text-red-800 border-0">Rejected</Badge>;
     default:           return <Badge variant="secondary">{status}</Badge>;
   }
 }
@@ -29,7 +33,7 @@ function isExpired(expiresAt: string) {
 }
 
 function isActionable(env: MyEnvelopeResponse) {
-  return (env.status === 'Sent' || env.status === 'InProgress')
+  return (env.status === 'Sent' || env.status === 'Processing')
     && !!env.signingToken
     && !isExpired(env.expiresAt);
 }
@@ -259,9 +263,11 @@ export default function MySignaturesPage() {
     refetchOnWindowFocus: true,
   });
 
-  const active    = envelopes.filter((e) => e.status === 'Sent' || e.status === 'InProgress');
+  const active    = envelopes.filter((e) => e.status === 'Processing' || e.status === 'Sent' || e.status === 'Signed');
   const completed = envelopes.filter((e) => e.status === 'Completed');
-  const other     = envelopes.filter((e) => e.status !== 'Sent' && e.status !== 'InProgress' && e.status !== 'Completed');
+  const other     = envelopes.filter((e) =>
+    e.status !== 'Processing' && e.status !== 'Sent' && e.status !== 'Signed' && e.status !== 'Completed'
+  );
 
   return (
     <>
