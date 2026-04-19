@@ -33,6 +33,60 @@ interface Section { id: string; title: string; wiki?: WikiBlock[]; endpoints: En
 const SECTIONS: Section[] = [
   {
     id: 'auth', title: 'Authentication',
+    wiki: [
+      {
+        heading: 'Overview',
+        body: 'All protected endpoints use JWT Bearer authentication. Register an account, verify your email, then call Login to receive a token. Include it in every subsequent request via the Authorization: Bearer <token> header. Two access roles exist: User (default) and Admin.',
+        table: {
+          headers: ['Step', 'Endpoint', 'Notes'],
+          rows: [
+            ['1 — Register', 'POST /api/auth/register', 'Creates the account and sends a verification email'],
+            ['2 — Verify email', 'GET /api/auth/verify-email/{token}', 'Must complete before first login'],
+            ['3 — Login', 'POST /api/auth/login', 'Returns JWT token in response body'],
+            ['4 — Call APIs', 'Any protected endpoint', 'Header: Authorization: Bearer <token>'],
+          ],
+        },
+      },
+      {
+        heading: 'Quick Start — Register & Login',
+        body: 'Register, verify your email, then login to obtain a Bearer token.',
+        code: {
+          label: 'curl',
+          content: `# 1. Register
+curl -X POST ${apiBaseUrl}/api/auth/register \\
+  -H "Content-Type: application/json" \\
+  -d '{"name":"Jane Doe","email":"jane@example.com","password":"Secure1234","country":"GB"}'
+
+# 2. Verify email — click the link in the inbox or call the token URL
+curl "${apiBaseUrl}/api/auth/verify-email/{token}"
+
+# 3. Login — returns { token, userId, name, email }
+curl -X POST ${apiBaseUrl}/api/auth/login \\
+  -H "Content-Type: application/json" \\
+  -d '{"email":"jane@example.com","password":"Secure1234"}'
+
+# 4. Use the token on protected routes
+curl ${apiBaseUrl}/api/users \\
+  -H "Authorization: Bearer eyJ..."`,
+        },
+      },
+      {
+        heading: 'Password Reset Flow',
+        body: 'Request a reset email then submit the new password with the token from the email.',
+        code: {
+          label: 'curl',
+          content: `# Step 1 — Send reset email
+curl -X POST ${apiBaseUrl}/api/auth/forgot-password \\
+  -H "Content-Type: application/json" \\
+  -d '{"email":"jane@example.com"}'
+
+# Step 2 — Reset password using the token from the email
+curl -X POST ${apiBaseUrl}/api/auth/reset-password \\
+  -H "Content-Type: application/json" \\
+  -d '{"token":"uuid-from-email","newPassword":"NewPass123"}'`,
+        },
+      },
+    ],
     endpoints: [
       {
         id: 'register', method: 'POST', path: '/api/auth/register',
@@ -73,6 +127,48 @@ const SECTIONS: Section[] = [
   },
   {
     id: 'users', title: 'Users',
+    wiki: [
+      {
+        heading: 'Overview',
+        body: 'User management endpoints require JWT Bearer authentication. The platform has two access roles: User (default) and Admin. Admins can list all users, look up any profile, and change roles. Regular users may only read and update their own profile.',
+        table: {
+          headers: ['Action', 'User', 'Admin'],
+          rows: [
+            ['List all users', '✗', '✓'],
+            ['Get own profile', '✓', '✓'],
+            ['Get any profile', '✗', '✓'],
+            ['Update own name', '✓', '✓'],
+            ['Change accessRole', '✗', '✓'],
+          ],
+        },
+      },
+      {
+        heading: 'Quick Start',
+        body: 'Fetch and update a user profile. Admin operations require an Admin-role token.',
+        code: {
+          label: 'curl',
+          content: `# Get a user by ID
+curl ${apiBaseUrl}/api/users/{id} \\
+  -H "Authorization: Bearer eyJ..."
+
+# Update display name
+curl -X PUT ${apiBaseUrl}/api/users/{id} \\
+  -H "Authorization: Bearer eyJ..." \\
+  -H "Content-Type: application/json" \\
+  -d '{"name":"Jane Smith"}'
+
+# Admin — promote a user to Admin role
+curl -X PUT ${apiBaseUrl}/api/users/{id} \\
+  -H "Authorization: Bearer eyJ..." \\
+  -H "Content-Type: application/json" \\
+  -d '{"name":"Jane Smith","accessRole":"Admin"}'
+
+# Admin — list all registered users
+curl ${apiBaseUrl}/api/users \\
+  -H "Authorization: Bearer eyJ..."`,
+        },
+      },
+    ],
     endpoints: [
       {
         id: 'list-users', method: 'GET', path: '/api/users',
@@ -101,6 +197,38 @@ const SECTIONS: Section[] = [
   },
   {
     id: 'analytics', title: 'Analytics',
+    wiki: [
+      {
+        heading: 'Overview',
+        body: 'Analytics endpoints are Admin-only and return platform-wide aggregate metrics. Use the summary endpoint for a total count snapshot. Use the trends endpoint to power time-series charts — it accepts a configurable look-back window of 7–90 days via the ?days= query parameter.',
+        table: {
+          headers: ['Endpoint', 'Returns', 'Auth'],
+          rows: [
+            ['GET /api/analytics/summary', 'All-time aggregate counts', 'Admin JWT'],
+            ['GET /api/analytics/trends?days=N', 'Daily counts per metric (7–90 days)', 'Admin JWT'],
+          ],
+        },
+      },
+      {
+        heading: 'Quick Start',
+        body: 'Pull a platform snapshot and 7-day trend data in two requests.',
+        code: {
+          label: 'curl',
+          content: `# Platform snapshot — all-time aggregates (Admin only)
+curl ${apiBaseUrl}/api/analytics/summary \\
+  -H "Authorization: Bearer eyJ..."
+# Response: totalUsers, totalEnvelopesSent, totalDocumentsSigned,
+#   totalTickets, openTickets, resolvedTickets, closedTickets, ...
+
+# 7-day daily trends (Admin only)
+curl "${apiBaseUrl}/api/analytics/trends?days=7" \\
+  -H "Authorization: Bearer eyJ..."
+# Response arrays: userRegistrations, envelopesSent,
+#   documentsSigned, ticketsCreated
+#   Each item: { date: "YYYY-MM-DD", count: number }`,
+        },
+      },
+    ],
     endpoints: [
       {
         id: 'analytics-summary', method: 'GET', path: '/api/analytics/summary',
@@ -137,6 +265,50 @@ const SECTIONS: Section[] = [
   },
   {
     id: 'merchants', title: 'Merchants',
+    wiki: [
+      {
+        heading: 'Overview',
+        body: 'A Merchant account is required to send envelopes and register webhooks. Creating a merchant generates an API key (mk_... prefix) authenticated via the X-Api-Key header. Each merchant has a configurable request limit — track usage in the requestUsed field returned on every response.',
+        table: {
+          headers: ['Concept', 'Detail'],
+          rows: [
+            ['API key prefix', 'mk_...'],
+            ['Request header', 'X-Api-Key: mk_...'],
+            ['Used for', 'POST/GET /api/envelopes, /api/webhooks'],
+            ['Quota field', 'requestLimit — set at creation'],
+            ['Usage field', 'requestUsed — increments per envelope sent'],
+          ],
+        },
+      },
+      {
+        heading: 'Quick Start — Create a Merchant',
+        body: 'Create a merchant with your user JWT, then use the returned API key for all envelope and webhook operations.',
+        code: {
+          label: 'curl',
+          content: `# Create a merchant (requires JWT Bearer)
+curl -X POST ${apiBaseUrl}/api/merchants \\
+  -H "Authorization: Bearer eyJ..." \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "userId": "your-user-uuid",
+    "name": "Acme Corp",
+    "description": "Our signing integration",
+    "requestLimit": 500
+  }'
+# Response includes apiKey: "mk_..." — save this
+
+# Retrieve your merchants by user
+curl ${apiBaseUrl}/api/merchants/by-user/{userId} \\
+  -H "Authorization: Bearer eyJ..."
+
+# Use the API key in envelope requests
+curl -X POST ${apiBaseUrl}/api/envelopes \\
+  -H "X-Api-Key: mk_your_api_key" \\
+  -H "Content-Type: application/json" \\
+  -d '{...}'`,
+        },
+      },
+    ],
     endpoints: [
       {
         id: 'create-merchant', method: 'POST', path: '/api/merchants',
@@ -166,6 +338,77 @@ const SECTIONS: Section[] = [
   },
   {
     id: 'envelopes', title: 'Envelopes',
+    wiki: [
+      {
+        heading: 'Overview',
+        body: 'An envelope packages one or more documents with a list of signers and dispatches invitation emails. Documents must be base64-encoded and contain a <<SIGNATURE>> text placeholder where the stamp is injected. Supported formats: PDF, Word DOC, and Word DOCX. All envelope operations authenticate via the merchant X-Api-Key header.',
+        table: {
+          headers: ['Status', 'Meaning', 'Terminal?'],
+          rows: [
+            ['Processing', 'Accepted — preparing invitation emails', 'No'],
+            ['Sent', 'Invitation emails dispatched to all signers', 'No'],
+            ['Signed', 'At least one signer has signed', 'No'],
+            ['Completed', 'All signers have signed', 'Yes ✓'],
+            ['Rejected', 'A signer rejected the document', 'Yes ✓'],
+            ['Cancelled', 'Sender cancelled the envelope', 'Yes ✓'],
+            ['Expired', 'Signing deadline passed without completion', 'Yes ✓'],
+            ['Failed', 'Internal processing error', 'Yes ✓'],
+          ],
+        },
+      },
+      {
+        heading: 'Document Requirements',
+        body: 'Each document must contain the text <<SIGNATURE>> as a placeholder. During processing the system locates this marker and stamps the signer\'s drawn or typed signature image over it.',
+        table: {
+          headers: ['Format', 'documentContentType'],
+          rows: [
+            ['PDF', 'application/pdf'],
+            ['Word DOC', 'application/msword'],
+            ['Word DOCX', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+          ],
+        },
+      },
+      {
+        heading: 'Quick Start — Send an Envelope',
+        body: 'Encode your PDF as base64 and POST to /api/envelopes using your merchant API key. The <<SIGNATURE>> placeholder in the document is replaced with the drawn signature.',
+        code: {
+          label: 'Node.js',
+          content: `const fs    = require('fs');
+const axios = require('axios');
+
+// PDF must contain <<SIGNATURE>> placeholder
+const pdfBase64 = fs.readFileSync('contract.pdf').toString('base64');
+
+const { data } = await axios.post('${apiBaseUrl}/api/envelopes', {
+  title:      'Service Agreement',
+  merchantId: 'your-merchant-uuid',
+  documents: [{
+    documentTitle:       'Service Agreement',
+    documentFileName:    'service-agreement.pdf',
+    documentBase64:      pdfBase64,
+    documentContentType: 'application/pdf',
+  }],
+  signers: [{
+    name:    'John Doe',
+    email:   'john@example.com',
+    role:    'signer',
+    order:   1,
+    message: 'Please review and sign.',
+  }],
+}, { headers: { 'X-Api-Key': 'mk_your_api_key' } });
+
+console.log('Envelope ID:', data.envelopeId);
+console.log('Status:',      data.status);
+
+// Cancel the envelope if needed
+await axios.put(
+  '${apiBaseUrl}/api/envelopes/' + data.envelopeId + '/cancel',
+  {},
+  { headers: { 'X-Api-Key': 'mk_your_api_key' } }
+);`,
+        },
+      },
+    ],
     endpoints: [
       {
         id: 'create-envelope', method: 'POST', path: '/api/envelopes',
@@ -212,6 +455,63 @@ const SECTIONS: Section[] = [
   },
   {
     id: 'tickets', title: 'Tickets',
+    wiki: [
+      {
+        heading: 'Overview',
+        body: 'The support ticket system lets users raise issues, feature requests, and feedback. Each ticket has a type, lifecycle status, and optional admin-set priority. Tickets support a threaded message history. Bug and FeatureRequest tickets accept a single base64 image attachment.',
+        table: {
+          headers: ['Field', 'Values'],
+          rows: [
+            ['type', 'Bug | Feedback | FeatureRequest'],
+            ['status', 'Open → InProgress → Resolved → Closed'],
+            ['priority', 'Low | Medium | High  (Admin-set only)'],
+            ['Attachments', 'Bug and FeatureRequest only — image/jpeg, image/png, image/gif, image/webp'],
+          ],
+        },
+      },
+      {
+        heading: 'Ticket Lifecycle',
+        body: 'Users create tickets (status: Open). Admins triage them through the lifecycle. Both sides can add messages at any stage.',
+        table: {
+          headers: ['Transition', 'Who', 'Endpoint'],
+          rows: [
+            ['Created → Open', 'User', 'POST /api/tickets'],
+            ['Open → InProgress', 'Admin', 'PUT /api/admin/tickets/{id}/status'],
+            ['InProgress → Resolved', 'Admin', 'PUT /api/admin/tickets/{id}/status'],
+            ['Resolved → Closed', 'Admin', 'PUT /api/admin/tickets/{id}/status'],
+            ['Add message (any status)', 'User or Admin', 'POST /api/tickets/{id}/message'],
+          ],
+        },
+      },
+      {
+        heading: 'Quick Start',
+        body: 'Create a bug report, add a follow-up message, and triage it as an admin.',
+        code: {
+          label: 'curl',
+          content: `# Create a bug ticket
+curl -X POST ${apiBaseUrl}/api/tickets \\
+  -H "Authorization: Bearer eyJ..." \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "title": "Login page crashes on mobile",
+    "description": "Tapping login on iOS Safari shows a white screen.",
+    "type": "Bug"
+  }'
+
+# Add a follow-up message
+curl -X POST ${apiBaseUrl}/api/tickets/{id}/message \\
+  -H "Authorization: Bearer eyJ..." \\
+  -H "Content-Type: application/json" \\
+  -d '{"message": "Still reproducible on iOS 17.4."}'
+
+# Admin — triage to InProgress with High priority
+curl -X PUT ${apiBaseUrl}/api/admin/tickets/{id}/status \\
+  -H "Authorization: Bearer eyJ..." \\
+  -H "Content-Type: application/json" \\
+  -d '{"status": "InProgress", "priority": "High"}'`,
+        },
+      },
+    ],
     endpoints: [
       {
         id: 'create-ticket', method: 'POST', path: '/api/tickets',
@@ -403,6 +703,62 @@ app.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
   },
   {
     id: 'portal', title: 'Sign Portal',
+    wiki: [
+      {
+        heading: 'Overview',
+        body: 'The Sign Portal is the signer-facing side of the platform. Signers receive an email with a unique signing token. The token authenticates document load, signature submission, and rejection — no account is required. GET /api/portal/stats is fully public. Authenticated users can list all envelopes assigned to them as signers via /api/portal/my-envelopes.',
+        table: {
+          headers: ['Endpoint', 'Auth', 'Who uses it'],
+          rows: [
+            ['GET /portal/validate/{token}', 'None — token is the auth', 'Signing page on load'],
+            ['POST /portal/submit/{token}', 'None — token is the auth', 'Signing page on submit'],
+            ['POST /portal/reject/{token}', 'None — token is the auth', 'Signing page on reject'],
+            ['GET /portal/my-envelopes', 'JWT Bearer', 'Dashboard — envelopes I must sign'],
+            ['GET /portal/stats', 'None — public', 'Landing page stats widget'],
+          ],
+        },
+      },
+      {
+        heading: 'Signing Flow',
+        body: 'Complete end-to-end signing sequence. The signing token is embedded in the invitation email link.',
+        table: {
+          headers: ['Step', 'Action', 'API call'],
+          rows: [
+            ['1', 'Signer clicks the link in their invitation email', '— (token is in the URL)'],
+            ['2', 'Page loads document preview and signer identity', 'GET /api/portal/validate/{token}'],
+            ['3a', 'Signer draws/types signature and submits', 'POST /api/portal/submit/{token}'],
+            ['3b', 'Or signer clicks Reject', 'POST /api/portal/reject/{token}'],
+          ],
+        },
+      },
+      {
+        heading: 'Quick Start',
+        body: 'Validate a signing token, submit a signature, or reject — all without authentication.',
+        code: {
+          label: 'curl',
+          content: `# 1. Validate token — load document and signer identity
+curl ${apiBaseUrl}/api/portal/validate/{signingToken}
+# Response: signerName, signerEmail, documentTitle, documentBase64, message
+
+# 2a. Submit signature (base64-encoded PNG of drawn/typed signature)
+curl -X POST ${apiBaseUrl}/api/portal/submit/{signingToken} \\
+  -H "Content-Type: application/json" \\
+  -d '{"signatureBase64":"iVBORw0KGgoAAAANSUhEUgAA..."}'
+
+# 2b. Reject the document (reason is optional)
+curl -X POST ${apiBaseUrl}/api/portal/reject/{signingToken} \\
+  -H "Content-Type: application/json" \\
+  -d '{"reason":"Terms are not acceptable."}'
+
+# 3. Authenticated users — list envelopes assigned to me as a signer
+curl ${apiBaseUrl}/api/portal/my-envelopes \\
+  -H "Authorization: Bearer eyJ..."
+
+# 4. Public stats — no authentication required
+curl ${apiBaseUrl}/api/portal/stats`,
+        },
+      },
+    ],
     endpoints: [
       {
         id: 'validate-token', method: 'GET', path: '/api/portal/validate/{token}',
