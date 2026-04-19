@@ -22,6 +22,11 @@ public class TicketsControllerTests
 
     private TicketsController CreateController(bool isAdmin = false)
     {
+        // Default: merchant repo returns empty list so webhook trigger iterates over nothing
+        _merchantRepo
+            .Setup(r => r.GetByUserIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Merchant>());
+
         var claims = new List<System.Security.Claims.Claim>
         {
             new(ClaimTypes.NameIdentifier, _userId.ToString()),
