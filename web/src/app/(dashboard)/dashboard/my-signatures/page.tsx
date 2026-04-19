@@ -24,7 +24,7 @@ function statusBadge(status: string) {
     case 'Cancelled':  return <Badge className="bg-gray-100 text-gray-600 border-0">Cancelled</Badge>;
     case 'Expired':    return <Badge className="bg-orange-100 text-orange-700 border-0">Expired</Badge>;
     case 'Rejected':   return <Badge className="bg-red-200 text-red-800 border-0">Rejected</Badge>;
-    default:           return <Badge variant="outline">{status}</Badge>;
+    default:           return <Badge variant="secondary">{status}</Badge>;
   }
 }
 
