@@ -257,6 +257,78 @@ public class WebhooksController : ControllerBase
         return Ok(result);
     }
 
+    // ── POST /api/webhooks/{id}/test ──────────────────────────────────────────
+
+    /// <summary>Send a test ping to verify the webhook endpoint is reachable.</summary>
+    /// <remarks>
+    /// Dispatches a signed HTTP POST with a <c>webhook.test</c> event to the registered URL
+    /// and returns the HTTP status code, response body, and round-trip duration.
+    /// Use this to confirm your endpoint is live before relying on real events.
+    /// </remarks>
+    /// <param name="id">Webhook ID to test.</param>
+    /// <response code="200">Test dispatched. Check <c>success</c> and <c>statusCode</c> in the response body.</response>
+    /// <response code="403">Caller does not own the webhook's merchant.</response>
+    /// <response code="404">Webhook not found.</response>
+    [HttpPost("{id:guid}/test")]
+    [ProducesResponseType(200)]
+    [ProducesResponseType(403)]
+    [ProducesResponseType(404)]
+    public async Task<IActionResult> Test(
+        Guid id,
+        [FromServices] IHttpClientFactory httpFactory,
+        CancellationToken ct)
+    {
+        var webhook = await _webhookRepo.GetByIdAsync(id, ct);
+        if (webhook is null) return NotFound();
+
+        var merchant = await _merchantRepo.GetByIdAsync(webhook.MerchantId, ct);
+        if (merchant is null || merchant.UserId != CurrentUserId)
+            return Forbid();
+
+        var payload = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            @event    = "webhook.test",
+            timestamp = DateTime.UtcNow,
+            data      = new { message = "This is a test ping from DocSignerHub. Your endpoint is working correctly." },
+        });
+
+        var payloadBytes = System.Text.Encoding.UTF8.GetBytes(payload);
+        var secretBytes  = System.Text.Encoding.UTF8.GetBytes(webhook.Secret);
+        var sig = Convert.ToHexString(HMACSHA256.HashData(secretBytes, payloadBytes)).ToLowerInvariant();
+
+        var http = httpFactory.CreateClient("webhook");
+        var req  = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, webhook.Url)
+        {
+            Content = new System.Net.Http.StringContent(payload, System.Text.Encoding.UTF8, "application/json"),
+        };
+        req.Headers.TryAddWithoutValidation("X-DocSigner-Signature", sig);
+        req.Headers.TryAddWithoutValidation("X-DocSigner-Event",     "webhook.test");
+
+        try
+        {
+            var sw  = System.Diagnostics.Stopwatch.StartNew();
+            var res = await http.SendAsync(req, ct);
+            sw.Stop();
+
+            var body = await res.Content.ReadAsStringAsync(ct);
+            return Ok(new
+            {
+                success    = res.IsSuccessStatusCode,
+                statusCode = (int)res.StatusCode,
+                durationMs = sw.ElapsedMilliseconds,
+                body       = body.Length > 500 ? body[..500] : body,
+            });
+        }
+        catch (TaskCanceledException)
+        {
+            return Ok(new { success = false, statusCode = 0, durationMs = 30_000L, body = "Request timed out after 30 s." });
+        }
+        catch (System.Net.Http.HttpRequestException ex)
+        {
+            return Ok(new { success = false, statusCode = 0, durationMs = 0L, body = ex.Message });
+        }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static WebhookResponse ToResponse(Webhook w) =>

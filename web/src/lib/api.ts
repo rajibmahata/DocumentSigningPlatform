@@ -216,6 +216,13 @@ import type {
   WebhookDeliveryPagedResult,
 } from '@/types';
 
+export interface WebhookTestResult {
+  success: boolean;
+  statusCode: number;
+  durationMs: number;
+  body: string;
+}
+
 export const webhookApi = {
   create: (data: CreateWebhookRequest) =>
     apiClient.post<WebhookResponse>('/webhooks', data),
@@ -230,4 +237,7 @@ export const webhookApi = {
     apiClient.get<WebhookDeliveryPagedResult>(
       `/webhooks/${id}/deliveries?page=${page}&pageSize=${pageSize}`
     ),
+
+  test: (id: string) =>
+    apiClient.post<WebhookTestResult>(`/webhooks/${id}/test`),
 };
