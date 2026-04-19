@@ -107,13 +107,24 @@ public class AppDbContext : DbContext
             e.HasIndex(x => x.Status);
         });
 
-        // AuditLog — append-only
+        // AuditLog — append-only, immutable
         model.Entity<AuditLog>(e =>
         {
             e.HasKey(x => x.Id);
-            e.Property(x => x.Action).HasMaxLength(64).IsRequired();
-            e.Property(x => x.IpAddress).HasMaxLength(64).IsRequired();
-            e.Property(x => x.UserAgent).HasMaxLength(512).IsRequired();
+            e.Property(x => x.Action).HasMaxLength(100).IsRequired();
+            e.Property(x => x.EntityType).HasMaxLength(50).HasDefaultValue(string.Empty);
+            e.Property(x => x.Status).HasMaxLength(20).HasDefaultValue("Success");
+            e.Property(x => x.Description).HasMaxLength(1000).HasDefaultValue(string.Empty);
+            e.Property(x => x.IpAddress).HasMaxLength(64).HasDefaultValue(string.Empty);
+            e.Property(x => x.UserAgent).HasMaxLength(512).HasDefaultValue(string.Empty);
+            e.Property(x => x.Hash).HasMaxLength(128).HasDefaultValue(string.Empty);
+            e.Property(x => x.Metadata).HasMaxLength(4000);
+            // Indexes for common query patterns
+            e.HasIndex(x => x.Timestamp);
+            e.HasIndex(x => x.Action);
+            e.HasIndex(x => new { x.EntityType, x.EntityId });
+            e.HasIndex(x => x.UserId);
+            e.HasIndex(x => x.MerchantId);
             e.HasIndex(x => x.SigningRequestId);
         });
 

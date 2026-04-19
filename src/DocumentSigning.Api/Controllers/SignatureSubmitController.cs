@@ -14,19 +14,25 @@ public class SignatureSubmitController : ControllerBase
 {
     private readonly ISigningRequestRepository _signingRequestRepo;
     private readonly IOutboxQueueRepository _outboxRepo;
-    private readonly IAuditLogRepository _auditRepo;
+    private readonly IAuditService _audit;
     private readonly ITokenService _tokenService;
+    private readonly IDocumentRepository _documentRepo;
+    private readonly IClaimRepository _claimRepo;
 
     public SignatureSubmitController(
         ISigningRequestRepository signingRequestRepo,
         IOutboxQueueRepository outboxRepo,
-        IAuditLogRepository auditRepo,
-        ITokenService tokenService)
+        IAuditService audit,
+        ITokenService tokenService,
+        IDocumentRepository documentRepo,
+        IClaimRepository claimRepo)
     {
         _signingRequestRepo = signingRequestRepo;
         _outboxRepo = outboxRepo;
-        _auditRepo = auditRepo;
+        _audit = audit;
         _tokenService = tokenService;
+        _documentRepo = documentRepo;
+        _claimRepo = claimRepo;
     }
 
     /// <summary>
@@ -85,18 +91,39 @@ public class SignatureSubmitController : ControllerBase
         }, ct);
         await _outboxRepo.SaveChangesAsync(ct);
 
-        // Audit: signature submitted
-        await _auditRepo.AppendAsync(new AuditLog
+        // --- Enrich audit with MerchantId and claimant details ---
+        var document = await _documentRepo.GetWithEnvelopeAsync(signingRequest.DocumentId, ct);
+        var claim    = await _claimRepo.GetByIdAsync(signingRequest.ClaimId, ct);
+
+        var merchantId   = document?.Envelope?.MerchantId;
+        var merchantUserId = document?.Envelope?.Merchant?.UserId;
+
+        var metadata = JsonSerializer.Serialize(new
         {
-            Id = Guid.NewGuid(),
-            SigningRequestId = signingRequest.Id,
-            ClaimId = signingRequest.ClaimId,
-            Action = "SignatureSubmitted",
-            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            UserAgent = Request.Headers.UserAgent.ToString(),
-            Timestamp = DateTime.UtcNow
-        }, ct);
-        await _auditRepo.SaveChangesAsync(ct);
+            claimantName   = claim?.ClaimantName  ?? "Unknown",
+            claimantEmail  = claim?.ClaimantEmail ?? "Unknown",
+            merchantId     = merchantId?.ToString() ?? "—",
+            merchantOwnerUserId = merchantUserId?.ToString() ?? "—",
+            signingRequestId    = signingRequest.Id,
+        });
+
+        var description = claim is not null
+            ? $"Signature submitted by {claim.ClaimantName} ({claim.ClaimantEmail})"
+            : "Signature submitted for stamping";
+
+        // Audit: signature submitted
+        _audit.Log(new AuditEntry(
+            Action:      AuditActions.SignatureSubmitted,
+            EntityType:  AuditEntities.Document,
+            EntityId:    signingRequest.DocumentId,
+            UserId:      merchantUserId,
+            MerchantId:  merchantId,
+            Description: description,
+            Metadata:    metadata,
+            IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            UserAgent:   Request.Headers.UserAgent.ToString(),
+            SigningRequestId: signingRequest.Id,
+            ClaimId:     signingRequest.ClaimId));
 
         return Accepted(new { Message = "Signature received. Document will be stamped shortly." });
     }

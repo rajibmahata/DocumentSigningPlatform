@@ -152,3 +152,53 @@ export const ticketsApi = {
   adminUpdateStatus: (id: string, data: UpdateTicketStatusRequest) =>
     apiClient.put(`/admin/tickets/${id}/status`, data),
 };
+
+// ── Audit Logs ────────────────────────────────────────────────────────────────
+
+export interface AuditLogResponse {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  userId: string | null;
+  merchantId: string | null;
+  status: string;
+  description: string;
+  ipAddress: string;
+  userAgent: string;
+  metadata: string | null;
+  timestamp: string;
+}
+
+export interface AuditPagedResult {
+  items: AuditLogResponse[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface AuditLogQueryParams {
+  action?: string;
+  entityType?: string;
+  entityId?: string;
+  userId?: string;
+  merchantId?: string;
+  status?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export const auditApi = {
+  getPaged: (params: AuditLogQueryParams = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== '') qs.set(k, String(v));
+    });
+    return apiClient.get<AuditPagedResult>(`/admin/audit-logs?${qs.toString()}`);
+  },
+  getByEntity: (entityType: string, entityId: string) =>
+    apiClient.get<AuditLogResponse[]>(`/admin/audit-logs/entity/${entityType}/${entityId}`),
+};

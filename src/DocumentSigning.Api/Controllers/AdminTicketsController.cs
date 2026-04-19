@@ -1,4 +1,5 @@
 using DocumentSigning.Core.DTOs;
+using DocumentSigning.Core.Enums;
 using DocumentSigning.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,8 +15,13 @@ namespace DocumentSigning.Api.Controllers;
 public class AdminTicketsController : ControllerBase
 {
     private readonly ITicketRepository _repo;
+    private readonly IAuditService     _audit;
 
-    public AdminTicketsController(ITicketRepository repo) => _repo = repo;
+    public AdminTicketsController(ITicketRepository repo, IAuditService audit)
+    {
+        _repo  = repo;
+        _audit = audit;
+    }
 
     // ── GET /api/admin/tickets ────────────────────────────────────────────────
 
@@ -55,6 +61,22 @@ public class AdminTicketsController : ControllerBase
         ticket.UpdatedAt = DateTime.UtcNow;
 
         await _repo.SaveChangesAsync(ct);
+
+        var action = req.Status switch
+        {
+            "Closed"     => AuditActions.TicketClosed,
+            "Resolved"   => AuditActions.TicketResolved,
+            _            => AuditActions.TicketUpdated
+        };
+
+        _audit.Log(new AuditEntry(
+            Action:      action,
+            EntityType:  AuditEntities.Ticket,
+            EntityId:    id,
+            Description: $"Ticket {id} status set to '{req.Status}' (priority: {req.Priority})",
+            IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            UserAgent:   Request.Headers.UserAgent.ToString()));
+
         return NoContent();
     }
 }

@@ -8,6 +8,7 @@ using DocumentSigning.Core.Enums;
 using DocumentSigning.Core.Interfaces;
 using DocumentSigning.Infrastructure.BackgroundJobs;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace DocumentSigning.Api.Controllers;
 
@@ -27,7 +28,7 @@ public class EnvelopeController : ControllerBase
     private readonly ISigningRequestRepository _signingRequestRepo;
     private readonly ISignedDocumentRepository _signedDocRepo;
     private readonly IOutboxQueueRepository _outboxRepo;
-    private readonly IAuditLogRepository _auditRepo;
+    private readonly IAuditService _audit;
     private readonly ITokenService _tokenService;
     private readonly IConfiguration _config;
 
@@ -38,7 +39,7 @@ public class EnvelopeController : ControllerBase
         ISigningRequestRepository signingRequestRepo,
         ISignedDocumentRepository signedDocRepo,
         IOutboxQueueRepository outboxRepo,
-        IAuditLogRepository auditRepo,
+        IAuditService audit,
         ITokenService tokenService,
         IConfiguration config)
     {
@@ -48,7 +49,7 @@ public class EnvelopeController : ControllerBase
         _signingRequestRepo = signingRequestRepo;
         _signedDocRepo = signedDocRepo;
         _outboxRepo = outboxRepo;
-        _auditRepo = auditRepo;
+        _audit = audit;
         _tokenService = tokenService;
         _config = config;
     }
@@ -167,7 +168,7 @@ public class EnvelopeController : ControllerBase
         {
             // Each signer needs their own claim (identity record)
             var claimId = Guid.NewGuid();
-            var claim = new Claim
+            var claim = new DocumentSigning.Core.Entities.Claim
             {
                 Id            = claimId,
                 ClaimantName  = signer.Name,
@@ -210,21 +211,20 @@ public class EnvelopeController : ControllerBase
                 CreatedAt = DateTime.UtcNow
             }, ct);
 
-            await _auditRepo.AppendAsync(new AuditLog
-            {
-                Id               = Guid.NewGuid(),
-                SigningRequestId = signingRequest.Id,
-                ClaimId          = claimId,
-                Action           = "EnvelopeSigningInitiated",
-                IpAddress        = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                UserAgent        = Request.Headers.UserAgent.ToString(),
-                Timestamp        = DateTime.UtcNow
-            }, ct);
+            _audit.Log(new AuditEntry(
+                Action:      AuditActions.EnvelopeSent,
+                EntityType:  AuditEntities.Envelope,
+                EntityId:    envelope.Id,
+                MerchantId:  merchant.Id,
+                Description: $"Envelope '{envelope.Title}' sent to {signer.Email}",
+                IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                UserAgent:   Request.Headers.UserAgent.ToString(),
+                SigningRequestId: signingRequest.Id,
+                ClaimId:     claimId));
         }
 
         await _signingRequestRepo.SaveChangesAsync(ct);
         await _outboxRepo.SaveChangesAsync(ct);
-        await _auditRepo.SaveChangesAsync(ct);
 
         // ── Increment merchant usage ─────────────────────────────────────────
         merchant.RequestUsed++;

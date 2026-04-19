@@ -255,6 +255,8 @@ export default function MySignaturesPage() {
   const { data: envelopes = [], isLoading, isError } = useQuery({
     queryKey: ['my-envelopes'],
     queryFn: () => portalApi.getMyEnvelopes().then((r) => r.data),
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
   });
 
   const active    = envelopes.filter((e) => e.status === 'Sent' || e.status === 'InProgress');

@@ -1,5 +1,6 @@
 using DocumentSigning.Core.DTOs;
 using DocumentSigning.Core.Entities;
+using DocumentSigning.Core.Enums;
 using DocumentSigning.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,9 +13,13 @@ namespace DocumentSigning.Api.Controllers;
 public class MerchantController : ControllerBase
 {
     private readonly IMerchantRepository _merchantRepo;
+    private readonly IAuditService       _audit;
 
-    public MerchantController(IMerchantRepository merchantRepo)
-        => _merchantRepo = merchantRepo;
+    public MerchantController(IMerchantRepository merchantRepo, IAuditService audit)
+    {
+        _merchantRepo = merchantRepo;
+        _audit        = audit;
+    }
 
     /// <summary>Creates a new merchant account for a user. Users may create multiple merchant accounts.</summary>
     [HttpPost]
@@ -45,6 +50,16 @@ public class MerchantController : ControllerBase
 
         await _merchantRepo.AddAsync(merchant, ct);
         await _merchantRepo.SaveChangesAsync(ct);
+
+        _audit.Log(new AuditEntry(
+            Action:      AuditActions.MerchantCreated,
+            EntityType:  AuditEntities.Merchant,
+            EntityId:    merchant.Id,
+            UserId:      merchant.UserId,
+            MerchantId:  merchant.Id,
+            Description: $"Merchant '{merchant.Name}' created",
+            IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            UserAgent:   Request.Headers.UserAgent.ToString()));
 
         return CreatedAtAction(nameof(GetById), new { id = merchant.Id }, ToResponse(merchant));
     }
@@ -103,6 +118,15 @@ public class MerchantController : ControllerBase
         await _merchantRepo.UpdateAsync(merchant, ct);
         await _merchantRepo.SaveChangesAsync(ct);
 
+        _audit.Log(new AuditEntry(
+            Action:      AuditActions.MerchantUpdated,
+            EntityType:  AuditEntities.Merchant,
+            EntityId:    merchant.Id,
+            MerchantId:  merchant.Id,
+            Description: $"Merchant '{merchant.Name}' updated",
+            IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            UserAgent:   Request.Headers.UserAgent.ToString()));
+
         return Ok(ToResponse(merchant));
     }
 
@@ -119,6 +143,15 @@ public class MerchantController : ControllerBase
         merchant.ApiKey = GenerateApiKey();
         await _merchantRepo.UpdateAsync(merchant, ct);
         await _merchantRepo.SaveChangesAsync(ct);
+
+        _audit.Log(new AuditEntry(
+            Action:      AuditActions.MerchantApiKeyRegen,
+            EntityType:  AuditEntities.Merchant,
+            EntityId:    merchant.Id,
+            MerchantId:  merchant.Id,
+            Description: $"API key regenerated for merchant '{merchant.Name}'",
+            IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            UserAgent:   Request.Headers.UserAgent.ToString()));
 
         return Ok(ToResponse(merchant));
     }

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
 import { useQuery } from '@tanstack/react-query';
 import { merchantApi, envelopeApi } from '@/lib/api';
@@ -14,7 +15,14 @@ import type { InitiateEnvelopeResponse } from '@/types';
 
 export default function EnvelopesPage() {
   const { user } = useAuth();
-  const [tab, setTab] = useState<'active' | 'completed'>('active');
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get('tab') === 'completed' ? 'completed' : 'active';
+  const [tab, setTab] = useState<'active' | 'completed'>(initialTab);
+
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t === 'active' || t === 'completed') setTab(t);
+  }, [searchParams]);
 
   const { data: merchants } = useQuery({
     queryKey: ['merchants', user?.id],
