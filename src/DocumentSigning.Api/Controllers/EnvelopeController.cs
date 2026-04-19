@@ -32,6 +32,8 @@ public class EnvelopeController : ControllerBase
     private readonly ITokenService _tokenService;
     private readonly IConfiguration _config;
     private readonly IWebhookService _webhookService;
+    private readonly IEmailService _emailService;
+    private readonly IUserRepository _userRepo;
 
     public EnvelopeController(
         IMerchantRepository merchantRepo,
@@ -43,7 +45,9 @@ public class EnvelopeController : ControllerBase
         IAuditService audit,
         ITokenService tokenService,
         IConfiguration config,
-        IWebhookService webhookService)
+        IWebhookService webhookService,
+        IEmailService emailService,
+        IUserRepository userRepo)
     {
         _merchantRepo = merchantRepo;
         _envelopeRepo = envelopeRepo;
@@ -55,6 +59,8 @@ public class EnvelopeController : ControllerBase
         _tokenService = tokenService;
         _config = config;
         _webhookService = webhookService;
+        _emailService = emailService;
+        _userRepo = userRepo;
     }
 
     /// <summary>
@@ -390,6 +396,37 @@ public class EnvelopeController : ControllerBase
             Description: $"Envelope '{envelope.Title}' cancelled by merchant.",
             IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             UserAgent:   Request.Headers.UserAgent.ToString()));
+
+        // ── Notification emails ──────────────────────────────────────────────
+        var pendingSigners = envelope.Signers
+            .Where(s => s.Status == SigningStatus.Pending)
+            .ToList();
+
+        // Email each pending signer
+        foreach (var signer in pendingSigners)
+        {
+            _ = _emailService.SendEnvelopeCancelledToSignerAsync(
+                    signer.Email, signer.Name, envelope.Title, merchant.Name, ct)
+                .ContinueWith(t => _audit.Log(new AuditEntry(
+                    Action: "EmailFailed", EntityType: AuditEntities.Envelope,
+                    EntityId: envelope.Id, MerchantId: merchant.Id,
+                    Description: $"Failed to send cancellation email to signer {signer.Email}: {t.Exception?.Message}")),
+                    System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
+        }
+
+        // Email merchant confirmation
+        var merchantUser = await _userRepo.GetByIdAsync(merchant.UserId, ct);
+        if (merchantUser is not null)
+        {
+            _ = _emailService.SendEnvelopeCancelledToMerchantAsync(
+                    merchantUser.Email, merchantUser.Name, envelope.Title,
+                    pendingSigners.Select(s => s.Name), ct)
+                .ContinueWith(t => _audit.Log(new AuditEntry(
+                    Action: "EmailFailed", EntityType: AuditEntities.Envelope,
+                    EntityId: envelope.Id, MerchantId: merchant.Id,
+                    Description: $"Failed to send cancellation confirmation to merchant: {t.Exception?.Message}")),
+                    System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
+        }
 
         return NoContent();
     }
