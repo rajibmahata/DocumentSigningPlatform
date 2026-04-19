@@ -211,7 +211,10 @@ public class SignatureSubmitController : ControllerBase
                 var signer = document.Envelope.Signers
                     .FirstOrDefault(s => s.Email.Equals(claim.ClaimantEmail, StringComparison.OrdinalIgnoreCase));
                 if (signer is not null)
+                {
                     signer.Status = SigningStatus.Rejected;
+                    signer.RejectionReason = request.Reason;
+                }
             }
 
             await _envelopeRepo.UpdateAsync(document.Envelope, ct);

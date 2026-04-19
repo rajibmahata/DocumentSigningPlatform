@@ -93,7 +93,8 @@ public record SignerSummary(
     string Name,
     string Role,
     string Email,
-    string Status);
+    string Status,
+    string? RejectionReason = null);
 
 public record SignerSignedSummary(
     string Name,
@@ -101,7 +102,8 @@ public record SignerSignedSummary(
     string Email,
     string Status,
     string? SignedDocumentBase64,
-    string? SignedDocumentType);
+    string? SignedDocumentType,
+    string? RejectionReason = null);
 
 public record EnvelopeSignedResponse(
     Guid EnvelopeId,

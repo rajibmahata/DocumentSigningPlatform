@@ -167,6 +167,14 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
                     <span className="font-medium text-gray-900">{signer.name}</span>
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5">{signer.email}</p>
+                  {signer.status === 'Rejected' && signer.rejectionReason && (
+                    <p className="text-xs text-red-500 mt-1 italic">
+                      Reason: {signer.rejectionReason}
+                    </p>
+                  )}
+                  {signer.status === 'Rejected' && !signer.rejectionReason && (
+                    <p className="text-xs text-red-400 mt-1 italic">No reason provided</p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">

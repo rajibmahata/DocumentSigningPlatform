@@ -110,6 +110,7 @@ export interface SignerSummary {
   role: string;
   email: string;
   status: string;
+  rejectionReason?: string;
 }
 
 export interface SignerSignedSummary extends SignerSummary {

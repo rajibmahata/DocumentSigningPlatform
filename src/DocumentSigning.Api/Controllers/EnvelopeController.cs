@@ -268,7 +268,7 @@ public class EnvelopeController : ControllerBase
             envelope.Documents.Select(d => new DocumentSummary(
                 d.Id,
                 d.DocumentTitle)).ToList(),
-            envelope.Signers.Select(s => new SignerSummary(s.Name, s.Role, s.Email, s.Status.ToString())).ToList()
+            envelope.Signers.Select(s => new SignerSummary(s.Name, s.Role, s.Email, s.Status.ToString(), s.RejectionReason)).ToList()
         );
 
         return CreatedAtAction(nameof(GetById), new { id = envelope.Id }, response);
@@ -336,7 +336,7 @@ public class EnvelopeController : ControllerBase
             effectiveStatus.ToString(),
             e.CreatedAt,
             e.Documents.Select(d => new DocumentSummary(d.Id, d.DocumentTitle)).ToList(),
-            e.Signers.Select(s => new SignerSummary(s.Name, s.Role, s.Email, s.Status.ToString())).ToList()
+            e.Signers.Select(s => new SignerSummary(s.Name, s.Role, s.Email, s.Status.ToString(), s.RejectionReason)).ToList()
         );
     }
 
