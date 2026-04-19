@@ -58,6 +58,12 @@ export const userApi = {
     apiClient.get<UserResponse[]>('/users'),
   update: (id: string, data: UpdateUserRequest) =>
     apiClient.put<UserResponse>(`/users/${id}`, data),
+  getPendingAdmins: () =>
+    apiClient.get<UserResponse[]>('/admin/users/pending'),
+  activate: (id: string) =>
+    apiClient.post<UserResponse>(`/admin/users/${id}/activate`),
+  deactivate: (id: string) =>
+    apiClient.post<UserResponse>(`/admin/users/${id}/deactivate`),
 };
 
 // ── Merchant ──────────────────────────────────────────────────────────────────
@@ -104,6 +110,10 @@ export const envelopeApi = {
     }),
   cancel: (apiKey: string, id: string) =>
     apiClient.put(`/envelopes/${id}/cancel`, {}, {
+      headers: { 'X-Api-Key': apiKey },
+    }),
+  resendInvitation: (apiKey: string, id: string, signerEmail: string) =>
+    apiClient.post(`/envelopes/${id}/resend`, { signerEmail }, {
       headers: { 'X-Api-Key': apiKey },
     }),
 };

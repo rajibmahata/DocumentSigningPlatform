@@ -20,6 +20,8 @@ public class SignatureSubmitController : ControllerBase
     private readonly IClaimRepository _claimRepo;
     private readonly ISigningEnvelopeRepository _envelopeRepo;
     private readonly IWebhookService _webhookService;
+    private readonly IEmailService _emailService;
+    private readonly IUserRepository _userRepo;
 
     public SignatureSubmitController(
         ISigningRequestRepository signingRequestRepo,
@@ -29,7 +31,9 @@ public class SignatureSubmitController : ControllerBase
         IDocumentRepository documentRepo,
         IClaimRepository claimRepo,
         ISigningEnvelopeRepository envelopeRepo,
-        IWebhookService webhookService)
+        IWebhookService webhookService,
+        IEmailService emailService,
+        IUserRepository userRepo)
     {
         _signingRequestRepo = signingRequestRepo;
         _outboxRepo = outboxRepo;
@@ -39,6 +43,8 @@ public class SignatureSubmitController : ControllerBase
         _claimRepo = claimRepo;
         _envelopeRepo = envelopeRepo;
         _webhookService = webhookService;
+        _emailService = emailService;
+        _userRepo = userRepo;
     }
 
     /// <summary>
@@ -259,6 +265,43 @@ public class SignatureSubmitController : ControllerBase
             UserAgent:   Request.Headers.UserAgent.ToString(),
             SigningRequestId: signingRequest.Id,
             ClaimId:     signingRequest.ClaimId));
+
+        // ── Notification emails ─────────────────────────────────────────────────
+        var envelopeTitle = document?.Envelope?.Title ?? "document";
+        var signerName    = claim?.ClaimantName  ?? "Signer";
+        var signerEmail   = claim?.ClaimantEmail ?? string.Empty;
+
+        // Email to signer — confirmation that rejection was recorded
+        if (!string.IsNullOrEmpty(signerEmail))
+        {
+            _ = _emailService.SendEnvelopeRejectedToSignerAsync(
+                    signerEmail, signerName, envelopeTitle, request.Reason, ct)
+                .ContinueWith(t => _audit.Log(new AuditEntry(
+                    Action: "EmailFailed", EntityType: AuditEntities.Envelope,
+                    EntityId: document?.Envelope?.Id ?? signingRequest.DocumentId,
+                    MerchantId: merchantId,
+                    Description: $"Failed to send rejection confirmation to signer: {t.Exception?.Message}")),
+                    System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
+        }
+
+        // Email to merchant — notify about the rejection
+        if (merchantUserId.HasValue)
+        {
+            var merchantUser = await _userRepo.GetByIdAsync(merchantUserId.Value, ct);
+            if (merchantUser is not null)
+            {
+                _ = _emailService.SendEnvelopeRejectedToMerchantAsync(
+                        merchantUser.Email, merchantUser.Name,
+                        signerName, signerEmail,
+                        envelopeTitle, request.Reason, ct)
+                    .ContinueWith(t => _audit.Log(new AuditEntry(
+                        Action: "EmailFailed", EntityType: AuditEntities.Envelope,
+                        EntityId: document?.Envelope?.Id ?? signingRequest.DocumentId,
+                        MerchantId: merchantId,
+                        Description: $"Failed to send rejection alert to merchant: {t.Exception?.Message}")),
+                        System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
+            }
+        }
 
         return NoContent();
     }

@@ -48,4 +48,44 @@ public interface IEmailService
         byte[] signedDocBytes,
         string contentType,
         CancellationToken ct = default);
+
+    Task SendEnvelopeCancelledToSignerAsync(
+        string toEmail,
+        string toName,
+        string envelopeTitle,
+        string merchantName,
+        CancellationToken ct = default);
+
+    Task SendEnvelopeCancelledToMerchantAsync(
+        string toEmail,
+        string toName,
+        string envelopeTitle,
+        IEnumerable<string> signerNames,
+        CancellationToken ct = default);
+
+    Task SendEnvelopeRejectedToMerchantAsync(
+        string toEmail,
+        string toName,
+        string signerName,
+        string signerEmail,
+        string envelopeTitle,
+        string? reason,
+        CancellationToken ct = default);
+
+    Task SendEnvelopeRejectedToSignerAsync(
+        string toEmail,
+        string toName,
+        string envelopeTitle,
+        string? reason,
+        CancellationToken ct = default);
+
+    Task SendAccountPendingApprovalAsync(
+        string toEmail,
+        string toName,
+        CancellationToken ct = default);
+
+    Task SendAccountActivatedAsync(
+        string toEmail,
+        string toName,
+        CancellationToken ct = default);
 }

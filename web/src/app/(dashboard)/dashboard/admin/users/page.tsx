@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { userApi } from '@/lib/api';
 import { useAuth } from '@/providers/auth-provider';
 import type { UserResponse, AccessRole } from '@/types';
-import { Pencil, Check, X } from 'lucide-react';
+import { Pencil, Check, X, UserCheck, UserX } from 'lucide-react';
 
 const ROLE_COLORS: Record<AccessRole, string> = {
   Admin:  'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
@@ -12,18 +12,34 @@ const ROLE_COLORS: Record<AccessRole, string> = {
   Viewer: 'bg-gray-100   text-gray-700   dark:bg-gray-700   dark:text-gray-300',
 };
 
+function StatusBadge({ user }: { user: UserResponse }) {
+  if (!user.isActive && user.accessRole === 'Admin')
+    return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">Pending Approval</span>;
+  if (!user.isActive)
+    return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300">Inactive</span>;
+  return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">Active</span>;
+}
+
 export default function AdminUsersPage() {
   const { user: me } = useAuth();
-  const [users,   setUsers]   = useState<UserResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState<string | null>(null);
-  const [editing, setEditing] = useState<string | null>(null);
-  const [roleVal, setRoleVal] = useState<AccessRole>('User');
+  const [users,         setUsers]         = useState<UserResponse[]>([]);
+  const [pendingAdmins, setPendingAdmins] = useState<UserResponse[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [error,         setError]         = useState<string | null>(null);
+  const [editing,       setEditing]       = useState<string | null>(null);
+  const [roleVal,       setRoleVal]       = useState<AccessRole>('User');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
     if (me?.accessRole !== 'Admin') return;
-    userApi.getAll()
-      .then(r => setUsers(r.data))
+    Promise.all([
+      userApi.getAll(),
+      userApi.getPendingAdmins(),
+    ])
+      .then(([allRes, pendingRes]) => {
+        setUsers(allRes.data);
+        setPendingAdmins(pendingRes.data);
+      })
       .catch(() => setError('Failed to load users.'))
       .finally(() => setLoading(false));
   }, [me]);
@@ -47,13 +63,72 @@ export default function AdminUsersPage() {
     }
   }
 
+  async function activateUser(id: string) {
+    setActionLoading(id);
+    try {
+      const res = await userApi.activate(id);
+      const updated = res.data;
+      setUsers(prev => prev.map(u => u.id === id ? updated : u));
+      setPendingAdmins(prev => prev.filter(u => u.id !== id));
+    } catch {
+      alert('Failed to activate user.');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function deactivateUser(id: string) {
+    setActionLoading(id);
+    try {
+      const res = await userApi.deactivate(id);
+      const updated = res.data;
+      setUsers(prev => prev.map(u => u.id === id ? updated : u));
+    } catch {
+      alert('Failed to deactivate user.');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-8">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white">User Management</h1>
 
       {loading && <p className="text-gray-500 animate-pulse">Loading users…</p>}
       {error   && <p className="text-red-500">{error}</p>}
 
+      {/* ── Pending Admin Approvals ── */}
+      {!loading && pendingAdmins.length > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-2xl p-5 space-y-4">
+          <h2 className="text-base font-semibold text-amber-800 dark:text-amber-200 flex items-center gap-2">
+            ⏳ Pending Admin Approvals
+            <span className="bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 rounded-full px-2 py-0.5 text-xs font-bold">
+              {pendingAdmins.length}
+            </span>
+          </h2>
+          <div className="space-y-2">
+            {pendingAdmins.map(u => (
+              <div key={u.id} className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-xl px-4 py-3 shadow-sm">
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-white">{u.name}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{u.email}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Registered {new Date(u.createdAt).toLocaleDateString()}</p>
+                </div>
+                <button
+                  onClick={() => activateUser(u.id)}
+                  disabled={actionLoading === u.id}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  <UserCheck className="h-4 w-4" />
+                  {actionLoading === u.id ? 'Activating…' : 'Approve'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── All Users Table ── */}
       {!loading && !error && (
         <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded-2xl shadow">
           <table className="min-w-full text-sm">
@@ -62,6 +137,7 @@ export default function AdminUsersPage() {
                 <th className="px-4 py-3 text-left">Name</th>
                 <th className="px-4 py-3 text-left">Email</th>
                 <th className="px-4 py-3 text-left">Role</th>
+                <th className="px-4 py-3 text-left">Status</th>
                 <th className="px-4 py-3 text-left">Verified</th>
                 <th className="px-4 py-3 text-left">Joined</th>
                 <th className="px-4 py-3 text-left">Actions</th>
@@ -93,6 +169,9 @@ export default function AdminUsersPage() {
                     )}
                   </td>
                   <td className="px-4 py-3">
+                    <StatusBadge user={u} />
+                  </td>
+                  <td className="px-4 py-3">
                     {u.isEmailVerified
                       ? <Check className="h-4 w-4 text-green-500" />
                       : <X className="h-4 w-4 text-red-400" />}
@@ -101,30 +180,55 @@ export default function AdminUsersPage() {
                     {new Date(u.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-3">
-                    {editing === u.id ? (
-                      <div className="flex gap-2">
+                    <div className="flex items-center gap-1">
+                      {/* Edit role */}
+                      {editing === u.id ? (
+                        <>
+                          <button
+                            onClick={() => saveRole(u.id)}
+                            className="p-1 rounded text-green-600 hover:bg-green-50 dark:hover:bg-green-900"
+                          >
+                            <Check className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => setEditing(null)}
+                            className="p-1 rounded text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </>
+                      ) : (
                         <button
-                          onClick={() => saveRole(u.id)}
-                          className="p-1 rounded text-green-600 hover:bg-green-50 dark:hover:bg-green-900"
+                          onClick={() => { setEditing(u.id); setRoleVal(u.accessRole); }}
+                          className="p-1 rounded text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900"
+                          title="Edit role"
                         >
-                          <Check className="h-4 w-4" />
+                          <Pencil className="h-4 w-4" />
                         </button>
-                        <button
-                          onClick={() => setEditing(null)}
-                          className="p-1 rounded text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => { setEditing(u.id); setRoleVal(u.accessRole); }}
-                        className="p-1 rounded text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900"
-                        title="Edit role"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                    )}
+                      )}
+                      {/* Activate / Deactivate (not self) */}
+                      {u.id !== me?.id && (
+                        u.isActive ? (
+                          <button
+                            onClick={() => deactivateUser(u.id)}
+                            disabled={actionLoading === u.id}
+                            className="p-1 rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-900 disabled:opacity-50"
+                            title="Deactivate user"
+                          >
+                            <UserX className="h-4 w-4" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => activateUser(u.id)}
+                            disabled={actionLoading === u.id}
+                            className="p-1 rounded text-green-600 hover:bg-green-50 dark:hover:bg-green-900 disabled:opacity-50"
+                            title="Activate user"
+                          >
+                            <UserCheck className="h-4 w-4" />
+                          </button>
+                        )
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -136,3 +240,4 @@ export default function AdminUsersPage() {
     </div>
   );
 }
+'use c

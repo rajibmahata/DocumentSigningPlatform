@@ -103,7 +103,11 @@ public record SignerSignedSummary(
     string Status,
     string? SignedDocumentBase64,
     string? SignedDocumentType,
-    string? RejectionReason = null);
+    string? RejectionReason = null,
+    DateTime? ExpiresAt = null,
+    DateTime? SignedAt = null,
+    string? Message = null,
+    int Order = 0);
 
 public record EnvelopeSignedResponse(
     Guid EnvelopeId,
@@ -112,6 +116,8 @@ public record EnvelopeSignedResponse(
     DateTime SentDate,
     List<DocumentSummary> Documents,
     List<SignerSignedSummary> Signers);
+
+public record ResendInvitationRequest(string SignerEmail);
 
 public record InitiateEnvelopeResponse(
     Guid EnvelopeId,
@@ -224,6 +230,10 @@ public record MerchantSignedDocPayload(
     string EnvelopeTitle,
     Guid SignedDocumentId);
 
+public record AccountPendingApprovalPayload(
+    string To,
+    string ToName);
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 public record RegisterRequest(
@@ -256,6 +266,7 @@ public record UserResponse(
     string Email,
     string? Country,
     bool IsEmailVerified,
+    bool IsActive,
     DocumentSigning.Core.Enums.AccessRole AccessRole,
     DateTime CreatedAt);
 

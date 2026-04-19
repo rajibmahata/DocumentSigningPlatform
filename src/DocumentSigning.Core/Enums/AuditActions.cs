@@ -32,6 +32,9 @@ public static class AuditActions
     public const string PasswordResetRequested = "User.PasswordResetRequested";
     public const string PasswordReset     = "User.PasswordReset";
     public const string UserUpdated       = "User.Updated";
+    public const string UserActivated     = "User.Activated";
+    public const string UserDeactivated   = "User.Deactivated";
+    public const string UserLoginBlocked  = "User.LoginBlocked";
 
     // ── Merchant ──────────────────────────────────────────────────────────────
     public const string MerchantCreated      = "Merchant.Created";
@@ -48,4 +51,7 @@ public static class AuditActions
 
     // ── Portal ────────────────────────────────────────────────────────────────
     public const string PortalOpened  = "Portal.Opened";
+
+    // ── Invitation ────────────────────────────────────────────────────────────
+    public const string InvitationResent = "Invitation.Resent";
 }

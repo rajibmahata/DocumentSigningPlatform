@@ -46,4 +46,10 @@ public class UserRepository : IUserRepository
             .ToListAsync(ct);
         return rows.Select(r => (DateOnly.FromDateTime(r.Date), r.Count)).ToList();
     }
+
+    public async Task<IReadOnlyList<User>> GetPendingAdminsAsync(CancellationToken ct = default)
+        => await _db.Users
+            .Where(u => u.AccessRole == Core.Enums.AccessRole.Admin && !u.IsActive)
+            .OrderBy(u => u.CreatedAt)
+            .ToListAsync(ct);
 }

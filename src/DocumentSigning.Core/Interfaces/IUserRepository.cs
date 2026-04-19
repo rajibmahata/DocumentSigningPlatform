@@ -12,4 +12,5 @@ public interface IUserRepository
     Task SaveChangesAsync(CancellationToken ct = default);
     Task<int> CountAllAsync(CancellationToken ct = default);
     Task<List<(DateOnly Date, int Count)>> CountByDayAsync(int days, CancellationToken ct = default);
+    Task<IReadOnlyList<User>> GetPendingAdminsAsync(CancellationToken ct = default);
 }

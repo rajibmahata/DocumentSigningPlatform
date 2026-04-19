@@ -32,6 +32,8 @@ public class EnvelopeController : ControllerBase
     private readonly ITokenService _tokenService;
     private readonly IConfiguration _config;
     private readonly IWebhookService _webhookService;
+    private readonly IEmailService _emailService;
+    private readonly IUserRepository _userRepo;
 
     public EnvelopeController(
         IMerchantRepository merchantRepo,
@@ -43,7 +45,9 @@ public class EnvelopeController : ControllerBase
         IAuditService audit,
         ITokenService tokenService,
         IConfiguration config,
-        IWebhookService webhookService)
+        IWebhookService webhookService,
+        IEmailService emailService,
+        IUserRepository userRepo)
     {
         _merchantRepo = merchantRepo;
         _envelopeRepo = envelopeRepo;
@@ -55,6 +59,8 @@ public class EnvelopeController : ControllerBase
         _tokenService = tokenService;
         _config = config;
         _webhookService = webhookService;
+        _emailService = emailService;
+        _userRepo = userRepo;
     }
 
     /// <summary>
@@ -174,7 +180,7 @@ public class EnvelopeController : ControllerBase
         await _envelopeRepo.SaveChangesAsync(ct);
 
         // ── Create SigningRequest + send invitation for each signer ─────────
-        var baseUrl = _config["App:BaseUrl"] ?? $"{Request.Scheme}://{Request.Host}";
+        var baseUrl = _config["App:FrontendUrl"] ?? _config["App:BaseUrl"] ?? $"{Request.Scheme}://{Request.Host}";
         var expiry  = DateTime.UtcNow.AddDays(7);
 
         // Use first document for the signing token (multi-document support can be extended)
@@ -391,6 +397,37 @@ public class EnvelopeController : ControllerBase
             IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             UserAgent:   Request.Headers.UserAgent.ToString()));
 
+        // ── Notification emails ──────────────────────────────────────────────
+        var pendingSigners = envelope.Signers
+            .Where(s => s.Status == SigningStatus.Pending)
+            .ToList();
+
+        // Email each pending signer
+        foreach (var signer in pendingSigners)
+        {
+            _ = _emailService.SendEnvelopeCancelledToSignerAsync(
+                    signer.Email, signer.Name, envelope.Title, merchant.Name, ct)
+                .ContinueWith(t => _audit.Log(new AuditEntry(
+                    Action: "EmailFailed", EntityType: AuditEntities.Envelope,
+                    EntityId: envelope.Id, MerchantId: merchant.Id,
+                    Description: $"Failed to send cancellation email to signer {signer.Email}: {t.Exception?.Message}")),
+                    System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
+        }
+
+        // Email merchant confirmation
+        var merchantUser = await _userRepo.GetByIdAsync(merchant.UserId, ct);
+        if (merchantUser is not null)
+        {
+            _ = _emailService.SendEnvelopeCancelledToMerchantAsync(
+                    merchantUser.Email, merchantUser.Name, envelope.Title,
+                    pendingSigners.Select(s => s.Name), ct)
+                .ContinueWith(t => _audit.Log(new AuditEntry(
+                    Action: "EmailFailed", EntityType: AuditEntities.Envelope,
+                    EntityId: envelope.Id, MerchantId: merchant.Id,
+                    Description: $"Failed to send cancellation confirmation to merchant: {t.Exception?.Message}")),
+                    System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
+        }
+
         return NoContent();
     }
 
@@ -408,16 +445,25 @@ public class EnvelopeController : ControllerBase
             return NotFound();
 
         var signers = new List<SignerSignedSummary>();
+        var primaryDocId = envelope.Documents.FirstOrDefault()?.Id ?? Guid.Empty;
         foreach (var s in envelope.Signers)
         {
-            var signedDoc = await _signedDocRepo.GetByEnvelopeAndEmailAsync(envelope.Id, s.Email, ct);
+            var signedDoc   = await _signedDocRepo.GetByEnvelopeAndEmailAsync(envelope.Id, s.Email, ct);
+            var signingReq  = primaryDocId != Guid.Empty
+                ? await _signingRequestRepo.GetLatestByEmailAndDocumentAsync(s.Email, primaryDocId, ct)
+                : null;
             signers.Add(new SignerSignedSummary(
                 s.Name,
                 s.Role,
                 s.Email,
                 s.Status.ToString(),
                 signedDoc is not null ? Convert.ToBase64String(signedDoc.ContentBytes) : null,
-                signedDoc is not null ? ResolveDocumentType(signedDoc.ContentType) : null));
+                signedDoc is not null ? ResolveDocumentType(signedDoc.ContentType) : null,
+                s.RejectionReason,
+                signingReq?.ExpiresAt,
+                signingReq?.SignedAt,
+                s.Message,
+                s.Order));
         }
 
         var response = new EnvelopeSignedResponse(
@@ -431,8 +477,95 @@ public class EnvelopeController : ControllerBase
         return Ok(response);
     }
 
-    private static string ResolveDocumentType(string contentType) => contentType.ToLowerInvariant() switch
+    /// <summary>Resends the signing invitation email to a specific pending signer.</summary>
+    [HttpPost("{id:guid}/resend")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ResendInvitation(
+        Guid id,
+        [FromBody] ResendInvitationRequest request,
+        CancellationToken ct)
     {
+        var merchant = HttpContext.Items["Merchant"] as Merchant;
+        if (merchant is null) return Unauthorized();
+
+        var envelope = await _envelopeRepo.GetByIdAsync(id, ct);
+        if (envelope is null || envelope.MerchantId != merchant.Id)
+            return NotFound();
+
+        var signer = envelope.Signers
+            .FirstOrDefault(s => s.Email.Equals(request.SignerEmail, StringComparison.OrdinalIgnoreCase));
+        if (signer is null)
+            return NotFound("Signer not found in this envelope.");
+
+        if (signer.Status != SigningStatus.Pending)
+            return BadRequest($"Cannot resend invitation to a signer with status '{signer.Status}'. Only Pending signers can receive a resend.");
+
+        // ── Create fresh Claim + SigningRequest ──────────────────────────────
+        var primaryDoc = envelope.Documents.FirstOrDefault();
+        if (primaryDoc is null) return BadRequest("Envelope has no documents.");
+
+        var frontendUrl = _config["App:FrontendUrl"] ?? _config["App:BaseUrl"] ?? $"{Request.Scheme}://{Request.Host}";
+        var expiry = DateTime.UtcNow.AddDays(7);
+
+        var claimId = Guid.NewGuid();
+        await _claimRepo.AddAsync(new Core.Entities.Claim
+        {
+            Id            = claimId,
+            ClaimantName  = signer.Name,
+            ClaimantEmail = signer.Email,
+            Status        = Core.Enums.ClaimStatus.Active,
+            CreatedAt     = DateTime.UtcNow
+        }, ct);
+        await _claimRepo.SaveChangesAsync(ct);
+
+        var token = _tokenService.GenerateToken(claimId, primaryDoc.Id, out _);
+        await _signingRequestRepo.AddAsync(new SigningRequest
+        {
+            Id         = Guid.NewGuid(),
+            Token      = token,
+            ClaimId    = claimId,
+            DocumentId = primaryDoc.Id,
+            Status     = SigningStatus.Pending,
+            ExpiresAt  = expiry,
+            CreatedAt  = DateTime.UtcNow
+        }, ct);
+        await _signingRequestRepo.SaveChangesAsync(ct);
+
+        var signingLink = $"{frontendUrl}/sign/{token}";
+        var emailPayload = JsonSerializer.Serialize(new SendEmailPayload(
+            signer.Email,
+            signer.Name,
+            signingLink,
+            expiry,
+            "Invitation",
+            envelope.Title,
+            merchant.Name));
+
+        await _outboxRepo.AddAsync(new OutboxQueue
+        {
+            Id        = Guid.NewGuid(),
+            JobType   = JobTypes.SendEmail,
+            Payload   = emailPayload,
+            Status    = JobStatus.Pending,
+            CreatedAt = DateTime.UtcNow
+        }, ct);
+        await _outboxRepo.SaveChangesAsync(ct);
+
+        _audit.Log(new AuditEntry(
+            Action:      AuditActions.InvitationResent,
+            EntityType:  AuditEntities.Envelope,
+            EntityId:    envelope.Id,
+            MerchantId:  merchant.Id,
+            Description: $"Invitation resent to {signer.Email} for envelope '{envelope.Title}'",
+            IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            UserAgent:   Request.Headers.UserAgent.ToString()));
+
+        return NoContent();
+    }
+
+    private static string ResolveDocumentType(string contentType) => contentType.ToLowerInvariant() switch    {
         "application/pdf"                                                                 => "pdf",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document"        => "docx",
         "application/msword"                                                              => "doc",

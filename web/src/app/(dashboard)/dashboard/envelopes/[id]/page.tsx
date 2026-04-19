@@ -8,18 +8,42 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getStatusColor, base64ToBlob, downloadBlob, resolveDocMimeType } from '@/lib/utils';
-import { FileText, Download, ArrowLeft, User, Ban, AlertTriangle } from 'lucide-react';
+import {
+  FileText, Download, ArrowLeft, User, Ban, AlertTriangle,
+  Clock, CheckCircle2, XCircle, RotateCcw, Calendar, Hash,
+  FileCheck, MessageSquare, ListOrdered,
+} from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import type { EnvelopeSignedResponse } from '@/types';
+import type { EnvelopeSignedResponse, SignerSignedSummary } from '@/types';
 
 const CANCELLABLE_STATUSES = ['Processing', 'Sent', 'Signed'];
+
+function StatusIcon({ status }: { status: string }) {
+  switch (status) {
+    case 'Signed':    return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+    case 'Rejected':  return <XCircle className="h-4 w-4 text-red-500" />;
+    case 'Expired':   return <Clock className="h-4 w-4 text-gray-400" />;
+    default:          return <Clock className="h-4 w-4 text-amber-500" />;
+  }
+}
+
+function fmtDate(d?: string | null) {
+  if (!d) return '—';
+  return new Date(d).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function isExpired(expiresAt?: string | null) {
+  if (!expiresAt) return false;
+  return new Date(expiresAt) < new Date();
+}
 
 export default function EnvelopeDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [resendingEmail, setResendingEmail] = useState<string | null>(null);
 
   const { data: merchants, isPending: merchantsPending } = useQuery({
     queryKey: ['merchants', user?.id],
@@ -30,7 +54,8 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
 
   const { data: envelope, isPending: envelopePending, isError } = useQuery({
     queryKey: ['envelope', id, merchant?.apiKey],
-    queryFn: (): Promise<EnvelopeSignedResponse> => envelopeApi.getSignedDocuments(merchant!.apiKey, id).then((r) => r.data),
+    queryFn: (): Promise<EnvelopeSignedResponse> =>
+      envelopeApi.getSignedDocuments(merchant!.apiKey, id).then((r) => r.data),
     enabled: !!merchant && !!id,
   });
 
@@ -48,6 +73,20 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
     const blob = base64ToBlob(base64, resolveDocMimeType(mimeType));
     const ext = resolveDocMimeType(mimeType).includes('pdf') ? 'pdf' : mimeType;
     downloadBlob(blob, `signed_${name.replace(/\s+/g, '_')}_${id}.${ext}`);
+  };
+
+  const handleResend = async (signer: SignerSignedSummary) => {
+    if (!merchant) return;
+    setResendingEmail(signer.email);
+    try {
+      await envelopeApi.resendInvitation(merchant.apiKey, id, signer.email);
+      toast.success(`Invitation resent to ${signer.email}`);
+      queryClient.invalidateQueries({ queryKey: ['envelope', id] });
+    } catch {
+      toast.error('Failed to resend invitation.');
+    } finally {
+      setResendingEmail(null);
+    }
   };
 
   if (merchantsPending || envelopePending) {
@@ -70,187 +109,336 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
     );
   }
 
-  const canCancel = CANCELLABLE_STATUSES.includes(envelope.status);
+  const canCancel     = CANCELLABLE_STATUSES.includes(envelope.status);
+  const signedCount   = envelope.signers.filter((s) => s.status === 'Signed').length;
+  const pendingCount  = envelope.signers.filter((s) => s.status === 'Pending').length;
+  const rejectedCount = envelope.signers.filter((s) => s.status === 'Rejected').length;
 
   return (
     <>
-    <div className="animate-fade-in space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="animate-fade-in space-y-6 pb-10">
+
+        {/* ── Back ── */}
         <Link
           href="/dashboard/envelopes"
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-600 transition-colors"
+          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-600 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Envelopes
         </Link>
-      </div>
 
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{envelope.title}</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Envelope ID: <span className="font-mono text-xs">{envelope.envelopeId}</span>
-          </p>
+        {/* ── Header ── */}
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{envelope.title}</h1>
+            <p className="mt-1 text-xs text-gray-400 font-mono flex items-center gap-1">
+              <Hash className="h-3 w-3" />{envelope.envelopeId}
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <span className={`rounded-full px-3 py-1 text-sm font-semibold ${getStatusColor(envelope.status)}`}>
+              {envelope.status}
+            </span>
+            {canCancel && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCancelConfirm(true)}
+                className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+              >
+                <Ban className="h-3.5 w-3.5 mr-1.5" />
+                Cancel Envelope
+              </Button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <span className={`rounded-full px-3 py-1 text-sm font-semibold ${getStatusColor(envelope.status)}`}>
-            {envelope.status}
-          </span>
-          {canCancel && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowCancelConfirm(true)}
-              className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
-            >
-              <Ban className="h-3.5 w-3.5 mr-1.5" />
-              Cancel Envelope
-            </Button>
-          )}
-        </div>
-      </div>
 
-      {/* Summary card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Summary</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-5">
-          <div>
-            <p className="text-xs text-gray-500 mb-0.5">Total Signers</p>
-            <p className="font-semibold">{envelope.signers.length}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 mb-0.5">Signed</p>
-            <p className="font-semibold text-green-600">
-              {envelope.signers.filter((s) => s.status === 'Signed').length}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 mb-0.5">Pending</p>
-            <p className="font-semibold text-amber-600">
-              {envelope.signers.filter((s) => s.status === 'Pending').length}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 mb-0.5">Rejected</p>
-            <p className="font-semibold text-red-600">
-              {envelope.signers.filter((s) => s.status === 'Rejected').length}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 mb-0.5">Status</p>
-            <p className="font-semibold">{envelope.status}</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Signers */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Signers</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {envelope.signers.map((signer, i) => (
-            <div
-              key={signer.email}
-              className="flex items-center justify-between gap-4 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-brand-600 text-sm font-bold">
-                  {i + 1}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <User className="h-3.5 w-3.5 text-gray-400" />
-                    <span className="font-medium text-gray-900">{signer.name}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-0.5">{signer.email}</p>
-                  {signer.status === 'Rejected' && signer.rejectionReason && (
-                    <p className="text-xs text-red-500 mt-1 italic">
-                      Reason: {signer.rejectionReason}
-                    </p>
-                  )}
-                  {signer.status === 'Rejected' && !signer.rejectionReason && (
-                    <p className="text-xs text-red-400 mt-1 italic">No reason provided</p>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Badge
-                  variant={
-                    signer.status === 'Signed'  ? 'success' :
-                    signer.status === 'Rejected' || signer.status === 'Expired' || signer.status === 'Failed' ? 'danger' :
-                    'warning'
-                  }
-                >
-                  {signer.status}
-                </Badge>
-                {signer.signedDocumentBase64 && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      handleDownload(
-                        signer.signedDocumentBase64!,
-                        signer.signedDocumentType ?? 'application/pdf',
-                        signer.name,
-                      )
-                    }
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    Download
-                  </Button>
-                )}
-              </div>
+        {/* ── Stats cards ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {[
+            { label: 'Total Signers', value: envelope.signers.length, color: 'text-gray-900 dark:text-white' },
+            { label: 'Signed',  value: signedCount,   color: 'text-green-600' },
+            { label: 'Pending', value: pendingCount,  color: 'text-amber-500' },
+            { label: 'Rejected', value: rejectedCount, color: 'text-red-500'  },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-4">
+              <p className="text-xs text-gray-500 mb-1">{label}</p>
+              <p className={`text-2xl font-bold ${color}`}>{value}</p>
             </div>
           ))}
-        </CardContent>
-      </Card>
-    </div>
+        </div>
 
-    {/* ── Cancel confirmation modal ── */}
-    {showCancelConfirm && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-        <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl p-6 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
-              <AlertTriangle className="h-5 w-5 text-red-500" />
+        {/* ── Envelope details ── */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Hash className="h-4 w-4 text-gray-400" />Envelope Details
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-4 text-sm">
+            <div>
+              <p className="text-xs text-gray-500 mb-0.5 flex items-center gap-1"><Calendar className="h-3 w-3" />Created</p>
+              <p className="font-medium">{fmtDate(envelope.sentDate)}</p>
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900">Cancel Envelope</h2>
-              <p className="text-xs text-gray-500">This action cannot be undone.</p>
+              <p className="text-xs text-gray-500 mb-0.5">Status</p>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusColor(envelope.status)}`}>
+                {envelope.status}
+              </span>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 mb-0.5">Signing Progress</p>
+              <p className="font-medium text-gray-800 dark:text-gray-200">{signedCount} / {envelope.signers.length} signed</p>
+              <div className="mt-1.5 h-1.5 w-full rounded-full bg-gray-100 dark:bg-gray-700">
+                <div
+                  className="h-1.5 rounded-full bg-green-500 transition-all"
+                  style={{ width: envelope.signers.length > 0 ? `${(signedCount / envelope.signers.length) * 100}%` : '0%' }}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Documents ── */}
+        {envelope.documents.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <FileCheck className="h-4 w-4 text-gray-400" />
+                Documents ({envelope.documents.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {envelope.documents.map((doc) => (
+                <div
+                  key={doc.documentId}
+                  className="flex items-center gap-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-750 px-4 py-3"
+                >
+                  <FileText className="h-5 w-5 text-brand-500 shrink-0" />
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white text-sm">{doc.documentTitle}</p>
+                    <p className="text-xs text-gray-400 font-mono">{doc.documentId}</p>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── Signers ── */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <User className="h-4 w-4 text-gray-400" />Signers
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {[...envelope.signers]
+              .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+              .map((signer) => {
+                const expired  = signer.status === 'Pending' && isExpired(signer.expiresAt);
+                const canResend = signer.status === 'Pending'
+                  && envelope.status !== 'Cancelled'
+                  && envelope.status !== 'Completed';
+
+                return (
+                  <div
+                    key={signer.email}
+                    className="rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden"
+                  >
+                    {/* Header row */}
+                    <div className="flex items-start justify-between gap-4 px-4 py-3">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-900 text-brand-600 dark:text-brand-300 text-sm font-bold mt-0.5">
+                          {signer.order ?? '·'}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <StatusIcon status={signer.status} />
+                            <span className="font-semibold text-gray-900 dark:text-white">{signer.name}</span>
+                            {signer.role && signer.role !== 'signer' && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-500 uppercase tracking-wide">
+                                {signer.role}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">{signer.email}</p>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                        <Badge
+                          variant={
+                            signer.status === 'Signed'   ? 'success' :
+                            signer.status === 'Rejected' || signer.status === 'Expired' || signer.status === 'Failed' ? 'danger' :
+                            'warning'
+                          }
+                        >
+                          {signer.status}
+                        </Badge>
+
+                        {canResend && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleResend(signer)}
+                            disabled={resendingEmail === signer.email}
+                            className="border-brand-200 text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950 disabled:opacity-50"
+                          >
+                            {resendingEmail === signer.email
+                              ? <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+                              : <RotateCcw className="h-3.5 w-3.5" />}
+                            <span className="ml-1.5">{resendingEmail === signer.email ? 'Sending…' : 'Resend'}</span>
+                          </Button>
+                        )}
+
+                        {signer.signedDocumentBase64 && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              handleDownload(
+                                signer.signedDocumentBase64!,
+                                signer.signedDocumentType ?? 'application/pdf',
+                                signer.name,
+                              )
+                            }
+                          >
+                            <Download className="h-3.5 w-3.5 mr-1" />
+                            Download
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Metadata strip */}
+                    <div className="border-t border-gray-50 dark:border-gray-700/50 bg-gray-50 dark:bg-gray-750 px-4 py-2.5 flex flex-wrap gap-x-6 gap-y-1.5 text-xs text-gray-500">
+                      {signer.expiresAt && (
+                        <div className="flex items-center gap-1.5">
+                          <Clock className={`h-3 w-3 ${expired ? 'text-red-400' : 'text-gray-400'}`} />
+                          <span className={expired ? 'text-red-500 font-medium' : ''}>
+                            {expired ? 'Expired' : 'Expires'}: {fmtDate(signer.expiresAt)}
+                          </span>
+                        </div>
+                      )}
+                      {signer.signedAt && (
+                        <div className="flex items-center gap-1.5">
+                          <CheckCircle2 className="h-3 w-3 text-green-500" />
+                          Signed: {fmtDate(signer.signedAt)}
+                        </div>
+                      )}
+                      {signer.message && (
+                        <div className="flex items-start gap-1.5">
+                          <MessageSquare className="h-3 w-3 mt-0.5 text-gray-400 shrink-0" />
+                          <span className="italic">&ldquo;{signer.message}&rdquo;</span>
+                        </div>
+                      )}
+                      {signer.status === 'Rejected' && (
+                        <div className="flex items-start gap-1.5 text-red-500 w-full">
+                          <XCircle className="h-3 w-3 mt-0.5 shrink-0" />
+                          {signer.rejectionReason
+                            ? `Rejection reason: ${signer.rejectionReason}`
+                            : 'Rejected — no reason provided'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+          </CardContent>
+        </Card>
+
+        {/* ── Activity timeline ── */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <ListOrdered className="h-4 w-4 text-gray-400" />Activity Timeline
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ol className="relative border-l border-gray-200 dark:border-gray-700 space-y-5 ml-2 pl-4">
+              <li>
+                <div className="absolute -left-[7px] h-3 w-3 rounded-full border-2 border-brand-500 bg-white dark:bg-gray-800" />
+                <p className="text-sm font-medium text-gray-900 dark:text-white">Envelope created &amp; invitations sent</p>
+                <p className="text-xs text-gray-500 mt-0.5">{fmtDate(envelope.sentDate)}</p>
+              </li>
+              {envelope.signers.filter(s => s.signedAt).map(s => (
+                <li key={s.email + '_signed'}>
+                  <div className="absolute -left-[7px] h-3 w-3 rounded-full border-2 border-green-500 bg-white dark:bg-gray-800" />
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    <span className="text-green-600">{s.name}</span> signed the document
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">{fmtDate(s.signedAt)}</p>
+                </li>
+              ))}
+              {envelope.signers.filter(s => s.status === 'Rejected').map(s => (
+                <li key={s.email + '_rejected'}>
+                  <div className="absolute -left-[7px] h-3 w-3 rounded-full border-2 border-red-500 bg-white dark:bg-gray-800" />
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    <span className="text-red-500">{s.name}</span> rejected the document
+                  </p>
+                  {s.rejectionReason && <p className="text-xs text-red-400 italic mt-0.5">&ldquo;{s.rejectionReason}&rdquo;</p>}
+                </li>
+              ))}
+              {envelope.status === 'Completed' && (
+                <li>
+                  <div className="absolute -left-[7px] h-3 w-3 rounded-full bg-green-600" />
+                  <p className="text-sm font-semibold text-green-600">Envelope completed — all signers signed</p>
+                </li>
+              )}
+              {envelope.status === 'Cancelled' && (
+                <li>
+                  <div className="absolute -left-[7px] h-3 w-3 rounded-full bg-gray-400" />
+                  <p className="text-sm font-medium text-gray-500">Envelope cancelled</p>
+                </li>
+              )}
+            </ol>
+          </CardContent>
+        </Card>
+
+      </div>
+
+      {/* ── Cancel confirmation modal ── */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-gray-800 shadow-xl p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">Cancel Envelope</h2>
+                <p className="text-xs text-gray-500">This action cannot be undone.</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Are you sure you want to cancel{' '}
+              <span className="font-semibold text-gray-800 dark:text-white">&ldquo;{envelope.title}&rdquo;</span>?
+              All pending signers will no longer be able to sign.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCancelConfirm(false)}
+                disabled={cancelMutation.isPending}
+                className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Keep Envelope
+              </button>
+              <button
+                onClick={() => cancelMutation.mutate()}
+                disabled={cancelMutation.isPending}
+                className="flex-1 rounded-xl bg-red-600 py-2.5 text-sm font-bold text-white hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {cancelMutation.isPending
+                  ? <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  : <Ban className="h-3.5 w-3.5" />}
+                {cancelMutation.isPending ? 'Cancelling…' : 'Cancel Envelope'}
+              </button>
             </div>
           </div>
-          <p className="text-sm text-gray-600">
-            Are you sure you want to cancel <span className="font-semibold text-gray-800">&ldquo;{envelope.title}&rdquo;</span>?
-            All pending signers will no longer be able to sign.
-          </p>
-          <div className="flex gap-3">
-            <button
-              onClick={() => setShowCancelConfirm(false)}
-              disabled={cancelMutation.isPending}
-              className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
-            >
-              Keep Envelope
-            </button>
-            <button
-              onClick={() => cancelMutation.mutate()}
-              disabled={cancelMutation.isPending}
-              className="flex-1 rounded-xl bg-red-600 py-2.5 text-sm font-bold text-white hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {cancelMutation.isPending ? (
-                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-              ) : (
-                <Ban className="h-3.5 w-3.5" />
-              )}
-              {cancelMutation.isPending ? 'Cancelling…' : 'Cancel Envelope'}
-            </button>
-          </div>
         </div>
-      </div>
-    )}
+      )}
     </>
   );
 }
