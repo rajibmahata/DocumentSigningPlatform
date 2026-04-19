@@ -10,14 +10,14 @@ import type { UserResponse } from '@/types';
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const ACTION_OPTIONS = [
-  'EnvelopeCreated', 'EnvelopeSent', 'EnvelopeViewed', 'EnvelopeSigned',
-  'EnvelopeCompleted', 'EnvelopeCancelled', 'EnvelopeRejected', 'EnvelopeFailed', 'EnvelopeExpired',
-  'DocumentUploaded', 'DocumentStamped', 'SignatureSubmitted',
-  'UserRegistered', 'UserLoggedIn', 'UserLoginFailed',
-  'EmailVerified', 'PasswordResetRequested', 'PasswordReset', 'UserUpdated',
-  'MerchantCreated', 'MerchantUpdated', 'MerchantApiKeyRegenerated', 'MerchantLimitUpdated',
-  'TicketCreated', 'TicketUpdated', 'TicketReplied', 'TicketClosed', 'TicketResolved',
-  'PortalOpened',
+  'Envelope.Created', 'Envelope.Sent', 'Envelope.Viewed', 'Envelope.Signed',
+  'Envelope.Completed', 'Envelope.Cancelled', 'Envelope.Rejected', 'Envelope.Failed', 'Envelope.Expired',
+  'Document.Uploaded', 'Document.Stamped', 'Document.Downloaded', 'Document.SignatureSubmitted',
+  'User.Registered', 'User.LoggedIn', 'User.LoginFailed',
+  'User.EmailVerified', 'User.PasswordResetRequested', 'User.PasswordReset', 'User.Updated',
+  'Merchant.Created', 'Merchant.Updated', 'Merchant.ApiKeyRegenerated', 'Merchant.LimitUpdated',
+  'Ticket.Created', 'Ticket.Updated', 'Ticket.Replied', 'Ticket.Closed', 'Ticket.Resolved',
+  'Portal.Opened',
 ];
 
 const ENTITY_OPTIONS = ['Envelope', 'Document', 'User', 'Merchant', 'Ticket', 'Portal'];
@@ -29,18 +29,20 @@ const STATUS_COLORS: Record<string, string> = {
   Warning: 'bg-amber-100 text-amber-700',
 };
 
-// Envelope status → action mapping with colors for the activity timeline
+// Dotted action name → badge colour (matches AuditActions constants exactly)
 const ENVELOPE_ACTION_COLORS: Record<string, string> = {
-  EnvelopeCreated:   'bg-blue-100 text-blue-700',
-  EnvelopeSent:      'bg-indigo-100 text-indigo-700',
-  EnvelopeSigned:    'bg-teal-100 text-teal-700',
-  EnvelopeCompleted: 'bg-green-100 text-green-700',
-  EnvelopeFailed:    'bg-red-100 text-red-700',
-  EnvelopeCancelled: 'bg-gray-100 text-gray-700',
-  EnvelopeExpired:   'bg-orange-100 text-orange-700',
-  EnvelopeRejected:  'bg-rose-100 text-rose-700',
-  EnvelopeViewed:    'bg-purple-100 text-purple-700',
-  SignatureSubmitted: 'bg-cyan-100 text-cyan-700',
+  'Envelope.Created':            'bg-blue-100 text-blue-700',
+  'Envelope.Sent':               'bg-indigo-100 text-indigo-700',
+  'Envelope.Viewed':             'bg-purple-100 text-purple-700',
+  'Envelope.Signed':             'bg-teal-100 text-teal-700',
+  'Envelope.Completed':          'bg-green-100 text-green-700',
+  'Envelope.Failed':             'bg-red-100 text-red-700',
+  'Envelope.Cancelled':          'bg-gray-100 text-gray-700',
+  'Envelope.Expired':            'bg-orange-100 text-orange-700',
+  'Envelope.Rejected':           'bg-rose-100 text-rose-700',
+  'Document.SignatureSubmitted': 'bg-cyan-100 text-cyan-700',
+  'Document.Stamped':            'bg-sky-100 text-sky-700',
+  'Portal.Opened':               'bg-violet-100 text-violet-700',
 };
 
 function fmt(dateStr: string) {

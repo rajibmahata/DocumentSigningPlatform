@@ -557,7 +557,10 @@ curl "http://localhost:5163/api/admin/audit-logs?merchantId=<merchant-id>" \
 | `Envelope.Viewed` | Signer opened portal |
 | `Envelope.Signed` | Single signer completed |
 | `Envelope.Completed` | All signers done |
-| `Envelope.Cancelled` | Envelope cancelled |
+| `Envelope.Cancelled` | Envelope cancelled by sender |
+| `Envelope.Rejected` | A signer explicitly rejected the document |
+| `Envelope.Failed` | System error during send or stamping |
+| `Envelope.Expired` | Signing window elapsed without completion |
 | `Document.Uploaded` | Document attached to envelope |
 | `Document.Stamped` | Signature stamped on document |
 | `Document.SignatureSubmitted` | Signer submitted signature |
@@ -608,7 +611,9 @@ Valid `entityType` values: `Envelope` | `Document` | `User` | `Merchant` | `Tick
 5.  POST /api/envelopes                                  → create envelope (X-Api-Key header)
 6.  GET  /api/envelopes/:id                              → confirm status = "Sent"
 7.  GET  /api/portal/validate/:t                         → signer validates token (t from email)
-8.  POST /api/portal/submit/:t                           → signer submits signature
+8a. POST /api/portal/submit/:t                           → signer submits signature (happy path)
+8b. POST /api/portal/reject/:t                           → signer rejects the document (sets envelope → Rejected)
+    (alt) PUT /api/envelopes/:id/cancel                  → sender cancels envelope before completion (Processing|Sent|Signed)
 9.  GET  /api/envelopes/:id/signed-documents             → download signed doc (base64)
 
 ── Signer portal ────────────────────────────────────────────────────────────────
@@ -625,9 +630,11 @@ Valid `entityType` values: `Envelope` | `Document` | `User` | `Merchant` | `Tick
 
 ── Audit Logs ───────────────────────────────────────────────────────────────────
 17. GET  /api/admin/audit-logs                           → admin views paged audit log  (Admin JWT)
-18. GET  /api/admin/audit-logs?userId=:id                → all events for a specific user
+18. GET  /api/admin/audit-logs?userId=:id                → all activity for a specific user (envelope lifecycle, logins, etc.)
 19. GET  /api/admin/audit-logs?merchantId=:id            → all events for a specific merchant
-20. GET  /api/admin/audit-logs/entity/Envelope/:id       → full signing timeline for one envelope
-21. GET  /api/admin/audit-logs/entity/Document/:id       → stamp/signature history for one document
+20. GET  /api/admin/audit-logs?action=Envelope.Rejected  → all rejected envelopes across the platform
+21. GET  /api/admin/audit-logs?action=Envelope.Cancelled → all cancelled envelopes
+22. GET  /api/admin/audit-logs/entity/Envelope/:id       → full signing timeline for one envelope
+23. GET  /api/admin/audit-logs/entity/Document/:id       → stamp/signature history for one document
 ```
 

@@ -314,13 +314,116 @@ Comparison:        CryptographicOperations.FixedTimeEquals (timing-attack safe)
 
 ---
 
+## Signer Rejection Flow
+
+A signer may reject a document instead of signing it.
+
+**Endpoint**: `POST /api/portal/reject/{token}`
+
+**Optional request body**:
+```json
+{ "reason": "Terms are not acceptable." }
+```
+
+**Server processing**:
+1. Looks up `SigningRequest` by token
+2. Checks `ExpiresAt` — returns `410 Gone` if expired
+3. Checks `Status == Pending` — returns `400` if already processed
+4. Validates HMAC signature
+5. Marks `SigningRequest.Status = Failed` (terminal state for the signer)
+6. Sets `SigningEnvelope.Status = Rejected`
+7. Writes `AuditLog`: `Action="Envelope.Rejected"` with rejection reason, claimant name/email, merchantId
+8. Returns `204 No Content`
+
+> Once rejected, the envelope enters a terminal state — no further signing can occur. The merchant can see the `Rejected` status via `GET /api/envelopes/{id}` or in the dashboard.
+
+---
+
+## Envelope Cancellation Flow
+
+A merchant (sender) may cancel an envelope before it reaches a terminal state.
+
+**Endpoint**: `PUT /api/envelopes/{id}/cancel`  
+**Auth**: `X-Api-Key` header required.
+
+**Cancellable statuses**: `Processing`, `Sent`, `Signed`  
+**Non-cancellable (terminal) statuses**: `Completed`, `Failed`, `Expired`, `Rejected`, `Cancelled`
+
+**Server processing**:
+1. Looks up envelope by ID, verifies merchant ownership via API key
+2. Checks that current status is one of the cancellable statuses — returns `409 Conflict` otherwise
+3. Atomically sets `Status = Cancelled` via `ExecuteUpdateAsync`
+4. Writes `AuditLog`: `Action="Envelope.Cancelled"` with merchantId and envelope title
+5. Returns `204 No Content`
+
+> The UI dashboard "Cancel Envelope" button is only shown when the envelope is in a cancellable state (`Processing`, `Sent`, or `Signed`). After cancellation the button is hidden and the status badge updates to `Cancelled`.
+
+---
+
+## Envelope Status Lifecycle
+
+```
+        ┌─────────────┐
+        │  Processing │ ←─ Created; emails being prepared
+        └──────┬──────┘
+               │ emails dispatched
+               ▼
+           ┌───────┐
+           │ Sent  │ ←─ All invitation emails queued
+           └───┬───┘
+               │ first signer signs
+               ▼
+          ┌────────┐
+          │ Signed │ ←─ At least one signer done (multi-signer)
+          └───┬────┘
+              │ all signers done
+              ▼
+        ┌───────────┐
+        │ Completed │  (terminal ✅)
+        └───────────┘
+
+ From Processing / Sent / Signed:
+   → Cancelled  (sender calls PUT /api/envelopes/{id}/cancel)     (terminal 🚫)
+   → Rejected   (signer calls POST /api/portal/reject/{token})    (terminal 🚫)
+   → Expired    (signing window elapsed without completion)        (terminal ⏰)
+   → Failed     (system error during email send or PDF stamping)   (terminal ❌)
+```
+
+---
+
 ## Audit Trail
 
 Every significant event is recorded in `AuditLogs` with IP address, user agent, and timestamp:
 
 | Action | Trigger |
 |---|---|
-| `SigningInitiated` | Firm calls `/api/signing/initiate` |
-| `PortalOpened` | Claimant's browser hits `/api/portal/validate/{token}` |
-| `SignatureSubmitted` | Claimant submits signature |
-| `DocumentStamped` | Background job completes stamping |
+| `Envelope.Created` | Envelope created via `POST /api/envelopes` |
+| `Envelope.Sent` | Invitation emails dispatched to all signers |
+| `Envelope.Viewed` | Signer opens the signing portal page |
+| `Envelope.Signed` | A signer completes signing (multi-signer in progress) |
+| `Envelope.Completed` | All signers have signed |
+| `Envelope.Cancelled` | Sender cancels via `PUT /api/envelopes/{id}/cancel` |
+| `Envelope.Rejected` | Signer rejects via `POST /api/portal/reject/{token}` |
+| `Envelope.Failed` | System error during send or document stamping |
+| `Envelope.Expired` | Signing window elapsed without all signers completing |
+| `Document.Uploaded` | Document attached to envelope |
+| `Document.SignatureSubmitted` | Signer submits signature bytes |
+| `Document.Stamped` | Background job completes PDF/DOCX stamping |
+| `Document.Downloaded` | Signed document downloaded via API |
+| `Portal.Opened` | Claimant's browser hits `GET /api/portal/validate/{token}` |
+| `User.Registered` | New user registration |
+| `User.LoggedIn` | Successful login |
+| `User.LoginFailed` | Failed login attempt |
+| `User.EmailVerified` | Email address confirmed |
+| `User.PasswordResetRequested` | Forgot-password triggered |
+| `User.PasswordReset` | Password changed via reset link |
+| `User.Updated` | User profile updated |
+| `Merchant.Created` | Merchant account created |
+| `Merchant.Updated` | Merchant settings changed |
+| `Merchant.ApiKeyRegenerated` | API key rotated |
+| `Merchant.LimitUpdated` | Request limit changed |
+| `Ticket.Created` | Support ticket opened |
+| `Ticket.Updated` | Ticket fields changed |
+| `Ticket.Replied` | Message added to ticket thread |
+| `Ticket.Closed` | Ticket closed |
+| `Ticket.Resolved` | Ticket resolved |
