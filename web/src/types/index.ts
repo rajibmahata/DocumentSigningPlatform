@@ -117,6 +117,10 @@ export interface SignerSummary {
 export interface SignerSignedSummary extends SignerSummary {
   signedDocumentBase64?: string;
   signedDocumentType?: string;
+  expiresAt?: string;
+  signedAt?: string;
+  message?: string;
+  order?: number;
 }
 
 export interface InitiateEnvelopeResponse {

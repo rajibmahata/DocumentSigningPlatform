@@ -112,6 +112,10 @@ export const envelopeApi = {
     apiClient.put(`/envelopes/${id}/cancel`, {}, {
       headers: { 'X-Api-Key': apiKey },
     }),
+  resendInvitation: (apiKey: string, id: string, signerEmail: string) =>
+    apiClient.post(`/envelopes/${id}/resend`, { signerEmail }, {
+      headers: { 'X-Api-Key': apiKey },
+    }),
 };
 
 // ── Portal ────────────────────────────────────────────────────────────────────

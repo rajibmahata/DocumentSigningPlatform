@@ -103,7 +103,11 @@ public record SignerSignedSummary(
     string Status,
     string? SignedDocumentBase64,
     string? SignedDocumentType,
-    string? RejectionReason = null);
+    string? RejectionReason = null,
+    DateTime? ExpiresAt = null,
+    DateTime? SignedAt = null,
+    string? Message = null,
+    int Order = 0);
 
 public record EnvelopeSignedResponse(
     Guid EnvelopeId,
@@ -112,6 +116,8 @@ public record EnvelopeSignedResponse(
     DateTime SentDate,
     List<DocumentSummary> Documents,
     List<SignerSignedSummary> Signers);
+
+public record ResendInvitationRequest(string SignerEmail);
 
 public record InitiateEnvelopeResponse(
     Guid EnvelopeId,

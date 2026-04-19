@@ -51,4 +51,7 @@ public static class AuditActions
 
     // ── Portal ────────────────────────────────────────────────────────────────
     public const string PortalOpened  = "Portal.Opened";
+
+    // ── Invitation ────────────────────────────────────────────────────────────
+    public const string InvitationResent = "Invitation.Resent";
 }
