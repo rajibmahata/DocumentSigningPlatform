@@ -1,19 +1,25 @@
 'use client';
 
+import { useState } from 'react';
 import { useAuth } from '@/providers/auth-provider';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { merchantApi, envelopeApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getStatusColor, base64ToBlob, downloadBlob, resolveDocMimeType } from '@/lib/utils';
-import { FileText, Download, ArrowLeft, User } from 'lucide-react';
+import { FileText, Download, ArrowLeft, User, Ban, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
+import { toast } from 'sonner';
 import type { EnvelopeSignedResponse } from '@/types';
+
+const CANCELLABLE_STATUSES = ['Processing', 'Sent', 'Signed'];
 
 export default function EnvelopeDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   const { data: merchants, isPending: merchantsPending } = useQuery({
     queryKey: ['merchants', user?.id],
@@ -26,6 +32,16 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
     queryKey: ['envelope', id, merchant?.apiKey],
     queryFn: (): Promise<EnvelopeSignedResponse> => envelopeApi.getSignedDocuments(merchant!.apiKey, id).then((r) => r.data),
     enabled: !!merchant && !!id,
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: () => envelopeApi.cancel(merchant!.apiKey, id),
+    onSuccess: () => {
+      setShowCancelConfirm(false);
+      toast.success('Envelope cancelled successfully.');
+      queryClient.invalidateQueries({ queryKey: ['envelope', id] });
+    },
+    onError: () => toast.error('Failed to cancel envelope.'),
   });
 
   const handleDownload = (base64: string, mimeType: string, name: string) => {
@@ -54,7 +70,10 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
     );
   }
 
+  const canCancel = CANCELLABLE_STATUSES.includes(envelope.status);
+
   return (
+    <>
     <div className="animate-fade-in space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
@@ -74,9 +93,22 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
             Envelope ID: <span className="font-mono text-xs">{envelope.envelopeId}</span>
           </p>
         </div>
-        <span className={`rounded-full px-3 py-1 text-sm font-semibold ${getStatusColor(envelope.status)}`}>
-          {envelope.status}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className={`rounded-full px-3 py-1 text-sm font-semibold ${getStatusColor(envelope.status)}`}>
+            {envelope.status}
+          </span>
+          {canCancel && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowCancelConfirm(true)}
+              className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+            >
+              <Ban className="h-3.5 w-3.5 mr-1.5" />
+              Cancel Envelope
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Summary card */}
@@ -163,5 +195,48 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
         </CardContent>
       </Card>
     </div>
+
+    {/* ── Cancel confirmation modal ── */}
+    {showCancelConfirm && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Cancel Envelope</h2>
+              <p className="text-xs text-gray-500">This action cannot be undone.</p>
+            </div>
+          </div>
+          <p className="text-sm text-gray-600">
+            Are you sure you want to cancel <span className="font-semibold text-gray-800">&ldquo;{envelope.title}&rdquo;</span>?
+            All pending signers will no longer be able to sign.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowCancelConfirm(false)}
+              disabled={cancelMutation.isPending}
+              className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              Keep Envelope
+            </button>
+            <button
+              onClick={() => cancelMutation.mutate()}
+              disabled={cancelMutation.isPending}
+              className="flex-1 rounded-xl bg-red-600 py-2.5 text-sm font-bold text-white hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {cancelMutation.isPending ? (
+                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              ) : (
+                <Ban className="h-3.5 w-3.5" />
+              )}
+              {cancelMutation.isPending ? 'Cancelling…' : 'Cancel Envelope'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

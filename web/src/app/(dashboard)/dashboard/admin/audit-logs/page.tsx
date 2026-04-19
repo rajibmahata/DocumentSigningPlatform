@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/providers/auth-provider';
-import { auditApi, type AuditLogResponse, type AuditLogQueryParams } from '@/lib/api';
-import { Shield, ChevronLeft, ChevronRight, Search, X, RefreshCw } from 'lucide-react';
+import { auditApi, userApi, type AuditLogResponse, type AuditLogQueryParams } from '@/lib/api';
+import { Shield, ChevronLeft, ChevronRight, Search, X, RefreshCw, User, Activity } from 'lucide-react';
 import { toast } from 'sonner';
+import type { UserResponse } from '@/types';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,20 @@ const STATUS_COLORS: Record<string, string> = {
   Success: 'bg-green-100 text-green-700',
   Failure: 'bg-red-100   text-red-700',
   Warning: 'bg-amber-100 text-amber-700',
+};
+
+// Envelope status → action mapping with colors for the activity timeline
+const ENVELOPE_ACTION_COLORS: Record<string, string> = {
+  EnvelopeCreated:   'bg-blue-100 text-blue-700',
+  EnvelopeSent:      'bg-indigo-100 text-indigo-700',
+  EnvelopeSigned:    'bg-teal-100 text-teal-700',
+  EnvelopeCompleted: 'bg-green-100 text-green-700',
+  EnvelopeFailed:    'bg-red-100 text-red-700',
+  EnvelopeCancelled: 'bg-gray-100 text-gray-700',
+  EnvelopeExpired:   'bg-orange-100 text-orange-700',
+  EnvelopeRejected:  'bg-rose-100 text-rose-700',
+  EnvelopeViewed:    'bg-purple-100 text-purple-700',
+  SignatureSubmitted: 'bg-cyan-100 text-cyan-700',
 };
 
 function fmt(dateStr: string) {
@@ -112,6 +127,11 @@ export default function AuditLogsPage() {
   const [from,       setFrom]       = useState('');
   const [to,         setTo]         = useState('');
   const [search,     setSearch]     = useState('');
+  const [userId,     setUserId]     = useState('');
+
+  // Users for filter dropdown
+  const [users,      setUsers]      = useState<UserResponse[]>([]);
+  const userMap = Object.fromEntries(users.map(u => [u.id, u.name ?? u.email]));
 
   // Data
   const [logs,       setLogs]       = useState<AuditLogResponse[]>([]);
@@ -132,6 +152,7 @@ export default function AuditLogsPage() {
       ...(status     ? { status }     : {}),
       ...(from       ? { from }       : {}),
       ...(to         ? { to }         : {}),
+      ...(userId     ? { userId }     : {}),
     };
     try {
       const r = await auditApi.getPaged(params);
@@ -143,7 +164,13 @@ export default function AuditLogsPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, page, action, entityType, status, from, to]);
+  }, [user, page, action, entityType, status, from, to, userId]);
+
+  // Load users for the filter dropdown
+  useEffect(() => {
+    if (user?.accessRole !== 'Admin') return;
+    userApi.getAll().then(r => setUsers(r.data)).catch(() => {});
+  }, [user]);
 
   useEffect(() => { load(page); }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -153,7 +180,7 @@ export default function AuditLogsPage() {
   }
 
   function clearFilters() {
-    setAction(''); setEntityType(''); setStatus(''); setFrom(''); setTo(''); setSearch('');
+    setAction(''); setEntityType(''); setStatus(''); setFrom(''); setTo(''); setSearch(''); setUserId('');
     setPage(1);
     // load with empty params
     if (user?.accessRole !== 'Admin') return;
@@ -172,12 +199,12 @@ export default function AuditLogsPage() {
     );
   }
 
-  // Client-side search filter on description/action
+  // Client-side search filter on description/action/user name
   const visible = search.trim()
     ? logs.filter(l =>
         l.action.toLowerCase().includes(search.toLowerCase()) ||
         l.description.toLowerCase().includes(search.toLowerCase()) ||
-        (l.userId  ?? '').toLowerCase().includes(search.toLowerCase()) ||
+        (l.userId  ? (userMap[l.userId] ?? l.userId).toLowerCase().includes(search.toLowerCase()) : false) ||
         (l.entityId ?? '').toLowerCase().includes(search.toLowerCase()),
       )
     : logs;
@@ -256,7 +283,7 @@ export default function AuditLogsPage() {
             className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
           />
 
-          {/* Actions */}
+          {/* Apply / Clear */}
           <div className="flex gap-2">
             <button
               onClick={applyFilters}
@@ -273,6 +300,33 @@ export default function AuditLogsPage() {
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
+        </div>
+
+        {/* User filter row */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            <User className="h-3.5 w-3.5" />
+            Filter by User
+          </div>
+          <select
+            value={userId}
+            onChange={e => setUserId(e.target.value)}
+            className="flex-1 max-w-xs rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          >
+            <option value="">All Users</option>
+            {users.map(u => (
+              <option key={u.id} value={u.id}>{u.name ?? u.email}</option>
+            ))}
+          </select>
+          {userId && (
+            <span className="flex items-center gap-1.5 text-xs bg-indigo-50 text-indigo-700 rounded-full px-3 py-1">
+              <Activity className="h-3 w-3" />
+              Showing activity for: <strong>{userMap[userId]}</strong>
+              <button onClick={() => setUserId('')} className="ml-1 hover:text-indigo-900">
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          )}
         </div>
 
         {/* Search within page */}
@@ -323,16 +377,26 @@ export default function AuditLogsPage() {
                     <td className="px-4 py-3 whitespace-nowrap text-gray-500 font-mono text-xs">
                       {fmt(log.timestamp)}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-800">
-                      {log.action}
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
+                        ENVELOPE_ACTION_COLORS[log.action] ?? 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {log.action}
+                      </span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-gray-600">
                       {log.entityType
                         ? <span>{log.entityType} <span className="text-gray-400 font-mono text-xs">{shortId(log.entityId)}</span></span>
                         : '—'}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap font-mono text-xs text-gray-500">
-                      {shortId(log.userId)}
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                      {log.userId
+                        ? <span className="flex items-center gap-1">
+                            <User className="h-3 w-3 text-gray-400" />
+                            {userMap[log.userId] ?? shortId(log.userId)}
+                          </span>
+                        : '—'
+                      }
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[log.status] ?? 'bg-gray-100 text-gray-600'}`}>

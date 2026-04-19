@@ -102,17 +102,23 @@ export const envelopeApi = {
     apiClient.get<EnvelopeSignedResponse>(`/envelopes/${id}/signed-documents`, {
       headers: { 'X-Api-Key': apiKey },
     }),
+  cancel: (apiKey: string, id: string) =>
+    apiClient.put(`/envelopes/${id}/cancel`, {}, {
+      headers: { 'X-Api-Key': apiKey },
+    }),
 };
 
 // ── Portal ────────────────────────────────────────────────────────────────────
 
-import type { AnalyticsSummary, AnalyticsTrends, DocumentPreviewResponse, PlatformStats, SubmitSignatureRequest, MyEnvelopeResponse } from '@/types';
+import type { AnalyticsSummary, AnalyticsTrends, DocumentPreviewResponse, PlatformStats, SubmitSignatureRequest, RejectSignatureRequest, MyEnvelopeResponse } from '@/types';
 
 export const portalApi = {
   validate: (token: string) =>
     apiClient.get<DocumentPreviewResponse>(`/portal/validate/${token}`),
   submit: (token: string, data: SubmitSignatureRequest) =>
     apiClient.post(`/portal/submit/${token}`, data),
+  reject: (token: string, data: RejectSignatureRequest) =>
+    apiClient.post(`/portal/reject/${token}`, data),
   getStats: () =>
     apiClient.get<PlatformStats>('/portal/stats'),
   getMyEnvelopes: () =>

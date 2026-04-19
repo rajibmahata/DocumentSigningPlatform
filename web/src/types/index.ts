@@ -245,6 +245,10 @@ export interface DocumentPreviewResponse {
   message?: string;
 }
 
+export interface RejectSignatureRequest {
+  reason?: string;
+}
+
 // ── My Envelopes (signer portal) ─────────────────────────────────────────────
 
 export interface MyEnvelopeDocumentSummary {
