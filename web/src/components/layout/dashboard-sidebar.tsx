@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, FileText, Send, Building2, User, BookOpen,
   LogOut, FileSignature, ChevronLeft, ChevronRight,
-  BarChart2, Users, Store, MessageSquare, Ticket, PenLine, Shield,
+  BarChart2, Users, Store, MessageSquare, Ticket, PenLine, Shield, Webhook,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/my-signatures',     label: 'Awaiting My Signature',  icon: PenLine },
   { href: '/dashboard/merchant',          label: 'Merchant',               icon: Building2 },
   { href: '/dashboard/tickets',           label: 'Support Tickets',        icon: MessageSquare },
+  { href: '/dashboard/settings/webhooks', label: 'Webhooks',               icon: Webhook },
   { href: '/docs',                        label: 'API Docs',               icon: BookOpen },
   { href: '/dashboard/profile',           label: 'Profile',                icon: User },
 ];

@@ -102,17 +102,23 @@ export const envelopeApi = {
     apiClient.get<EnvelopeSignedResponse>(`/envelopes/${id}/signed-documents`, {
       headers: { 'X-Api-Key': apiKey },
     }),
+  cancel: (apiKey: string, id: string) =>
+    apiClient.put(`/envelopes/${id}/cancel`, {}, {
+      headers: { 'X-Api-Key': apiKey },
+    }),
 };
 
 // ── Portal ────────────────────────────────────────────────────────────────────
 
-import type { AnalyticsSummary, AnalyticsTrends, DocumentPreviewResponse, PlatformStats, SubmitSignatureRequest, MyEnvelopeResponse } from '@/types';
+import type { AnalyticsSummary, AnalyticsTrends, DocumentPreviewResponse, PlatformStats, SubmitSignatureRequest, RejectSignatureRequest, MyEnvelopeResponse } from '@/types';
 
 export const portalApi = {
   validate: (token: string) =>
     apiClient.get<DocumentPreviewResponse>(`/portal/validate/${token}`),
   submit: (token: string, data: SubmitSignatureRequest) =>
     apiClient.post(`/portal/submit/${token}`, data),
+  reject: (token: string, data: RejectSignatureRequest) =>
+    apiClient.post(`/portal/reject/${token}`, data),
   getStats: () =>
     apiClient.get<PlatformStats>('/portal/stats'),
   getMyEnvelopes: () =>
@@ -201,4 +207,37 @@ export const auditApi = {
   },
   getByEntity: (entityType: string, entityId: string) =>
     apiClient.get<AuditLogResponse[]>(`/admin/audit-logs/entity/${entityType}/${entityId}`),
+};
+
+// ── Webhook API ───────────────────────────────────────────────────────────────
+import type {
+  CreateWebhookRequest,
+  WebhookResponse,
+  WebhookDeliveryPagedResult,
+} from '@/types';
+
+export interface WebhookTestResult {
+  success: boolean;
+  statusCode: number;
+  durationMs: number;
+  body: string;
+}
+
+export const webhookApi = {
+  create: (data: CreateWebhookRequest) =>
+    apiClient.post<WebhookResponse>('/webhooks', data),
+
+  getByMerchant: (merchantId: string) =>
+    apiClient.get<WebhookResponse[]>(`/webhooks?merchantId=${merchantId}`),
+
+  delete: (id: string) =>
+    apiClient.delete(`/webhooks/${id}`),
+
+  getDeliveries: (id: string, page = 1, pageSize = 20) =>
+    apiClient.get<WebhookDeliveryPagedResult>(
+      `/webhooks/${id}/deliveries?page=${page}&pageSize=${pageSize}`
+    ),
+
+  test: (id: string) =>
+    apiClient.post<WebhookTestResult>(`/webhooks/${id}/test`),
 };

@@ -28,6 +28,7 @@ public class StampDocJobHandler
     private readonly IDocumentStamper _stamper;
     private readonly IConfiguration _config;
     private readonly ILogger<StampDocJobHandler> _logger;
+    private readonly IWebhookService _webhookService;
 
     public StampDocJobHandler(
         IDocumentRepository docRepo,
@@ -41,7 +42,8 @@ public class StampDocJobHandler
         IUserRepository userRepo,
         IDocumentStamper stamper,
         IConfiguration config,
-        ILogger<StampDocJobHandler> logger)
+        ILogger<StampDocJobHandler> logger,
+        IWebhookService webhookService)
     {
         _docRepo = docRepo;
         _signingRequestRepo = signingRequestRepo;
@@ -55,6 +57,7 @@ public class StampDocJobHandler
         _stamper = stamper;
         _config = config;
         _logger = logger;
+        _webhookService = webhookService;
     }
 
     public async Task HandleAsync(OutboxQueue job, CancellationToken ct = default)
@@ -126,6 +129,22 @@ public class StampDocJobHandler
 
                 await _envelopeRepo.UpdateAsync(envelope, ct);
                 await _envelopeRepo.SaveChangesAsync(ct);
+
+                // ── Webhook: envelope.signed / envelope.completed ────────────
+                var webhookEvent = allSigned
+                    ? WebhookEvents.EnvelopeCompleted
+                    : WebhookEvents.EnvelopeSigned;
+
+                await _webhookService.TriggerAsync(
+                    webhookEvent,
+                    envelope.MerchantId,
+                    new
+                    {
+                        envelopeId  = envelope.Id,
+                        status      = envelope.Status.ToString(),
+                        signerEmail = claim.ClaimantEmail,
+                    },
+                    ct);
             }
         }
 

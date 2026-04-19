@@ -21,6 +21,7 @@ public class EnvelopeControllerTests
     private readonly Mock<IAuditService>                _audit             = new();
     private readonly Mock<ITokenService>                _tokenService      = new();
     private readonly Mock<IConfiguration>               _config            = new();
+    private readonly Mock<IWebhookService>              _webhookService    = new();
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -35,7 +36,8 @@ public class EnvelopeControllerTests
             _outboxRepo.Object,
             _audit.Object,
             _tokenService.Object,
-            _config.Object);
+            _config.Object,
+            _webhookService.Object);
 
         var httpContext = new DefaultHttpContext();
         if (merchant is not null)

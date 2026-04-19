@@ -110,6 +110,7 @@ export interface SignerSummary {
   role: string;
   email: string;
   status: string;
+  rejectionReason?: string;
 }
 
 export interface SignerSignedSummary extends SignerSummary {
@@ -245,6 +246,10 @@ export interface DocumentPreviewResponse {
   message?: string;
 }
 
+export interface RejectSignatureRequest {
+  reason?: string;
+}
+
 // ── My Envelopes (signer portal) ─────────────────────────────────────────────
 
 export interface MyEnvelopeDocumentSummary {
@@ -281,4 +286,57 @@ export interface AuthUser {
   email: string;
   isEmailVerified: boolean;
   accessRole: AccessRole;
+}
+
+// ── Webhooks ──────────────────────────────────────────────────────────────────
+
+export const WEBHOOK_EVENTS = [
+  'envelope.processing',
+  'envelope.sent',
+  'envelope.signed',
+  'envelope.completed',
+  'envelope.failed',
+  'envelope.expired',
+  'envelope.rejected',
+  'envelope.cancelled',
+  'ticket.created',
+  'ticket.replied',
+] as const;
+
+export type WebhookEventName = typeof WEBHOOK_EVENTS[number];
+
+export interface CreateWebhookRequest {
+  merchantId: string;
+  url: string;
+  events: string[];
+}
+
+export interface WebhookResponse {
+  id: string;
+  merchantId: string;
+  url: string;
+  secret: string;
+  isActive: boolean;
+  events: string[];
+  createdAt: string;
+}
+
+export interface WebhookDeliveryResponse {
+  id: string;
+  webhookId: string;
+  eventName: string;
+  status: 'Pending' | 'Processing' | 'Success' | 'Failed';
+  retryCount: number;
+  response: string | null;
+  lastAttempt: string | null;
+  nextAttempt: string;
+  createdAt: string;
+}
+
+export interface WebhookDeliveryPagedResult {
+  items: WebhookDeliveryResponse[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
 }

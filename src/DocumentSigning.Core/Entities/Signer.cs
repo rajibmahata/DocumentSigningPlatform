@@ -15,8 +15,9 @@ public class Signer
     public string Role            { get; set; } = "signer";
     public int    Order           { get; set; } = 1;
     public string Message         { get; set; } = string.Empty;
-    public SigningStatus Status   { get; set; } = SigningStatus.Pending;
-    public DateTime CreatedAt     { get; set; } = DateTime.UtcNow;
+    public SigningStatus Status         { get; set; } = SigningStatus.Pending;
+    public string? RejectionReason      { get; set; }
+    public DateTime CreatedAt           { get; set; } = DateTime.UtcNow;
 
     // Navigation
     public SigningEnvelope? Envelope { get; set; }

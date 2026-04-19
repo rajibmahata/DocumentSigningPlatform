@@ -46,6 +46,15 @@ builder.Services.AddScoped<StampDocJobHandler>();
 // ─── Background worker ────────────────────────────────────────────────────────
 builder.Services.AddHostedService<OutboxWorker>();
 
+// ─── Webhook system ───────────────────────────────────────────────────────────
+builder.Services.AddScoped<IWebhookRepository, WebhookRepository>();
+builder.Services.AddScoped<IWebhookService, WebhookService>();
+builder.Services.AddHostedService<WebhookDeliveryWorker>();
+builder.Services.AddHttpClient("webhook", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(35);
+});
+
 // ─── Audit service (singleton channel + hosted background flush) ──────────────
 builder.Services.AddSingleton<AuditService>();
 builder.Services.AddSingleton<DocumentSigning.Core.Interfaces.IAuditService>(
@@ -164,6 +173,7 @@ builder.Services.AddSwaggerGen(c =>
             | Tickets | Support ticket creation and messaging |
             | Tickets — Admin | Admin-level ticket management (Admin only) |
             | Audit Logs — Admin | Paged audit log viewer and entity timeline (Admin only) |
+            | Webhooks | Register endpoints and view delivery history |
         """
     });
 
@@ -186,9 +196,10 @@ builder.Services.AddSwaggerGen(c =>
             "AdminTickets"  => "Tickets — Admin",
             "AdminAudit"    => "Audit Logs — Admin",
             "Tickets"       => "Tickets",
-            "Portal"       => "Portal",
-            "Envelope"     => "Envelope",
-            _              => controller
+            "Portal"        => "Portal",
+            "Envelope"      => "Envelope",
+            "Webhooks"      => "Webhooks",
+            _               => controller
         };
         return new[] { tag };
     });

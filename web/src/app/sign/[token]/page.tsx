@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { base64ToBlob } from '@/lib/utils';
 import {
   CheckCircle, Eraser, PenLine, FileText, AlertTriangle,
-  Clock, Shield, ClipboardList, MonitorCheck,
+  Clock, Shield, ClipboardList, MonitorCheck, XCircle,
 } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
 
@@ -58,10 +58,13 @@ export default function SignPage() {
   const { token }   = useParams<{ token: string }>();
   const sigRef      = useRef<SignatureCanvas>(null);
   const [done, setDone]       = useState(false);
+  const [rejected, setRejected] = useState(false);
   const [pdfUrl, setPdfUrl]   = useState<string | null>(null);
   const [mode, setMode]       = useState<'draw' | 'type'>('draw');
   const [typedName, setTypedName] = useState('');
   const [agreed, setAgreed]   = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason]       = useState('');
 
   const { data: preview, isLoading, isError } = useQuery({
     queryKey: ['portal', token],
@@ -91,6 +94,17 @@ export default function SignPage() {
       toast.success('Document signed successfully!');
     },
     onError: () => toast.error('Failed to submit signature. The link may have expired.'),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (reason: string) =>
+      portalApi.reject(token, { reason: reason || undefined }),
+    onSuccess: () => {
+      setShowRejectModal(false);
+      setRejected(true);
+      toast.success('Document rejected.');
+    },
+    onError: () => toast.error('Failed to reject. The link may have expired or already been processed.'),
   });
 
   /** Render typed name onto a canvas and return base64 */
@@ -189,9 +203,31 @@ export default function SignPage() {
     );
   }
 
+  // ── Rejected ──────────────────────────────────────────────────────────────
+
+  if (rejected) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
+        <div className="w-full max-w-md rounded-2xl border border-red-100 bg-white p-10 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-red-50">
+            <XCircle className="h-12 w-12 text-red-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">Document Rejected</h2>
+          <p className="mt-2 text-sm text-gray-500">
+            You have rejected this document. The sender has been notified and no signature will be recorded.
+          </p>
+          <div className="mt-6 flex items-center justify-center gap-5 text-xs text-gray-400">
+            <span className="flex items-center gap-1"><ClipboardList className="h-3.5 w-3.5" /> Rejection recorded in audit trail</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ── Main layout ───────────────────────────────────────────────────────────
 
   return (
+    <>
     <div className="min-h-screen bg-[#f3f4f6]">
 
       {/* ── Top navbar ─────────────────────────────────────────────────── */}
@@ -415,6 +451,18 @@ export default function SignPage() {
                 )}
               </button>
 
+              {/* Reject button */}
+              <button
+                onClick={() => setShowRejectModal(true)}
+                disabled={mutation.isPending || rejectMutation.isPending}
+                className="w-full rounded-xl border border-red-200 py-3 text-sm font-semibold text-red-600
+                           hover:bg-red-50 active:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed
+                           transition-colors flex items-center justify-center gap-2"
+              >
+                <XCircle className="h-4 w-4" />
+                Reject Document
+              </button>
+
               {/* Trust badges */}
               <div className="flex items-center justify-center gap-4 pt-1">
                 <span className="flex items-center gap-1 text-[11px] text-gray-400">
@@ -435,5 +483,64 @@ export default function SignPage() {
 
       </div>
     </div>
+
+    {/* ── Reject modal ───────────────────────────────────────────────────── */}
+    {showRejectModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div className="w-full max-w-md rounded-2xl bg-white shadow-xl p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
+              <XCircle className="h-5 w-5 text-red-500" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Reject Document</h2>
+              <p className="text-xs text-gray-500">This action cannot be undone.</p>
+            </div>
+          </div>
+          <p className="text-sm text-gray-600">
+            Are you sure you want to reject this document? The sender will be notified and no signature will be recorded.
+          </p>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">
+              Reason for rejection <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="e.g. Incorrect terms, wrong document, etc."
+              rows={3}
+              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 resize-none"
+            />
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => { setShowRejectModal(false); setRejectReason(''); }}
+              disabled={rejectMutation.isPending}
+              className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => rejectMutation.mutate(rejectReason)}
+              disabled={rejectMutation.isPending}
+              className="flex-1 rounded-xl bg-red-600 py-2.5 text-sm font-bold text-white hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {rejectMutation.isPending ? (
+                <>
+                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Rejecting…
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-3.5 w-3.5" />
+                  Confirm Rejection
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

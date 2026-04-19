@@ -20,6 +20,7 @@ public class SignatureSubmitControllerTests
     private readonly Mock<IDocumentRepository>        _documentRepo       = new();
     private readonly Mock<IClaimRepository>           _claimRepo          = new();
     private readonly Mock<ISigningEnvelopeRepository> _envelopeRepo       = new();
+    private readonly Mock<IWebhookService>            _webhookService     = new();
 
     private SignatureSubmitController CreateController()
     {
@@ -30,7 +31,8 @@ public class SignatureSubmitControllerTests
             _tokenService.Object,
             _documentRepo.Object,
             _claimRepo.Object,
-            _envelopeRepo.Object);
+            _envelopeRepo.Object,
+            _webhookService.Object);
 
         controller.ControllerContext = new ControllerContext
         {

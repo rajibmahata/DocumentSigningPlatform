@@ -19,6 +19,7 @@ public class SignatureSubmitController : ControllerBase
     private readonly IDocumentRepository _documentRepo;
     private readonly IClaimRepository _claimRepo;
     private readonly ISigningEnvelopeRepository _envelopeRepo;
+    private readonly IWebhookService _webhookService;
 
     public SignatureSubmitController(
         ISigningRequestRepository signingRequestRepo,
@@ -27,7 +28,8 @@ public class SignatureSubmitController : ControllerBase
         ITokenService tokenService,
         IDocumentRepository documentRepo,
         IClaimRepository claimRepo,
-        ISigningEnvelopeRepository envelopeRepo)
+        ISigningEnvelopeRepository envelopeRepo,
+        IWebhookService webhookService)
     {
         _signingRequestRepo = signingRequestRepo;
         _outboxRepo = outboxRepo;
@@ -36,6 +38,7 @@ public class SignatureSubmitController : ControllerBase
         _documentRepo = documentRepo;
         _claimRepo = claimRepo;
         _envelopeRepo = envelopeRepo;
+        _webhookService = webhookService;
     }
 
     /// <summary>
@@ -193,18 +196,48 @@ public class SignatureSubmitController : ControllerBase
         await _signingRequestRepo.UpdateAsync(signingRequest, ct);
         await _signingRequestRepo.SaveChangesAsync(ct);
 
-        // Mark envelope as Rejected
+        // Load claim first so we have the email to find the matching Signer
+        var claim = await _claimRepo.GetByIdAsync(signingRequest.ClaimId, ct);
+
+        // Mark envelope as Rejected and update the individual Signer status
         var document = await _documentRepo.GetWithEnvelopeAsync(signingRequest.DocumentId, ct);
         if (document?.Envelope is not null)
         {
             document.Envelope.Status = EnvelopeStatus.Rejected;
+
+            // Update the specific signer's status so the dashboard reflects Rejected
+            if (claim is not null)
+            {
+                var signer = document.Envelope.Signers
+                    .FirstOrDefault(s => s.Email.Equals(claim.ClaimantEmail, StringComparison.OrdinalIgnoreCase));
+                if (signer is not null)
+                {
+                    signer.Status = SigningStatus.Rejected;
+                    signer.RejectionReason = request.Reason;
+                }
+            }
+
             await _envelopeRepo.UpdateAsync(document.Envelope, ct);
             await _envelopeRepo.SaveChangesAsync(ct);
         }
-
-        var claim = await _claimRepo.GetByIdAsync(signingRequest.ClaimId, ct);
         var merchantId       = document?.Envelope?.MerchantId;
         var merchantUserId   = document?.Envelope?.Merchant?.UserId;
+
+        // ── Webhook: envelope.rejected ───────────────────────────────────────
+        if (merchantId.HasValue)
+        {
+            await _webhookService.TriggerAsync(
+                WebhookEvents.EnvelopeRejected,
+                merchantId.Value,
+                new
+                {
+                    envelopeId  = document?.Envelope?.Id,
+                    status      = "Rejected",
+                    signerEmail = claim?.ClaimantEmail,
+                    reason      = request.Reason,
+                },
+                ct);
+        }
 
         var metadata = System.Text.Json.JsonSerializer.Serialize(new
         {

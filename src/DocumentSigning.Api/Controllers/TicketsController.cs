@@ -16,13 +16,21 @@ namespace DocumentSigning.Api.Controllers;
 [Authorize]
 public class TicketsController : ControllerBase
 {
-    private readonly ITicketRepository _repo;
-    private readonly IAuditService     _audit;
+    private readonly ITicketRepository   _repo;
+    private readonly IAuditService       _audit;
+    private readonly IWebhookService     _webhookService;
+    private readonly IMerchantRepository _merchantRepo;
 
-    public TicketsController(ITicketRepository repo, IAuditService audit)
+    public TicketsController(
+        ITicketRepository repo,
+        IAuditService audit,
+        IWebhookService webhookService,
+        IMerchantRepository merchantRepo)
     {
-        _repo  = repo;
-        _audit = audit;
+        _repo           = repo;
+        _audit          = audit;
+        _webhookService = webhookService;
+        _merchantRepo   = merchantRepo;
     }
 
     private Guid CurrentUserId =>
@@ -81,6 +89,17 @@ public class TicketsController : ControllerBase
             Description: $"Ticket created: '{ticket.Title}' [{ticket.Type}]",
             IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             UserAgent:   Request.Headers.UserAgent.ToString()));
+
+        // ── Webhook: ticket.created ──────────────────────────────────────────
+        var userMerchants = await _merchantRepo.GetByUserIdAsync(CurrentUserId, ct);
+        foreach (var m in userMerchants.Where(x => x.IsActive))
+        {
+            await _webhookService.TriggerAsync(
+                WebhookEvents.TicketCreated,
+                m.Id,
+                new { ticketId = ticket.Id, title = ticket.Title, type = ticket.Type },
+                ct);
+        }
 
         var created = await _repo.GetByIdAsync(ticket.Id, ct);
         return CreatedAtAction(nameof(GetById), new { id = ticket.Id }, MapToResponse(created!));
@@ -153,6 +172,17 @@ public class TicketsController : ControllerBase
             Description: $"Message added to ticket {id} by {msg.SenderType}",
             IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             UserAgent:   Request.Headers.UserAgent.ToString()));
+
+        // ── Webhook: ticket.replied ──────────────────────────────────────────
+        var userMerchants2 = await _merchantRepo.GetByUserIdAsync(CurrentUserId, ct);
+        foreach (var m in userMerchants2.Where(x => x.IsActive))
+        {
+            await _webhookService.TriggerAsync(
+                WebhookEvents.TicketReplied,
+                m.Id,
+                new { ticketId = id, senderType = msg.SenderType },
+                ct);
+        }
 
         return CreatedAtAction(nameof(GetById), new { id },
             new TicketMessageResponse(msg.Id, msg.SenderType, msg.Message, msg.CreatedAt));

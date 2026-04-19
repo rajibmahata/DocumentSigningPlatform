@@ -93,7 +93,8 @@ public record SignerSummary(
     string Name,
     string Role,
     string Email,
-    string Status);
+    string Status,
+    string? RejectionReason = null);
 
 public record SignerSignedSummary(
     string Name,
@@ -101,7 +102,8 @@ public record SignerSignedSummary(
     string Email,
     string Status,
     string? SignedDocumentBase64,
-    string? SignedDocumentType);
+    string? SignedDocumentType,
+    string? RejectionReason = null);
 
 public record EnvelopeSignedResponse(
     Guid EnvelopeId,
@@ -319,3 +321,30 @@ public record TicketSummary(
     bool     HasAttachment,
     DateTime CreatedAt,
     DateTime? UpdatedAt);
+
+// ── Webhooks ──────────────────────────────────────────────────────────────────
+
+public record CreateWebhookRequest(
+    Guid         MerchantId,
+    string       Url,
+    List<string> Events);
+
+public record WebhookResponse(
+    Guid         Id,
+    Guid         MerchantId,
+    string       Url,
+    string       Secret,
+    bool         IsActive,
+    List<string> Events,
+    DateTime     CreatedAt);
+
+public record WebhookDeliveryResponse(
+    Guid      Id,
+    Guid      WebhookId,
+    string    EventName,
+    string    Status,
+    int       RetryCount,
+    string?   Response,
+    DateTime? LastAttempt,
+    DateTime  NextAttempt,
+    DateTime  CreatedAt);
