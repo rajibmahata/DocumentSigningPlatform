@@ -180,7 +180,7 @@ public class EnvelopeController : ControllerBase
         await _envelopeRepo.SaveChangesAsync(ct);
 
         // ── Create SigningRequest + send invitation for each signer ─────────
-        var baseUrl = _config["App:BaseUrl"] ?? $"{Request.Scheme}://{Request.Host}";
+        var baseUrl = _config["App:FrontendUrl"] ?? _config["App:BaseUrl"] ?? $"{Request.Scheme}://{Request.Host}";
         var expiry  = DateTime.UtcNow.AddDays(7);
 
         // Use first document for the signing token (multi-document support can be extended)
