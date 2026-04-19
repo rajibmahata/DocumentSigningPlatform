@@ -116,7 +116,7 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
         <CardHeader>
           <CardTitle className="text-base">Summary</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+        <CardContent className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-5">
           <div>
             <p className="text-xs text-gray-500 mb-0.5">Total Signers</p>
             <p className="font-semibold">{envelope.signers.length}</p>
@@ -131,6 +131,12 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
             <p className="text-xs text-gray-500 mb-0.5">Pending</p>
             <p className="font-semibold text-amber-600">
               {envelope.signers.filter((s) => s.status === 'Pending').length}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-0.5">Rejected</p>
+            <p className="font-semibold text-red-600">
+              {envelope.signers.filter((s) => s.status === 'Rejected').length}
             </p>
           </div>
           <div>
@@ -167,7 +173,7 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
                 <Badge
                   variant={
                     signer.status === 'Signed'  ? 'success' :
-                    signer.status === 'Expired' || signer.status === 'Failed' ? 'danger' :
+                    signer.status === 'Rejected' || signer.status === 'Expired' || signer.status === 'Failed' ? 'danger' :
                     'warning'
                   }
                 >

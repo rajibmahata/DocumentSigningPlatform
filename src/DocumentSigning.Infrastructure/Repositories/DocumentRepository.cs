@@ -17,6 +17,8 @@ public class DocumentRepository : IDocumentRepository
         => await _db.Documents
             .Include(d => d.Envelope)
                 .ThenInclude(e => e!.Merchant)
+            .Include(d => d.Envelope)
+                .ThenInclude(e => e!.Signers)
             .FirstOrDefaultAsync(d => d.Id == id, ct);
 
     public async Task AddAsync(Document document, CancellationToken ct = default)
