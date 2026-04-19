@@ -36,6 +36,7 @@ export interface UserResponse {
   email: string;
   country?: string;
   isEmailVerified: boolean;
+  isActive: boolean;
   accessRole: AccessRole;
   createdAt: string;
 }

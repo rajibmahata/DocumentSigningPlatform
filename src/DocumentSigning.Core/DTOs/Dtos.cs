@@ -224,6 +224,10 @@ public record MerchantSignedDocPayload(
     string EnvelopeTitle,
     Guid SignedDocumentId);
 
+public record AccountPendingApprovalPayload(
+    string To,
+    string ToName);
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 public record RegisterRequest(
@@ -256,6 +260,7 @@ public record UserResponse(
     string Email,
     string? Country,
     bool IsEmailVerified,
+    bool IsActive,
     DocumentSigning.Core.Enums.AccessRole AccessRole,
     DateTime CreatedAt);
 

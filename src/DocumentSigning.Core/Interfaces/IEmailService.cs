@@ -78,4 +78,14 @@ public interface IEmailService
         string envelopeTitle,
         string? reason,
         CancellationToken ct = default);
+
+    Task SendAccountPendingApprovalAsync(
+        string toEmail,
+        string toName,
+        CancellationToken ct = default);
+
+    Task SendAccountActivatedAsync(
+        string toEmail,
+        string toName,
+        CancellationToken ct = default);
 }

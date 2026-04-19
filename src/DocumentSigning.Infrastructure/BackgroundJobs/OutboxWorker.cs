@@ -190,6 +190,14 @@ public class OutboxWorker : BackgroundService
                     signedDoc.ContentBytes, signedDoc.ContentType, ct);
                 break;
             }
+            case JobTypes.SendAccountPendingApproval:
+            {
+                var payload = JsonSerializer.Deserialize<AccountPendingApprovalPayload>(job.Payload, JsonOpts)
+                    ?? throw new InvalidOperationException("Null AccountPendingApproval payload.");
+                var emailSvc = sp.GetRequiredService<IEmailService>();
+                await emailSvc.SendAccountPendingApprovalAsync(payload.To, payload.ToName, ct);
+                break;
+            }
             default:
                 throw new NotSupportedException($"Unknown job type: {job.JobType}");
         }
@@ -200,11 +208,12 @@ public class OutboxWorker : BackgroundService
 /// <summary>Constants for job type strings in OutboxQueue.JobType.</summary>
 public static class JobTypes
 {
-    public const string SendEmail             = "SendEmail";
-    public const string StampDoc              = "StampDoc";
-    public const string SendConfirmation      = "SendConfirmation";
-    public const string SendFirmNotification  = "SendFirmNotification";
-    public const string SendVerificationEmail  = "SendVerificationEmail";
-    public const string SendPasswordReset      = "SendPasswordReset";
-    public const string SendMerchantSignedDoc  = "SendMerchantSignedDoc";
+    public const string SendEmail                   = "SendEmail";
+    public const string StampDoc                    = "StampDoc";
+    public const string SendConfirmation            = "SendConfirmation";
+    public const string SendFirmNotification        = "SendFirmNotification";
+    public const string SendVerificationEmail       = "SendVerificationEmail";
+    public const string SendPasswordReset           = "SendPasswordReset";
+    public const string SendMerchantSignedDoc       = "SendMerchantSignedDoc";
+    public const string SendAccountPendingApproval  = "SendAccountPendingApproval";
 }

@@ -16,8 +16,18 @@ namespace DocumentSigning.Api.Controllers;
 public class UserController : ControllerBase
 {
     private readonly IUserRepository _userRepo;
+    private readonly IEmailService    _emailService;
+    private readonly IAuditService    _audit;
 
-    public UserController(IUserRepository userRepo) => _userRepo = userRepo;
+    public UserController(
+        IUserRepository userRepo,
+        IEmailService   emailService,
+        IAuditService   audit)
+    {
+        _userRepo     = userRepo;
+        _emailService = emailService;
+        _audit        = audit;
+    }
 
     private Guid? CallerUserId()
     {
@@ -96,6 +106,65 @@ public class UserController : ControllerBase
         return Ok(ToResponse(user));
     }
 
+    /// <summary>List admin users pending activation. Requires Admin role.</summary>
+    [HttpGet("/api/admin/users/pending")]
+    [Authorize(Policy = "AdminOnly")]
+    [ProducesResponseType(typeof(IEnumerable<UserResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPendingAdmins(CancellationToken ct)
+    {
+        var users = await _userRepo.GetPendingAdminsAsync(ct);
+        return Ok(users.Select(ToResponse));
+    }
+
+    /// <summary>Activate a user account. Requires Admin role.</summary>
+    [HttpPost("/api/admin/users/{id:guid}/activate")]
+    [Authorize(Policy = "AdminOnly")]
+    [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ActivateUser(Guid id, CancellationToken ct)
+    {
+        var user = await _userRepo.GetByIdAsync(id, ct);
+        if (user is null) return NotFound();
+
+        user.IsActive = true;
+        await _userRepo.UpdateAsync(user, ct);
+        await _userRepo.SaveChangesAsync(ct);
+
+        _ = _emailService.SendAccountActivatedAsync(user.Email, user.Name)
+            .ContinueWith(t => { /* fire-and-forget */ }, TaskContinuationOptions.OnlyOnFaulted);
+
+        _audit.Log(new AuditEntry(
+            Action:      DocumentSigning.Core.Enums.AuditActions.UserActivated,
+            EntityType:  DocumentSigning.Core.Enums.AuditEntities.User,
+            EntityId:    id,
+            Description: $"User {user.Email} activated by admin."));
+
+        return Ok(ToResponse(user));
+    }
+
+    /// <summary>Deactivate a user account. Requires Admin role.</summary>
+    [HttpPost("/api/admin/users/{id:guid}/deactivate")]
+    [Authorize(Policy = "AdminOnly")]
+    [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeactivateUser(Guid id, CancellationToken ct)
+    {
+        var user = await _userRepo.GetByIdAsync(id, ct);
+        if (user is null) return NotFound();
+
+        user.IsActive = false;
+        await _userRepo.UpdateAsync(user, ct);
+        await _userRepo.SaveChangesAsync(ct);
+
+        _audit.Log(new AuditEntry(
+            Action:      DocumentSigning.Core.Enums.AuditActions.UserDeactivated,
+            EntityType:  DocumentSigning.Core.Enums.AuditEntities.User,
+            EntityId:    id,
+            Description: $"User {user.Email} deactivated by admin."));
+
+        return Ok(ToResponse(user));
+    }
+
     private static UserResponse ToResponse(Core.Entities.User u) =>
-        new(u.Id, u.Name, u.Email, u.Country, u.IsEmailVerified, u.AccessRole, u.CreatedAt);
+        new(u.Id, u.Name, u.Email, u.Country, u.IsEmailVerified, u.IsActive, u.AccessRole, u.CreatedAt);
 }

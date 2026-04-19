@@ -67,6 +67,7 @@ public class AuthController : ControllerBase
         if (existing is not null)
             return Conflict(new { message = "Email is already registered." });
 
+        var userRole = req.AccessRole ?? AccessRole.User;
         var user = new User
         {
             Id              = Guid.NewGuid(),
@@ -75,7 +76,8 @@ public class AuthController : ControllerBase
             PasswordHash    = PasswordHelper.Hash(req.Password),
             Country         = req.Country?.Trim(),
             IsEmailVerified = false,
-            AccessRole      = req.AccessRole ?? AccessRole.User,
+            IsActive        = userRole != AccessRole.Admin,
+            AccessRole      = userRole,
             CreatedAt       = DateTime.UtcNow
         };
 
@@ -132,6 +134,22 @@ public class AuthController : ControllerBase
         };
 
         await _outboxRepo.AddAsync(outboxJob, ct);
+
+        // If registering as Admin, send "pending approval" notification
+        if (user.AccessRole == AccessRole.Admin)
+        {
+            var pendingApprovalJob = new OutboxQueue
+            {
+                Id        = Guid.NewGuid(),
+                JobType   = JobTypes.SendAccountPendingApproval,
+                Payload   = JsonSerializer.Serialize(
+                                new AccountPendingApprovalPayload(normalizedEmail, user.Name)),
+                Status    = JobStatus.Pending,
+                CreatedAt = DateTime.UtcNow
+            };
+            await _outboxRepo.AddAsync(pendingApprovalJob, ct);
+        }
+
         await _userRepo.SaveChangesAsync(ct);   // saves User + EmailVerificationToken + OutboxJob (same DbContext)
 
         _audit.Log(new AuditEntry(
@@ -168,6 +186,18 @@ public class AuthController : ControllerBase
                 IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
                 UserAgent:   Request.Headers.UserAgent.ToString()));
             return Unauthorized(new { message = "Invalid email or password." });
+        }
+
+        if (!user.IsActive)
+        {
+            _audit.Log(new AuditEntry(
+                Action:      AuditActions.UserLoginBlocked,
+                EntityType:  AuditEntities.User,
+                Status:      AuditStatuses.Failure,
+                Description: $"Login blocked — account inactive: {normalizedEmail}",
+                IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                UserAgent:   Request.Headers.UserAgent.ToString()));
+            return Unauthorized(new { message = "Your account is pending admin approval." });
         }
 
         var jwt = _jwtService.GenerateToken(user);
