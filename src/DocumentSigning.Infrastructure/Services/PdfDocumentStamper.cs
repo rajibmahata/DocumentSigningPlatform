@@ -29,22 +29,45 @@ public class PdfDocumentStamper : IDocumentStamper
     private const string PdfContentType = "application/pdf";
 
     // Try progressively looser patterns.
-    // Some PDF renderers drop curly braces or encode them as different characters,
-    // so we fall back to matching just the key token text.
+    // Some PDF renderers drop curly braces, encode them differently, or inject spaces
+    // between characters (due to TJ-operator kerning). Space-tolerant variants (\s*)
+    // handle the case where iText7 inserts synthetic spaces inside the placeholder text.
     private static readonly Regex[] SigPatterns =
     [
-        new(@"\{signature:[^}]+\}",            RegexOptions.IgnoreCase),
-        new(@"signature:[^\s{}\r\n]+",          RegexOptions.IgnoreCase),
+        // Strict — exact form with curly braces
+        new(@"\{signature:[^}]+\}",                        RegexOptions.IgnoreCase),
+        // No curly braces (dropped by font encoding)
+        new(@"signature:[^\s{}\r\n]+",                     RegexOptions.IgnoreCase),
+        // Human-readable key words — literal + separator
         new(@"Please[\+\s\-_]{0,3}Sign[\+\s\-_]{0,3}Here", RegexOptions.IgnoreCase),
-        new(@"Please.{0,10}Sign.{0,10}Here",    RegexOptions.IgnoreCase),
+        new(@"Please.{0,10}Sign.{0,10}Here",               RegexOptions.IgnoreCase),
+        // Space-tolerant: handles spaces injected between chars by iText7
+        new(@"\{\s*signature\s*:[^}]*\}",                  RegexOptions.IgnoreCase),
+        new(@"signature\s*:[^\r\n]+",                       RegexOptions.IgnoreCase),
+        new(@"P\s*l\s*e\s*a\s*s\s*e.{0,25}S\s*i\s*g\s*n.{0,25}H\s*e\s*r\s*e", RegexOptions.IgnoreCase),
+        // URL-decoded form: + decoded to space → "Please Sign Here"
+        new(@"Please\s+Sign\s+Here",                        RegexOptions.IgnoreCase),
+        // Partial fallback: any text containing the key word "signature"
+        new(@"\bsignature\b",                               RegexOptions.IgnoreCase),
     ];
 
     private static readonly Regex[] DatePatterns =
     [
-        new(@"\{date:[^}]+\}",                 RegexOptions.IgnoreCase),
-        new(@"date:[^\s{}\r\n]+",               RegexOptions.IgnoreCase),
-        new(@"Date[\+\s\-_]{0,3}Here",          RegexOptions.IgnoreCase),
-        new(@"Date.{0,5}Here",                  RegexOptions.IgnoreCase),
+        // Strict — exact form with curly braces
+        new(@"\{date:[^}]+\}",                             RegexOptions.IgnoreCase),
+        // No curly braces (dropped by font encoding)
+        new(@"date:[^\s{}\r\n]+",                          RegexOptions.IgnoreCase),
+        // Human-readable key words
+        new(@"Date[\+\s\-_]{0,3}Here",                     RegexOptions.IgnoreCase),
+        new(@"Date.{0,5}Here",                             RegexOptions.IgnoreCase),
+        // Space-tolerant: handles spaces injected between chars by iText7
+        new(@"\{\s*date\s*:[^}]*\}",                       RegexOptions.IgnoreCase),
+        new(@"date\s*:[^\r\n]+",                            RegexOptions.IgnoreCase),
+        new(@"D\s*a\s*t\s*e.{0,15}H\s*e\s*r\s*e",          RegexOptions.IgnoreCase),
+        // URL-decoded form: + decoded to space → "Date Here"
+        new(@"Date\s+Here",                                 RegexOptions.IgnoreCase),
+        // Partial fallback: "signer" label used as a date anchor
+        new(@"signer[\s:]*date",                            RegexOptions.IgnoreCase),
     ];
 
     private readonly Microsoft.Extensions.Logging.ILogger? _logger;
@@ -213,6 +236,22 @@ public class PdfDocumentStamper : IDocumentStamper
                     return (p, rect);
                 }
             }
+
+            // Also try matching on whitespace-stripped text.
+            // iText7 can inject space chars between glyphs when TJ kerning values are large;
+            // stripping whitespace from both the extracted text and the chunks lets us
+            // still find the placeholder and recover its bounding rectangle.
+            foreach (var pattern in patterns)
+            {
+                var rect = strategy.GetBoundingRectFromStripped(pattern);
+                if (rect is not null)
+                {
+                    logger?.LogInformation(
+                        "PDF stamp: found '{Label}' placeholder on page {Page} (whitespace-stripped) using pattern '{Pattern}' → {Rect}",
+                        label, p, pattern.ToString(), rect);
+                    return (p, rect);
+                }
+            }
         }
 
         // ── Fallback 2: page annotations (/Contents text) ────────────────────────────
@@ -309,6 +348,169 @@ public class PdfDocumentStamper : IDocumentStamper
                 {
                     logger?.LogDebug(apEx, "PDF stamp: could not read annotation AP stream on page {Page}.", p);
                 }
+            }
+        }
+
+        // ── Fallback 5: location-sorted + whitespace-stripped matching ───────────────
+        // iText7 fires TextRenderInfo events in PDF stream order, which is not always
+        // reading order. Sort chunks top-to-bottom/left-to-right AND strip all whitespace
+        // so that character-spaced TJ text still matches.
+        for (int p = 1; p <= totalPages; p++)
+        {
+            var strategy5 = new AllChunksStrategy();
+            new PdfCanvasProcessor(strategy5).ProcessPageContent(pdfDoc.GetPage(p));
+
+            foreach (var pattern in patterns)
+            {
+                var rect = strategy5.GetBoundingRectSortedAndStripped(pattern);
+                if (rect is not null)
+                {
+                    logger?.LogInformation(
+                        "PDF stamp: found '{Label}' via sorted+stripped strategy on page {Page} " +
+                        "using pattern '{Pattern}' → {Rect}",
+                        label, p, pattern.ToString(), rect);
+                    return (p, rect);
+                }
+            }
+        }
+
+        // ── Fallback 6: LocationTextExtractionStrategy text → stripped bounds ─────────
+        // Use iText7's built-in location-aware extraction (handles reading order +
+        // word-space insertion) to test whether any pattern matches, then recover the
+        // spatial bounds through the stripped chunk index.
+        for (int p = 1; p <= totalPages; p++)
+        {
+            string locText;
+            try
+            {
+                locText = PdfTextExtractor.GetTextFromPage(
+                    pdfDoc.GetPage(p), new LocationTextExtractionStrategy());
+                logger?.LogInformation(
+                    "PDF stamp: page {Page} location-sorted text (first 500 chars): {Text}",
+                    p, locText.Length > 500 ? locText[..500] : locText);
+            }
+            catch (Exception lex)
+            {
+                logger?.LogDebug(lex, "PDF stamp: LocationTextExtractionStrategy failed on page {Page}.", p);
+                continue;
+            }
+
+            foreach (var pattern in patterns)
+            {
+                if (!pattern.IsMatch(locText)) continue;
+
+                // Pattern confirmed present in location-sorted text.
+                // Recover bounds by stripping the matched text and searching chunks.
+                var matchValue = pattern.Match(locText).Value;
+                var compactMatch = Regex.Replace(matchValue, @"\s+", "");
+
+                var strategy6 = new AllChunksStrategy();
+                new PdfCanvasProcessor(strategy6).ProcessPageContent(pdfDoc.GetPage(p));
+
+                var compactPattern = new Regex(Regex.Escape(compactMatch), RegexOptions.IgnoreCase);
+                var rect = strategy6.GetBoundingRectFromStripped(compactPattern)
+                         ?? strategy6.GetBoundingRectFromStripped(pattern);
+                if (rect is not null)
+                {
+                    logger?.LogInformation(
+                        "PDF stamp: found '{Label}' via LocationTextExtractionStrategy on page {Page} " +
+                        "using pattern '{Pattern}' → {Rect}",
+                        label, p, pattern.ToString(), rect);
+                    return (p, rect);
+                }
+            }
+        }
+
+        // ── Fallback 7: URL-decoded text (replace + with space) ──────────────────────
+        // Word processors and PDF export tools sometimes decode the URL-encoded label
+        // so "Please+Sign+Here" becomes "Please Sign Here" in the PDF text stream.
+        for (int p = 1; p <= totalPages; p++)
+        {
+            var strategy7 = new AllChunksStrategy();
+            new PdfCanvasProcessor(strategy7).ProcessPageContent(pdfDoc.GetPage(p));
+
+            // Try both: decoded full text and decoded stripped text
+            var rawText     = strategy7.GetFullText();
+            var decodedText = rawText.Replace('+', ' ');
+
+            foreach (var pattern in patterns)
+            {
+                if (!pattern.IsMatch(decodedText)) continue;
+
+                // The pattern matches in decoded text — try to find the rect using the
+                // decoded chunks (rebuild a strategy operating on decoded text).
+                var decodedStrategy = new AllChunksStrategy();
+                new PdfCanvasProcessor(decodedStrategy).ProcessPageContent(pdfDoc.GetPage(p));
+
+                var rect = decodedStrategy.GetBoundingRectDecoded(pattern);
+                if (rect is not null)
+                {
+                    logger?.LogInformation(
+                        "PDF stamp: found '{Label}' via URL-decoded text on page {Page} " +
+                        "using pattern '{Pattern}' → {Rect}",
+                        label, p, pattern.ToString(), rect);
+                    return (p, rect);
+                }
+            }
+        }
+
+        // ── Fallback 8: raw content stream scan ──────────────────────────────────────
+        // Read the raw bytes of each page's content stream as Latin-1 text and scan
+        // with all patterns. When a match is found, return the nearest text chunk
+        // bounding rectangle from the parsed strategy as an approximation.
+        for (int p = 1; p <= totalPages; p++)
+        {
+            try
+            {
+                var pageObj  = pdfDoc.GetPage(p).GetPdfObject();
+                var contents = pageObj.Get(PdfName.Contents);
+                string rawStream = string.Empty;
+
+                if (contents is PdfStream stream8)
+                {
+                    rawStream = System.Text.Encoding.Latin1.GetString(stream8.GetBytes(true));
+                }
+                else if (contents is PdfArray arr8)
+                {
+                    var sb8 = new System.Text.StringBuilder();
+                    foreach (var item in arr8)
+                        if (item is PdfStream s8)
+                            sb8.Append(System.Text.Encoding.Latin1.GetString(s8.GetBytes(true)));
+                    rawStream = sb8.ToString();
+                }
+
+                if (string.IsNullOrEmpty(rawStream)) continue;
+
+                // Also try decoded version of raw stream
+                var decodedStream = rawStream.Replace('+', ' ');
+
+                foreach (var pattern in patterns)
+                {
+                    if (!pattern.IsMatch(rawStream) && !pattern.IsMatch(decodedStream)) continue;
+
+                    logger?.LogInformation(
+                        "PDF stamp: found '{Label}' in raw content stream on page {Page}. " +
+                        "Using approximate position from text chunks.",
+                        label, p);
+
+                    // Return approximate position: centroid of all text chunks on this page
+                    var strategy8 = new AllChunksStrategy();
+                    new PdfCanvasProcessor(strategy8).ProcessPageContent(pdfDoc.GetPage(p));
+                    var approxRect = strategy8.GetApproximateRectForKeyword(pattern);
+                    if (approxRect is not null)
+                        return (p, approxRect);
+
+                    // Last resort: use full page area
+                    var pageSize = pdfDoc.GetPage(p).GetPageSize();
+                    return (p, new Rectangle(
+                        pageSize.GetWidth() - 250f,
+                        pageSize.GetHeight() / 2f - 30f,
+                        200f, 50f));
+                }
+            }
+            catch (Exception ex8)
+            {
+                logger?.LogDebug(ex8, "PDF stamp: raw content stream scan failed on page {Page}.", p);
             }
         }
 
@@ -433,6 +635,207 @@ public class PdfDocumentStamper : IDocumentStamper
             return new Rectangle(minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2);
         }
 
+        /// <summary>
+        /// Sorts chunks by reading order (top-to-bottom, left-to-right), strips all whitespace,
+        /// concatenates, and finds the bounding rectangle for the first pattern match.
+        /// Handles both wrong render order and spaces injected between glyphs.
+        /// </summary>
+        public Rectangle? GetBoundingRectSortedAndStripped(Regex pattern)
+        {
+            // Group chunks into lines (within 3 pt of same Y), then sort lines top→bottom
+            // and chunks within a line left→right.
+            var sorted = _chunks
+                .OrderByDescending(c => (float)Math.Round(c.YTop / 4f) * 4f)
+                .ThenBy(c => c.X0)
+                .ToList();
+
+            var sb        = new System.Text.StringBuilder();
+            var positions = new List<(int compactStart, int compactEnd, int idx)>();
+
+            for (int i = 0; i < sorted.Count; i++)
+            {
+                var stripped = Regex.Replace(sorted[i].Text, @"\s", "");
+                if (stripped.Length == 0) continue;
+                int start = sb.Length;
+                sb.Append(stripped);
+                positions.Add((start, sb.Length, i));
+            }
+
+            var compactText = sb.ToString();
+            if (!pattern.IsMatch(compactText)) return null;
+
+            var match      = pattern.Match(compactText);
+            int matchStart = match.Index;
+            int matchEnd   = match.Index + match.Length;
+
+            float minX = float.MaxValue, minY = float.MaxValue;
+            float maxX = float.MinValue, maxY = float.MinValue;
+            bool  found = false;
+
+            foreach (var (compactStart, compactEnd, idx) in positions)
+            {
+                if (compactEnd > matchStart && compactStart < matchEnd)
+                {
+                    var chunk = sorted[idx];
+                    minX = Math.Min(minX, chunk.X0);
+                    minY = Math.Min(minY, chunk.YBottom);
+                    maxX = Math.Max(maxX, chunk.X1);
+                    maxY = Math.Max(maxY, chunk.YTop);
+                    found = true;
+                }
+            }
+
+            if (!found) return null;
+            const float pad = 3f;
+            return new Rectangle(minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2);
+        }
+
+        /// <summary>
+        /// Strips all whitespace from each chunk's text (in original render order), rebuilds
+        /// a compact string, then finds the bounding rectangle for the first pattern match.
+        /// Handles PDFs where iText7 injects synthetic spaces between glyphs
+        /// due to TJ-operator kerning values.
+        /// </summary>
+        public Rectangle? GetBoundingRectFromStripped(Regex pattern)
+        {
+            var sb        = new System.Text.StringBuilder();
+            var positions = new List<(int compactStart, int compactEnd, int chunkIdx)>();
+
+            for (int i = 0; i < _chunks.Count; i++)
+            {
+                // Remove every whitespace character from the chunk text
+                var stripped = Regex.Replace(_chunks[i].Text, @"\s", "");
+                if (stripped.Length == 0) continue;
+
+                int start = sb.Length;
+                sb.Append(stripped);
+                positions.Add((start, sb.Length, i));
+            }
+
+            var compactText = sb.ToString();
+            if (!pattern.IsMatch(compactText)) return null;
+
+            var match      = pattern.Match(compactText);
+            int matchStart = match.Index;
+            int matchEnd   = match.Index + match.Length;
+
+            float minX = float.MaxValue, minY = float.MaxValue;
+            float maxX = float.MinValue, maxY = float.MinValue;
+            bool  found = false;
+
+            foreach (var (compactStart, compactEnd, idx) in positions)
+            {
+                if (compactEnd > matchStart && compactStart < matchEnd)
+                {
+                    var chunk = _chunks[idx];
+                    minX = Math.Min(minX, chunk.X0);
+                    minY = Math.Min(minY, chunk.YBottom);
+                    maxX = Math.Max(maxX, chunk.X1);
+                    maxY = Math.Max(maxY, chunk.YTop);
+                    found = true;
+                }
+            }
+
+            if (!found) return null;
+
+            const float pad = 3f;
+            return new Rectangle(minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2);
+        }
+
         private record TextChunk(string Text, float X0, float X1, float YBottom, float YTop);
+
+        /// <summary>
+        /// Replaces '+' with ' ' in every chunk's text (URL-decode), then builds a compact
+        /// whitespace-stripped string and finds the bounding rectangle for the pattern match.
+        /// </summary>
+        public Rectangle? GetBoundingRectDecoded(Regex pattern)
+        {
+            var sb        = new System.Text.StringBuilder();
+            var positions = new List<(int compactStart, int compactEnd, int chunkIdx)>();
+
+            for (int i = 0; i < _chunks.Count; i++)
+            {
+                var decoded  = _chunks[i].Text.Replace('+', ' ');
+                var stripped = Regex.Replace(decoded, @"\s", "");
+                if (stripped.Length == 0) continue;
+
+                int start = sb.Length;
+                sb.Append(stripped);
+                positions.Add((start, sb.Length, i));
+            }
+
+            var compactText = sb.ToString();
+            if (!pattern.IsMatch(compactText)) return null;
+
+            var match      = pattern.Match(compactText);
+            int matchStart = match.Index;
+            int matchEnd   = match.Index + match.Length;
+
+            float minX = float.MaxValue, minY = float.MaxValue;
+            float maxX = float.MinValue, maxY = float.MinValue;
+            bool  found = false;
+
+            foreach (var (compactStart, compactEnd, idx) in positions)
+            {
+                if (compactEnd > matchStart && compactStart < matchEnd)
+                {
+                    var chunk = _chunks[idx];
+                    minX = Math.Min(minX, chunk.X0);
+                    minY = Math.Min(minY, chunk.YBottom);
+                    maxX = Math.Max(maxX, chunk.X1);
+                    maxY = Math.Max(maxY, chunk.YTop);
+                    found = true;
+                }
+            }
+
+            if (!found) return null;
+            const float pad = 3f;
+            return new Rectangle(minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2);
+        }
+
+        /// <summary>
+        /// Finds the bounding rectangle of the chunk whose text best matches the pattern,
+        /// or falls back to the centroid region if no single chunk matches.
+        /// Used as an approximation when the placeholder was found in the raw stream
+        /// but position recovery through iText7 events fails.
+        /// </summary>
+        public Rectangle? GetApproximateRectForKeyword(Regex pattern)
+        {
+            // First: try to find a single chunk that matches the pattern (or decoded version)
+            foreach (var chunk in _chunks)
+            {
+                var decoded = chunk.Text.Replace('+', ' ');
+                if (pattern.IsMatch(chunk.Text) || pattern.IsMatch(decoded))
+                {
+                    const float pad = 5f;
+                    return new Rectangle(
+                        chunk.X0 - pad, chunk.YBottom - pad,
+                        chunk.X1 - chunk.X0 + pad * 2,
+                        chunk.YTop - chunk.YBottom + pad * 2);
+                }
+            }
+
+            // Second: try nearby chunks using the compact stripped approach
+            if (_chunks.Count == 0) return null;
+
+            // Sort by position and look for keyword proximity
+            var sorted = _chunks.OrderByDescending(c => c.YTop).ThenBy(c => c.X0).ToList();
+            for (int window = 3; window <= 20; window++)
+            {
+                for (int i = 0; i <= sorted.Count - window; i++)
+                {
+                    var windowText = string.Concat(sorted.Skip(i).Take(window).Select(c => c.Text.Replace('+', ' ')));
+                    if (!pattern.IsMatch(windowText)) continue;
+
+                    var slice = sorted.Skip(i).Take(window).ToList();
+                    float minX = slice.Min(c => c.X0),   minY = slice.Min(c => c.YBottom);
+                    float maxX = slice.Max(c => c.X1),   maxY = slice.Max(c => c.YTop);
+                    const float pad = 3f;
+                    return new Rectangle(minX - pad, minY - pad, maxX - minX + pad * 2, maxY - minY + pad * 2);
+                }
+            }
+
+            return null;
+        }
     }
 }

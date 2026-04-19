@@ -16,12 +16,12 @@ import type { InitiateEnvelopeResponse } from '@/types';
 export default function EnvelopesPage() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get('tab') === 'completed' ? 'completed' : 'active';
-  const [tab, setTab] = useState<'active' | 'completed'>(initialTab);
+  const initialTab = searchParams.get('tab') === 'closed' ? 'closed' : 'active';
+  const [tab, setTab] = useState<'active' | 'closed'>(initialTab);
 
   useEffect(() => {
     const t = searchParams.get('tab');
-    if (t === 'active' || t === 'completed') setTab(t);
+    if (t === 'active' || t === 'closed') setTab(t);
   }, [searchParams]);
 
   const { data: merchants } = useQuery({
@@ -37,10 +37,13 @@ export default function EnvelopesPage() {
     enabled: !!merchant,
   });
 
+  const ACTIVE_STATUSES   = ['Processing', 'Sent', 'Signed'] as const;
+  const CLOSED_STATUSES   = ['Completed', 'Failed', 'Cancelled', 'Expired', 'Rejected'] as const;
+
   const filtered = envelopes?.filter((e) =>
     tab === 'active'
-      ? e.status === 'Sent' || e.status === 'InProgress'
-      : e.status === 'Completed',
+      ? (ACTIVE_STATUSES as readonly string[]).includes(e.status)
+      : (CLOSED_STATUSES as readonly string[]).includes(e.status),
   ) ?? [];
 
   return (
@@ -54,10 +57,10 @@ export default function EnvelopesPage() {
         <TabsList>
           <TabsTrigger value="active">
             <Clock className="h-4 w-4 mr-1.5" />
-            Active ({envelopes?.filter((e) => e.status === 'Sent' || e.status === 'InProgress').length ?? 0})
+            Active ({envelopes?.filter((e) => (ACTIVE_STATUSES as readonly string[]).includes(e.status)).length ?? 0})
           </TabsTrigger>
-          <TabsTrigger value="completed">
-            Completed ({envelopes?.filter((e) => e.status === 'Completed').length ?? 0})
+          <TabsTrigger value="closed">
+            Closed ({envelopes?.filter((e) => (CLOSED_STATUSES as readonly string[]).includes(e.status)).length ?? 0})
           </TabsTrigger>
         </TabsList>
 
@@ -69,7 +72,7 @@ export default function EnvelopesPage() {
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <FileText className="h-10 w-10 text-gray-300 mb-3" />
-              <p className="text-sm text-gray-500">No {tab === 'active' ? 'active' : 'completed'} envelopes.</p>
+              <p className="text-sm text-gray-500">No {tab === 'active' ? 'active' : 'closed'} envelopes.</p>
               {tab === 'active' && (
                 <Button size="sm" className="mt-4" asChild>
                   <Link href="/dashboard/send">Send Envelope</Link>
@@ -94,7 +97,7 @@ function EnvelopeCard({
 }: {
   env: InitiateEnvelopeResponse;
   apiKey: string;
-  tab: 'active' | 'completed';
+  tab: 'active' | 'closed';
 }) {
   const handleViewSigned = async () => {
     try {
@@ -139,7 +142,7 @@ function EnvelopeCard({
           <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusColor(env.status)}`}>
             {env.status}
           </span>
-          {tab === 'completed' ? (
+          {tab === 'closed' && env.status === 'Completed' ? (
             <Button size="sm" variant="outline" onClick={handleViewSigned}>
               <Download className="h-3.5 w-3.5" /> Download
             </Button>

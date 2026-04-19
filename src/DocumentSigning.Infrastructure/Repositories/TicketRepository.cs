@@ -32,6 +32,24 @@ public class TicketRepository : ITicketRepository
               .OrderByDescending(t => t.CreatedAt)
               .ToListAsync(ct);
 
+    public Task<int> CountAllAsync(CancellationToken ct = default)
+        => _db.Tickets.CountAsync(ct);
+
+    public Task<int> CountByStatusAsync(string status, CancellationToken ct = default)
+        => _db.Tickets.CountAsync(t => t.Status == status, ct);
+
+    public async Task<List<(DateOnly Date, int Count)>> CountByDayAsync(int days, CancellationToken ct = default)
+    {
+        var since = DateTime.UtcNow.Date.AddDays(-(days - 1));
+        var rows = await _db.Tickets
+            .Where(t => t.CreatedAt >= since)
+            .GroupBy(t => t.CreatedAt.Date)
+            .Select(g => new { Date = g.Key, Count = g.Count() })
+            .OrderBy(x => x.Date)
+            .ToListAsync(ct);
+        return rows.Select(r => (DateOnly.FromDateTime(r.Date), r.Count)).ToList();
+    }
+
     public async Task AddTicketAsync(Ticket ticket, CancellationToken ct = default)
         => await _db.Tickets.AddAsync(ticket, ct);
 

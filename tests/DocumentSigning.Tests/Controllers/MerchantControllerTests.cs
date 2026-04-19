@@ -12,10 +12,11 @@ namespace DocumentSigning.Tests.Controllers;
 public class MerchantControllerTests
 {
     private readonly Mock<IMerchantRepository> _merchantRepo = new();
+    private readonly Mock<IAuditService>       _audit        = new();
 
     private MerchantController CreateController()
     {
-        var controller = new MerchantController(_merchantRepo.Object);
+        var controller = new MerchantController(_merchantRepo.Object, _audit.Object);
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()

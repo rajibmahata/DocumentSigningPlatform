@@ -12,7 +12,8 @@ namespace DocumentSigning.Tests.Controllers;
 
 public class AdminTicketsControllerTests
 {
-    private readonly Mock<ITicketRepository> _repo = new();
+    private readonly Mock<ITicketRepository> _repo  = new();
+    private readonly Mock<IAuditService>     _audit = new();
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -21,7 +22,7 @@ public class AdminTicketsControllerTests
         var identity  = new ClaimsIdentity(new[] { new System.Security.Claims.Claim(ClaimTypes.Role, "Admin") }, "Test");
         var principal = new ClaimsPrincipal(identity);
 
-        return new AdminTicketsController(_repo.Object)
+        return new AdminTicketsController(_repo.Object, _audit.Object)
         {
             ControllerContext = new ControllerContext
             {

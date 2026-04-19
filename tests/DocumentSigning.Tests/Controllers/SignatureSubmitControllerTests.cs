@@ -13,18 +13,24 @@ namespace DocumentSigning.Tests.Controllers;
 
 public class SignatureSubmitControllerTests
 {
-    private readonly Mock<ISigningRequestRepository> _signingRequestRepo = new();
-    private readonly Mock<IOutboxQueueRepository> _outboxRepo = new();
-    private readonly Mock<IAuditLogRepository> _auditRepo = new();
-    private readonly Mock<ITokenService> _tokenService = new();
+    private readonly Mock<ISigningRequestRepository>  _signingRequestRepo = new();
+    private readonly Mock<IOutboxQueueRepository>     _outboxRepo         = new();
+    private readonly Mock<IAuditService>              _audit              = new();
+    private readonly Mock<ITokenService>              _tokenService       = new();
+    private readonly Mock<IDocumentRepository>        _documentRepo       = new();
+    private readonly Mock<IClaimRepository>           _claimRepo          = new();
+    private readonly Mock<ISigningEnvelopeRepository> _envelopeRepo       = new();
 
     private SignatureSubmitController CreateController()
     {
         var controller = new SignatureSubmitController(
             _signingRequestRepo.Object,
             _outboxRepo.Object,
-            _auditRepo.Object,
-            _tokenService.Object);
+            _audit.Object,
+            _tokenService.Object,
+            _documentRepo.Object,
+            _claimRepo.Object,
+            _envelopeRepo.Object);
 
         controller.ControllerContext = new ControllerContext
         {
@@ -168,13 +174,127 @@ public class SignatureSubmitControllerTests
             .Returns(Task.CompletedTask);
         _outboxRepo.Setup(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-        _auditRepo.Setup(r => r.AppendAsync(It.IsAny<AuditLog>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        _auditRepo.Setup(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        _documentRepo.Setup(r => r.GetWithEnvelopeAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Document?)null);
+        _claimRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((DocumentSigning.Core.Entities.Claim?)null);
 
         var result = await CreateController().Submit("tok", ValidRequest(), CancellationToken.None);
 
         result.Should().BeOfType<AcceptedResult>();
+    }
+
+    // ── Reject ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Reject_ReturnsNotFound_WhenTokenMissing()
+    {
+        _signingRequestRepo.Setup(r => r.GetByTokenAsync("bad", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((SigningRequest?)null);
+
+        var result = await CreateController().Reject("bad", new RejectSignatureRequest(), CancellationToken.None);
+
+        result.Should().BeOfType<NotFoundObjectResult>()
+            .Which.Value.Should().Be("Token not found.");
+    }
+
+    [Fact]
+    public async Task Reject_ReturnsGone_WhenTokenExpired()
+    {
+        var sr = MakePendingRequest("tok");
+        sr.ExpiresAt = DateTime.UtcNow.AddDays(-1);
+
+        _signingRequestRepo.Setup(r => r.GetByTokenAsync("tok", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(sr);
+
+        var result = await CreateController().Reject("tok", new RejectSignatureRequest(), CancellationToken.None);
+
+        result.Should().BeOfType<ObjectResult>()
+            .Which.StatusCode.Should().Be(StatusCodes.Status410Gone);
+    }
+
+    [Fact]
+    public async Task Reject_ReturnsBadRequest_WhenSigningRequestNotPending()
+    {
+        var sr = MakePendingRequest("tok");
+        sr.Status = SigningStatus.Signed;
+
+        _signingRequestRepo.Setup(r => r.GetByTokenAsync("tok", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(sr);
+
+        var result = await CreateController().Reject("tok", new RejectSignatureRequest(), CancellationToken.None);
+
+        result.Should().BeOfType<BadRequestObjectResult>()
+            .Which.Value.Should().Be("This signing request is no longer pending.");
+    }
+
+    [Fact]
+    public async Task Reject_ReturnsBadRequest_WhenTokenSignatureInvalid()
+    {
+        var sr = MakePendingRequest("tok");
+
+        _signingRequestRepo.Setup(r => r.GetByTokenAsync("tok", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(sr);
+        _tokenService.Setup(t => t.ValidateTokenSignature("tok", sr.ClaimId, sr.DocumentId))
+            .Returns(false);
+
+        var result = await CreateController().Reject("tok", new RejectSignatureRequest(), CancellationToken.None);
+
+        result.Should().BeOfType<BadRequestObjectResult>()
+            .Which.Value.Should().Be("Invalid token signature.");
+    }
+
+    [Fact]
+    public async Task Reject_ReturnsNoContent_WhenValid()
+    {
+        var sr = MakePendingRequest("tok");
+
+        _signingRequestRepo.Setup(r => r.GetByTokenAsync("tok", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(sr);
+        _tokenService.Setup(t => t.ValidateTokenSignature("tok", sr.ClaimId, sr.DocumentId))
+            .Returns(true);
+        _signingRequestRepo.Setup(r => r.UpdateAsync(sr, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _signingRequestRepo.Setup(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _documentRepo.Setup(r => r.GetWithEnvelopeAsync(sr.DocumentId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Document?)null);
+        _claimRepo.Setup(r => r.GetByIdAsync(sr.ClaimId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((DocumentSigning.Core.Entities.Claim?)null);
+
+        var result = await CreateController().Reject("tok", new RejectSignatureRequest("Unacceptable terms."), CancellationToken.None);
+
+        result.Should().BeOfType<NoContentResult>();
+        sr.Status.Should().Be(SigningStatus.Failed);
+    }
+
+    [Fact]
+    public async Task Reject_RejectsEnvelope_WhenDocumentEnvelopeFound()
+    {
+        var sr       = MakePendingRequest("tok");
+        var envelope = new SigningEnvelope { Id = Guid.NewGuid(), Status = EnvelopeStatus.Sent, MerchantId = Guid.NewGuid() };
+        var document = new Document { Id = sr.DocumentId, Envelope = envelope, EnvelopeId = envelope.Id };
+
+        _signingRequestRepo.Setup(r => r.GetByTokenAsync("tok", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(sr);
+        _tokenService.Setup(t => t.ValidateTokenSignature("tok", sr.ClaimId, sr.DocumentId))
+            .Returns(true);
+        _signingRequestRepo.Setup(r => r.UpdateAsync(sr, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _signingRequestRepo.Setup(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _documentRepo.Setup(r => r.GetWithEnvelopeAsync(sr.DocumentId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(document);
+        _envelopeRepo.Setup(r => r.UpdateAsync(envelope, It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _envelopeRepo.Setup(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _claimRepo.Setup(r => r.GetByIdAsync(sr.ClaimId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((DocumentSigning.Core.Entities.Claim?)null);
+
+        var result = await CreateController().Reject("tok", new RejectSignatureRequest(), CancellationToken.None);
+
+        result.Should().BeOfType<NoContentResult>();
+        envelope.Status.Should().Be(EnvelopeStatus.Rejected);
     }
 }

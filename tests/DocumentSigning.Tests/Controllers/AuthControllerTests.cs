@@ -64,9 +64,11 @@ public class AuthControllerTests
                      .ReturnsAsync(new List<Core.Entities.Merchant>().AsReadOnly());
     }
 
+    private readonly Mock<IAuditService> _audit = new();
+
     private AuthController CreateController() =>
         new(_userRepo.Object, _tokenRepo.Object, _resetTokenRepo.Object,
-            _outboxRepo.Object, _jwtService.Object, _config, _merchantRepo.Object)
+            _outboxRepo.Object, _jwtService.Object, _config, _merchantRepo.Object, _audit.Object)
         {
             ControllerContext = new ControllerContext
             {

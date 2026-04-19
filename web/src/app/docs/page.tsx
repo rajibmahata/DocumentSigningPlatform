@@ -99,7 +99,7 @@ const SECTIONS: Section[] = [
       {
         id: 'analytics-summary', method: 'GET', path: '/api/analytics/summary',
         title: 'Platform Summary',
-        description: 'Returns aggregate counts for users, envelopes, and signed documents across the platform. Requires Admin role.',
+        description: 'Returns aggregate counts for users, envelopes, signed documents, and support tickets across the platform. Requires Admin role.',
         auth: 'bearer',
         response: JSON.stringify({
           totalUsers: 42,
@@ -107,6 +107,11 @@ const SECTIONS: Section[] = [
           totalEnvelopesSigned: 98,
           totalEnvelopesCancelled: 5,
           totalDocumentsSigned: 211,
+          totalTickets: 18,
+          openTickets: 4,
+          inProgressTickets: 3,
+          resolvedTickets: 8,
+          closedTickets: 3,
         }, null, 2),
       },
       {
@@ -119,6 +124,7 @@ const SECTIONS: Section[] = [
           userRegistrations: [{ date: '2026-03-15', count: 3 }, { date: '2026-03-16', count: 5 }],
           envelopesSent:     [{ date: '2026-03-15', count: 8 }, { date: '2026-03-16', count: 12 }],
           documentsSigned:   [{ date: '2026-03-15', count: 6 }, { date: '2026-03-16', count: 9 }],
+          ticketsCreated:    [{ date: '2026-03-15', count: 2 }, { date: '2026-03-16', count: 1 }],
         }, null, 2),
       },
     ],
@@ -171,12 +177,21 @@ const SECTIONS: Section[] = [
         response: JSON.stringify({ envelopeId: 'uuid', title: 'Employment Contract', status: 'Pending', sentDate: '2025-01-01T00:00:00Z', signers: [{ signingToken: 'uuid', status: 'Pending' }] }, null, 2),
       },
       {
-        id: 'list-envelopes', method: 'GET', path: '/api/envelopes',
-        title: 'List Envelopes',
-        description: 'Get all envelopes for the authenticated merchant.',
+        id: 'cancel-envelope', method: 'PUT', path: '/api/envelopes/{id}/cancel',
+        title: 'Cancel Envelope',
+        description: 'Cancel an envelope, preventing further signing. Only envelopes in `Processing`, `Sent`, or `Signed` state can be cancelled. Returns 204 No Content.',
         auth: 'api-key',
         headers: { 'X-Api-Key': 'YOUR_API_KEY' },
-        response: JSON.stringify([{ envelopeId: 'uuid', title: 'Employment Contract', status: 'Signed' }], null, 2),
+        params: [{ name: 'id', type: 'string', required: true, description: 'Envelope UUID' }],
+        response: '204 No Content',
+      },
+      {
+        id: 'list-envelopes', method: 'GET', path: '/api/envelopes',
+        title: 'List Envelopes',
+        description: 'Get all envelopes for the authenticated merchant. **Status values:** `Processing` | `Sent` | `Signed` | `Completed` | `Failed` | `Cancelled` | `Expired` | `Rejected`',
+        auth: 'api-key',
+        headers: { 'X-Api-Key': 'YOUR_API_KEY' },
+        response: JSON.stringify([{ envelopeId: 'uuid', title: 'Employment Contract', status: 'Sent' }], null, 2),
       },
       {
         id: 'get-envelope', method: 'GET', path: '/api/envelopes/{id}',
@@ -268,9 +283,17 @@ const SECTIONS: Section[] = [
         response: JSON.stringify({ message: 'Signature submitted successfully.' }, null, 2),
       },
       {
+        id: 'reject-document', method: 'POST', path: '/api/portal/reject/{token}',
+        title: 'Reject Document',
+        description: 'Signer rejects the document. Sets the envelope status to `Rejected`. Token must still be valid (not expired). `reason` is optional.',
+        params: [{ name: 'token', type: 'string', required: true, description: 'Signing token UUID from the email link' }],
+        body: JSON.stringify({ reason: 'Terms are not acceptable.' }, null, 2),
+        response: '204 No Content',
+      },
+      {
         id: 'my-envelopes', method: 'GET', path: '/api/portal/my-envelopes',
         title: 'Get My Envelopes',
-        description: 'Returns all envelopes where the authenticated user (identified by the JWT email claim) is listed as a signer — both pending and historical. Use the `signingToken` field from each result to build the signing URL: `/sign/{signingToken}`.\n\n**Status values:** `Sent` | `InProgress` | `Completed` | `Cancelled`',
+        description: 'Returns all envelopes where the authenticated user (identified by the JWT email claim) is listed as a signer — both pending and historical. Use the `signingToken` field from each result to build the signing URL: `/sign/{signingToken}`.\n\n**Status values:** `Processing` | `Sent` | `Signed` | `Completed` | `Failed` | `Cancelled` | `Expired` | `Rejected`',
         auth: 'bearer',
         response: JSON.stringify([
           {

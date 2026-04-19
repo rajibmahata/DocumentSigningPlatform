@@ -30,7 +30,8 @@ public class AdminAuditController : ControllerBase
     /// Document.SignatureSubmitted, User.Registered, User.LoggedIn, User.LoginFailed,
     /// User.EmailVerified, User.PasswordResetRequested, User.PasswordReset, User.Updated,
     /// Merchant.Created, Merchant.Updated, Merchant.ApiKeyRegenerated, Merchant.LimitUpdated,
-    /// Ticket.Created, Ticket.Updated, Ticket.Replied, Ticket.Closed, Ticket.Resolved, Portal.Opened.
+    /// Ticket.Created, Ticket.Updated, Ticket.Replied, Ticket.Closed, Ticket.Resolved, Portal.Opened,
+    /// Envelope.Rejected, Envelope.Failed, Envelope.Expired.
     ///
     /// **Supported `entityType` values:** Envelope, Document, User, Merchant, Ticket, Portal.
     ///

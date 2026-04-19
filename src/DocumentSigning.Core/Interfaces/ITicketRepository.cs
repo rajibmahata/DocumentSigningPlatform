@@ -12,6 +12,10 @@ public interface ITicketRepository
 
     Task<List<Ticket>> GetAllAsync(CancellationToken ct = default);
 
+    Task<int> CountAllAsync(CancellationToken ct = default);
+    Task<int> CountByStatusAsync(string status, CancellationToken ct = default);
+    Task<List<(DateOnly Date, int Count)>> CountByDayAsync(int days, CancellationToken ct = default);
+
     Task AddTicketAsync(Ticket ticket, CancellationToken ct = default);
 
     // ── Messages ──────────────────────────────────────────────────────────────

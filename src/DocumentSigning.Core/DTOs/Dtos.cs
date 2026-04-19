@@ -50,12 +50,19 @@ public record AnalyticsSummaryResponse(
     int TotalEnvelopesSent,
     int TotalEnvelopesSigned,
     int TotalEnvelopesCancelled,
-    int TotalDocumentsSigned);
+    int TotalDocumentsSigned,
+    // Ticket breakdown
+    int TotalTickets,
+    int OpenTickets,
+    int InProgressTickets,
+    int ResolvedTickets,
+    int ClosedTickets);
 
 public record AnalyticsTrendResponse(
     List<DailyCount> UserRegistrations,
     List<DailyCount> EnvelopesSent,
-    List<DailyCount> DocumentsSigned);
+    List<DailyCount> DocumentsSigned,
+    List<DailyCount> TicketsCreated);
 
 // ── Envelope / multi-signer initiate ─────────────────────────────────────────
 
@@ -148,6 +155,9 @@ public record DocumentPreviewResponse(
 
 public record SubmitSignatureRequest(
     string SignatureBase64);
+
+public record RejectSignatureRequest(
+    string? Reason = null);
 
 // ── Signer "my envelopes" ─────────────────────────────────────────────────────
 
