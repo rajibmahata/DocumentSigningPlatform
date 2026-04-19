@@ -135,7 +135,7 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
                 <Badge
                   variant={
                     signer.status === 'Signed'  ? 'success' :
-                    signer.status === 'Expired' || signer.status === 'Failed' ? 'destructive' :
+                    signer.status === 'Expired' || signer.status === 'Failed' ? 'danger' :
                     'warning'
                   }
                 >
