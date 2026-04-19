@@ -34,6 +34,7 @@ public class EnvelopeController : ControllerBase
     private readonly IWebhookService _webhookService;
     private readonly IEmailService _emailService;
     private readonly IUserRepository _userRepo;
+    private readonly ISignerContactService _signerContactService;
 
     public EnvelopeController(
         IMerchantRepository merchantRepo,
@@ -47,7 +48,8 @@ public class EnvelopeController : ControllerBase
         IConfiguration config,
         IWebhookService webhookService,
         IEmailService emailService,
-        IUserRepository userRepo)
+        IUserRepository userRepo,
+        ISignerContactService signerContactService)
     {
         _merchantRepo = merchantRepo;
         _envelopeRepo = envelopeRepo;
@@ -61,6 +63,7 @@ public class EnvelopeController : ControllerBase
         _webhookService = webhookService;
         _emailService = emailService;
         _userRepo = userRepo;
+        _signerContactService = signerContactService;
     }
 
     /// <summary>
@@ -178,6 +181,13 @@ public class EnvelopeController : ControllerBase
 
         await _envelopeRepo.AddAsync(envelope, ct);
         await _envelopeRepo.SaveChangesAsync(ct);
+
+        // ── Auto-create / upsert signer contacts for the merchant's owner ───
+        foreach (var signer in envelope.Signers)
+        {
+            await _signerContactService.UpsertFromSignerAsync(
+                merchant.UserId, signer.Name, signer.Email, signer.Role ?? "signer", ct);
+        }
 
         // ── Create SigningRequest + send invitation for each signer ─────────
         var baseUrl = _config["App:FrontendUrl"] ?? _config["App:BaseUrl"] ?? $"{Request.Scheme}://{Request.Host}";

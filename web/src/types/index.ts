@@ -338,6 +338,45 @@ export interface WebhookDeliveryResponse {
   createdAt: string;
 }
 
+// ── Signer Contacts ───────────────────────────────────────────────────────────
+
+export interface SignerContactResponse {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+  phone?: string | null;
+  company?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSignerContactRequest {
+  name: string;
+  email: string;
+  role?: string;
+  phone?: string;
+  company?: string;
+}
+
+export interface UpdateSignerContactRequest {
+  name: string;
+  email: string;
+  role: string;
+  phone?: string | null;
+  company?: string | null;
+  isActive: boolean;
+}
+
+export interface SignerContactImportResult {
+  imported: number;
+  skipped: number;
+  failed: number;
+  errors: string[];
+}
+
 export interface WebhookDeliveryPagedResult {
   items: WebhookDeliveryResponse[];
   totalCount: number;

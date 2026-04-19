@@ -251,3 +251,40 @@ export const webhookApi = {
   test: (id: string) =>
     apiClient.post<WebhookTestResult>(`/webhooks/${id}/test`),
 };
+
+// ── Signer Contacts ───────────────────────────────────────────────────────────
+
+import type {
+  SignerContactResponse,
+  CreateSignerContactRequest,
+  UpdateSignerContactRequest,
+  SignerContactImportResult,
+} from '@/types';
+
+export const signerContactApi = {
+  list: () =>
+    apiClient.get<SignerContactResponse[]>('/signer-contacts'),
+
+  search: (query: string) =>
+    apiClient.get<SignerContactResponse[]>(`/signer-contacts/search?query=${encodeURIComponent(query)}`),
+
+  create: (data: CreateSignerContactRequest) =>
+    apiClient.post<SignerContactResponse>('/signer-contacts', data),
+
+  update: (id: string, data: UpdateSignerContactRequest) =>
+    apiClient.put<SignerContactResponse>(`/signer-contacts/${id}`, data),
+
+  delete: (id: string) =>
+    apiClient.delete(`/signer-contacts/${id}`),
+
+  importCsv: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiClient.post<SignerContactImportResult>('/signer-contacts/import', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
+  exportCsv: () =>
+    apiClient.get('/signer-contacts/export', { responseType: 'blob' }),
+};

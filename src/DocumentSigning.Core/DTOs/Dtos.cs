@@ -359,3 +359,38 @@ public record WebhookDeliveryResponse(
     DateTime? LastAttempt,
     DateTime  NextAttempt,
     DateTime  CreatedAt);
+
+// ── Signer Contacts ───────────────────────────────────────────────────────────
+
+public record SignerContactResponse(
+    Guid     Id,
+    Guid     UserId,
+    string   Name,
+    string   Email,
+    string   Role,
+    string?  Phone,
+    string?  Company,
+    bool     IsActive,
+    DateTime CreatedAt,
+    DateTime UpdatedAt);
+
+public record CreateSignerContactRequest(
+    string   Name,
+    string   Email,
+    string   Role    = "signer",
+    string?  Phone   = null,
+    string?  Company = null);
+
+public record UpdateSignerContactRequest(
+    string   Name,
+    string   Email,
+    string   Role,
+    string?  Phone,
+    string?  Company,
+    bool     IsActive);
+
+public record SignerContactImportResult(
+    int Imported,
+    int Skipped,
+    int Failed,
+    List<string> Errors);

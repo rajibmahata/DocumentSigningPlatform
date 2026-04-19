@@ -25,6 +25,7 @@ public class AppDbContext : DbContext
     public DbSet<Webhook>                 Webhooks                 => Set<Webhook>();
     public DbSet<WebhookSubscription>     WebhookSubscriptions     => Set<WebhookSubscription>();
     public DbSet<WebhookDelivery>         WebhookDeliveries        => Set<WebhookDelivery>();
+    public DbSet<SignerContact>            SignerContacts            => Set<SignerContact>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -232,6 +233,24 @@ public class AppDbContext : DbContext
              .OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.Status, x.NextAttempt });
             e.HasIndex(x => x.WebhookId);
+        });
+
+        // SignerContacts
+        model.Entity<SignerContact>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("SignerContacts");
+            e.Property(x => x.Name).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Email).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Role).HasMaxLength(64).IsRequired().HasDefaultValue("signer");
+            e.Property(x => x.Phone).HasMaxLength(64);
+            e.Property(x => x.Company).HasMaxLength(256);
+            e.HasIndex(x => new { x.UserId, x.Email }).IsUnique();
+            e.HasIndex(x => x.UserId);
+            e.HasOne(x => x.User)
+             .WithMany()
+             .HasForeignKey(x => x.UserId)
+             .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }
