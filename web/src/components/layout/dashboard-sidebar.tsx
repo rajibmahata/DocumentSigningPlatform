@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, FileText, Send, Building2, User, BookOpen,
   LogOut, FileSignature, ChevronLeft, ChevronRight,
-  BarChart2, Users, Store, MessageSquare, Ticket, PenLine,
+  BarChart2, Users, Store, MessageSquare, Ticket, PenLine, Shield,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -27,6 +27,7 @@ const ADMIN_NAV_ITEMS = [
   { href: '/dashboard/admin/users',        label: 'User Management',     icon: Users },
   { href: '/dashboard/admin/merchants',    label: 'Merchant Management', icon: Store },
   { href: '/dashboard/admin/tickets',      label: 'Support Tickets',     icon: Ticket },
+  { href: '/dashboard/admin/audit-logs',   label: 'Audit Logs',          icon: Shield },
 ];
 
 export function DashboardSidebar() {

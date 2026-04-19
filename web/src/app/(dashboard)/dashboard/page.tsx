@@ -2,12 +2,12 @@
 
 import { useAuth } from '@/providers/auth-provider';
 import { useQuery } from '@tanstack/react-query';
-import { merchantApi, envelopeApi } from '@/lib/api';
+import { merchantApi, envelopeApi, portalApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDate, getStatusColor } from '@/lib/utils';
-import { FileText, Send, CheckCircle, Clock, CreditCard, ArrowRight } from 'lucide-react';
+import { FileText, Send, CheckCircle, Clock, CreditCard, ArrowRight, PenLine } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DashboardPage() {
@@ -25,9 +25,23 @@ export default function DashboardPage() {
     queryKey: ['envelopes', merchant?.apiKey],
     queryFn: () => envelopeApi.list(merchant!.apiKey).then((r) => r.data),
     enabled: !!merchant,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
+
+  const { data: myEnvelopes, isLoading: loadingMyEnvelopes } = useQuery({
+    queryKey: ['my-envelopes'],
+    queryFn: () => portalApi.getMyEnvelopes().then((r) => r.data),
+    enabled: !!user,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
   });
 
   const isLoading = loadingMerchants || (!!merchant && loadingEnvelopes);
+
+  const awaitingMySign = myEnvelopes?.filter(
+    (e) => (e.status === 'Sent' || e.status === 'InProgress') && !!e.signingToken && new Date(e.expiresAt) > new Date()
+  ).length ?? 0;
 
   const total   = envelopes?.length ?? 0;
   const pending = envelopes?.filter((e) => e.status === 'Sent' || e.status === 'InProgress').length ?? 0;
@@ -39,10 +53,11 @@ export default function DashboardPage() {
     : '—';
 
   const STATS = [
-    { label: 'Total Envelopes',   value: total,     icon: FileText,     color: 'text-brand-600',  bg: 'bg-brand-50'  },
-    { label: 'Pending Signature', value: pending,   icon: Clock,        color: 'text-amber-600',  bg: 'bg-amber-50'  },
-    { label: 'Signed',            value: signed,    icon: CheckCircle,  color: 'text-green-600',  bg: 'bg-green-50'  },
-    { label: 'Credits Remaining', value: remaining, icon: CreditCard,   color: 'text-purple-600', bg: 'bg-purple-50' },
+    { label: 'Total Envelopes',        value: total,          icon: FileText,    color: 'text-brand-600',  bg: 'bg-brand-50',   href: '/dashboard/envelopes'      },
+    { label: 'Pending Signature',      value: pending,        icon: Clock,       color: 'text-amber-600',  bg: 'bg-amber-50',   href: '/dashboard/envelopes?tab=active'  },
+    { label: 'Signed',                 value: signed,         icon: CheckCircle, color: 'text-green-600',  bg: 'bg-green-50',   href: '/dashboard/envelopes?tab=completed' },
+    { label: 'Awaiting My Signature',  value: awaitingMySign, icon: PenLine,     color: 'text-violet-600', bg: 'bg-violet-50',  href: '/dashboard/my-signatures'           },
+    { label: 'Credits Remaining',      value: remaining,      icon: CreditCard,  color: 'text-purple-600', bg: 'bg-purple-50',  href: '/dashboard/merchant'                },
   ];
 
   return (
@@ -84,9 +99,9 @@ export default function DashboardPage() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {isLoading
-          ? [...Array(4)].map((_, i) => (
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        {isLoading || loadingMyEnvelopes
+          ? [...Array(5)].map((_, i) => (
               <Card key={i}>
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between">
@@ -99,8 +114,8 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             ))
-          : STATS.map(({ label, value, icon: Icon, color, bg }) => (
-              <Card key={label}>
+          : STATS.map(({ label, value, icon: Icon, color, bg, href }) => {
+              const inner = (
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between">
                     <div>
@@ -111,9 +126,23 @@ export default function DashboardPage() {
                       <Icon className="h-5 w-5" />
                     </div>
                   </div>
+                  {href && (
+                    <p className={`mt-2 text-xs font-medium ${color} flex items-center gap-0.5 opacity-70`}>
+                      View all <ArrowRight className="h-3 w-3" />
+                    </p>
+                  )}
                 </CardContent>
-              </Card>
-            ))}
+              );
+              return href ? (
+                <Link key={label} href={href} className="block">
+                  <Card className="hover:shadow-md hover:border-violet-200 transition-all cursor-pointer">
+                    {inner}
+                  </Card>
+                </Link>
+              ) : (
+                <Card key={label}>{inner}</Card>
+              );
+            })}
       </div>
 
       {/* Recent envelopes */}

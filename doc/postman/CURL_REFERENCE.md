@@ -412,29 +412,154 @@ curl -X PUT http://localhost:5163/api/admin/tickets/<ticket-id>/status \
 
 ---
 
+## Audit Logs — Admin
+
+> All audit endpoints require **`Authorization: Bearer <jwt>`** with **Admin** role.
+
+### Get Paged Audit Log  — filtered, sorted, paginated
+```bash
+curl "http://localhost:5163/api/admin/audit-logs" \
+  -H "Authorization: Bearer <jwt>"
+```
+
+All query parameters are optional:
+
+| Parameter | Type | Description |
+|---|---|---|
+| `action` | string | Filter by action name, e.g. `Document.SignatureSubmitted` |
+| `entityType` | string | `Envelope` \| `Document` \| `User` \| `Merchant` \| `Ticket` \| `Portal` |
+| `entityId` | guid | Filter by specific entity ID |
+| `userId` | guid | Filter by the user who triggered the event |
+| `merchantId` | guid | Filter by merchant |
+| `status` | string | `Success` \| `Failure` \| `Warning` |
+| `from` | ISO-8601 | Start of date range (UTC) |
+| `to` | ISO-8601 | End of date range (UTC) |
+| `page` | int | Page number (default `1`) |
+| `pageSize` | int | Results per page (default `50`) |
+
+**Example — last 24 h failures:**
+```bash
+curl "http://localhost:5163/api/admin/audit-logs?status=Failure&from=2026-04-18T00:00:00Z&to=2026-04-19T00:00:00Z" \
+  -H "Authorization: Bearer <jwt>"
+```
+
+**Example — all events for a specific user:**
+```bash
+curl "http://localhost:5163/api/admin/audit-logs?userId=<user-id>&pageSize=100" \
+  -H "Authorization: Bearer <jwt>"
+```
+
+**Example — all events for a specific merchant:**
+```bash
+curl "http://localhost:5163/api/admin/audit-logs?merchantId=<merchant-id>" \
+  -H "Authorization: Bearer <jwt>"
+```
+
+**Response shape** (`PagedResult<AuditLogResponse>`):
+```json
+{
+  "items": [
+    {
+      "id":          "f5b35e40-18b7-422c-824e-1496c30495a8",
+      "action":      "Document.SignatureSubmitted",
+      "entityType":  "Document",
+      "entityId":    "0cc06a3f-aba3-42c2-a60b-748ea1eb74cb",
+      "userId":      "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "merchantId":  "7cb5e4a1-1111-2222-3333-000000000001",
+      "status":      "Success",
+      "description": "Signature submitted by Bob Jones (bob@example.com)",
+      "ipAddress":   "::1",
+      "userAgent":   "Mozilla/5.0 ...",
+      "metadata":    "{\"claimantName\":\"Bob Jones\",\"claimantEmail\":\"bob@example.com\",\"merchantId\":\"...\"}",
+      "timestamp":   "2026-04-19T00:35:59Z"
+    }
+  ],
+  "totalCount": 142,
+  "page":       1,
+  "pageSize":   50,
+  "totalPages": 3
+}
+```
+
+**`action` values**
+| Value | Trigger |
+|---|---|
+| `Envelope.Created` | New envelope sent |
+| `Envelope.Sent` | Invitation emails dispatched |
+| `Envelope.Viewed` | Signer opened portal |
+| `Envelope.Signed` | Single signer completed |
+| `Envelope.Completed` | All signers done |
+| `Envelope.Cancelled` | Envelope cancelled |
+| `Document.Uploaded` | Document attached to envelope |
+| `Document.Stamped` | Signature stamped on document |
+| `Document.SignatureSubmitted` | Signer submitted signature |
+| `User.Registered` | New user registration |
+| `User.LoggedIn` | Successful login |
+| `User.LoginFailed` | Failed login attempt |
+| `User.EmailVerified` | Email address confirmed |
+| `User.PasswordResetRequested` | Forgot-password triggered |
+| `User.PasswordReset` | Password changed via reset link |
+| `User.Updated` | Profile updated |
+| `Merchant.Created` | Merchant account created |
+| `Merchant.Updated` | Merchant settings changed |
+| `Merchant.ApiKeyRegenerated` | API key rotated |
+| `Merchant.LimitUpdated` | Request limit changed |
+| `Ticket.Created` | Support ticket opened |
+| `Ticket.Updated` | Ticket fields changed |
+| `Ticket.Replied` | Message added |
+| `Ticket.Closed` | Ticket closed |
+| `Ticket.Resolved` | Ticket resolved |
+| `Portal.Opened` | Signing portal page viewed |
+
+---
+
+### Get Entity Timeline  — all events for one entity
+```bash
+curl "http://localhost:5163/api/admin/audit-logs/entity/Envelope/<envelope-id>" \
+  -H "Authorization: Bearer <jwt>"
+```
+```bash
+curl "http://localhost:5163/api/admin/audit-logs/entity/Document/<document-id>" \
+  -H "Authorization: Bearer <jwt>"
+```
+> Returns `AuditLogResponse[]` ordered oldest → newest for the given entity.  
+> Useful for a full signing history of a single envelope or document.
+
+Valid `entityType` values: `Envelope` | `Document` | `User` | `Merchant` | `Ticket` | `Portal`
+
+---
+
 ## Quick Workflow (end-to-end test sequence)
 
 ```
-1.  POST /api/auth/register                         → create user + auto-creates default merchant (if none exists)
-2.  GET  /api/auth/verify-email/:t                  → verify email (token from email)
-3.  POST /api/auth/login                            → get JWT, note userId from `sub` claim
-4.  GET  /api/merchants/by-user/:userId             → list merchant(s), note apiKey + merchantId
-    (optional) POST /api/merchants                  → create an additional merchant for the same user
-5.  POST /api/envelopes                             → create envelope (X-Api-Key header)
-6.  GET  /api/envelopes/:id                         → confirm status = "Sent"
-7.  GET  /api/portal/validate/:t                    → signer validates token (t from email)
-8.  POST /api/portal/submit/:t                      → signer submits signature
-9.  GET  /api/envelopes/:id/signed-documents        → download signed doc (base64)
+1.  POST /api/auth/register                              → create user + auto-creates default merchant (if none exists)
+2.  GET  /api/auth/verify-email/:t                       → verify email (token from email)
+3.  POST /api/auth/login                                 → get JWT, note userId from `sub` claim
+4.  GET  /api/merchants/by-user/:userId                  → list merchant(s), note apiKey + merchantId
+    (optional) POST /api/merchants                       → create an additional merchant for the same user
+5.  POST /api/envelopes                                  → create envelope (X-Api-Key header)
+6.  GET  /api/envelopes/:id                              → confirm status = "Sent"
+7.  GET  /api/portal/validate/:t                         → signer validates token (t from email)
+8.  POST /api/portal/submit/:t                           → signer submits signature
+9.  GET  /api/envelopes/:id/signed-documents             → download signed doc (base64)
 
-── Signer portal ────────────────────────────────────────────────────────────
-10. GET  /api/portal/my-envelopes                   → signer views all their pending/completed envelopes (JWT)
+── Signer portal ────────────────────────────────────────────────────────────────
+10. GET  /api/portal/my-envelopes                        → signer views all their pending/completed envelopes (JWT)
     → use signingToken from response to build signing URL: /sign/<signingToken>
 
-── Tickets ─────────────────────────────────────────────────────────────────
-11. POST /api/tickets                               → user raises a Bug / Feedback / FeatureRequest
-12. GET  /api/tickets/my                            → user lists their own tickets
-13. POST /api/tickets/:id/message                   → user adds a follow-up message
-14. GET  /api/admin/tickets                         → admin lists all tickets  (Admin JWT)
-15. PUT  /api/admin/tickets/:id/status              → admin sets status + priority  (Admin JWT)
-16. POST /api/tickets/:id/message (admin JWT)       → admin replies to the ticket
+── Tickets ──────────────────────────────────────────────────────────────────────
+11. POST /api/tickets                                    → user raises a Bug / Feedback / FeatureRequest
+12. GET  /api/tickets/my                                 → user lists their own tickets
+13. POST /api/tickets/:id/message                        → user adds a follow-up message
+14. GET  /api/admin/tickets                              → admin lists all tickets  (Admin JWT)
+15. PUT  /api/admin/tickets/:id/status                   → admin sets status + priority  (Admin JWT)
+16. POST /api/tickets/:id/message (admin JWT)            → admin replies to the ticket
+
+── Audit Logs ───────────────────────────────────────────────────────────────────
+17. GET  /api/admin/audit-logs                           → admin views paged audit log  (Admin JWT)
+18. GET  /api/admin/audit-logs?userId=:id                → all events for a specific user
+19. GET  /api/admin/audit-logs?merchantId=:id            → all events for a specific merchant
+20. GET  /api/admin/audit-logs/entity/Envelope/:id       → full signing timeline for one envelope
+21. GET  /api/admin/audit-logs/entity/Document/:id       → stamp/signature history for one document
 ```
+

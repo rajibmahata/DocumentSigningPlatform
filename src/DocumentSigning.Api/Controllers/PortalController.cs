@@ -1,4 +1,5 @@
 using DocumentSigning.Core.DTOs;
+using DocumentSigning.Core.Enums;
 using DocumentSigning.Core.Interfaces;
 using iText.Forms;
 using iText.Kernel.Pdf;
@@ -15,7 +16,7 @@ public class PortalController : ControllerBase
     private readonly ISigningRequestRepository _signingRequestRepo;
     private readonly IDocumentRepository _docRepo;
     private readonly IClaimRepository _claimRepo;
-    private readonly IAuditLogRepository _auditRepo;
+    private readonly IAuditService _audit;
     private readonly ITokenService _tokenService;
     private readonly ISigningEnvelopeRepository _envelopeRepo;
     private readonly ISignedDocumentRepository _signedDocRepo;
@@ -24,7 +25,7 @@ public class PortalController : ControllerBase
         ISigningRequestRepository signingRequestRepo,
         IDocumentRepository docRepo,
         IClaimRepository claimRepo,
-        IAuditLogRepository auditRepo,
+        IAuditService audit,
         ITokenService tokenService,
         ISigningEnvelopeRepository envelopeRepo,
         ISignedDocumentRepository signedDocRepo)
@@ -32,7 +33,7 @@ public class PortalController : ControllerBase
         _signingRequestRepo = signingRequestRepo;
         _docRepo = docRepo;
         _claimRepo = claimRepo;
-        _auditRepo = auditRepo;
+        _audit = audit;
         _tokenService = tokenService;
         _envelopeRepo = envelopeRepo;
         _signedDocRepo = signedDocRepo;
@@ -70,17 +71,15 @@ public class PortalController : ControllerBase
         if (claim is null) return NotFound("Claim not found.");
 
         // Audit: portal opened
-        await _auditRepo.AppendAsync(new Core.Entities.AuditLog
-        {
-            Id = Guid.NewGuid(),
-            SigningRequestId = signingRequest.Id,
-            ClaimId = signingRequest.ClaimId,
-            Action = "PortalOpened",
-            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            UserAgent = Request.Headers.UserAgent.ToString(),
-            Timestamp = DateTime.UtcNow
-        }, ct);
-        await _auditRepo.SaveChangesAsync(ct);
+        _audit.Log(new AuditEntry(
+            Action:      AuditActions.PortalOpened,
+            EntityType:  AuditEntities.Document,
+            EntityId:    signingRequest.DocumentId,
+            Description: $"Signing portal opened for document '{doc.DocumentFileName}'",
+            IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            UserAgent:   Request.Headers.UserAgent.ToString(),
+            SigningRequestId: signingRequest.Id,
+            ClaimId:     signingRequest.ClaimId));
 
         return Ok(new DocumentPreviewResponse(
             Convert.ToBase64String(doc.ContentBytes),

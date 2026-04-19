@@ -46,6 +46,13 @@ builder.Services.AddScoped<StampDocJobHandler>();
 // ─── Background worker ────────────────────────────────────────────────────────
 builder.Services.AddHostedService<OutboxWorker>();
 
+// ─── Audit service (singleton channel + hosted background flush) ──────────────
+builder.Services.AddSingleton<AuditService>();
+builder.Services.AddSingleton<DocumentSigning.Core.Interfaces.IAuditService>(
+    sp => sp.GetRequiredService<AuditService>());
+builder.Services.AddHostedService(
+    sp => sp.GetRequiredService<AuditService>());
+
 // ─── HTTP client (used by Blazor components to call local API endpoints) ──────
 builder.Services.AddHttpClient("api", client =>
 {
@@ -156,6 +163,7 @@ builder.Services.AddSwaggerGen(c =>
             | Portal | Signing flow — validate token, submit signature, view signer's own envelopes |
             | Tickets | Support ticket creation and messaging |
             | Tickets — Admin | Admin-level ticket management (Admin only) |
+            | Audit Logs — Admin | Paged audit log viewer and entity timeline (Admin only) |
         """
     });
 
@@ -175,8 +183,9 @@ builder.Services.AddSwaggerGen(c =>
         var controller = api.ActionDescriptor.RouteValues["controller"] ?? string.Empty;
         var tag = controller switch
         {
-            "AdminTickets" => "Tickets — Admin",
-            "Tickets"      => "Tickets",
+            "AdminTickets"  => "Tickets — Admin",
+            "AdminAudit"    => "Audit Logs — Admin",
+            "Tickets"       => "Tickets",
             "Portal"       => "Portal",
             "Envelope"     => "Envelope",
             _              => controller

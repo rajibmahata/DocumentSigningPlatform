@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using DocumentSigning.Core.DTOs;
 using DocumentSigning.Core.Entities;
+using DocumentSigning.Core.Enums;
 using DocumentSigning.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -16,8 +17,13 @@ namespace DocumentSigning.Api.Controllers;
 public class TicketsController : ControllerBase
 {
     private readonly ITicketRepository _repo;
+    private readonly IAuditService     _audit;
 
-    public TicketsController(ITicketRepository repo) => _repo = repo;
+    public TicketsController(ITicketRepository repo, IAuditService audit)
+    {
+        _repo  = repo;
+        _audit = audit;
+    }
 
     private Guid CurrentUserId =>
         Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)
@@ -66,6 +72,15 @@ public class TicketsController : ControllerBase
 
         await _repo.AddTicketAsync(ticket, ct);
         await _repo.SaveChangesAsync(ct);
+
+        _audit.Log(new AuditEntry(
+            Action:      AuditActions.TicketCreated,
+            EntityType:  AuditEntities.Ticket,
+            EntityId:    ticket.Id,
+            UserId:      CurrentUserId,
+            Description: $"Ticket created: '{ticket.Title}' [{ticket.Type}]",
+            IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            UserAgent:   Request.Headers.UserAgent.ToString()));
 
         var created = await _repo.GetByIdAsync(ticket.Id, ct);
         return CreatedAtAction(nameof(GetById), new { id = ticket.Id }, MapToResponse(created!));
@@ -129,6 +144,15 @@ public class TicketsController : ControllerBase
 
         await _repo.AddMessageAsync(msg, ct);
         await _repo.SaveChangesAsync(ct);
+
+        _audit.Log(new AuditEntry(
+            Action:      AuditActions.TicketReplied,
+            EntityType:  AuditEntities.Ticket,
+            EntityId:    id,
+            UserId:      CurrentUserId,
+            Description: $"Message added to ticket {id} by {msg.SenderType}",
+            IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            UserAgent:   Request.Headers.UserAgent.ToString()));
 
         return CreatedAtAction(nameof(GetById), new { id },
             new TicketMessageResponse(msg.Id, msg.SenderType, msg.Message, msg.CreatedAt));

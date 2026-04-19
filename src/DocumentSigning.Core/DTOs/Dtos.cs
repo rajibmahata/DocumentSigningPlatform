@@ -2,6 +2,45 @@ using DocumentSigning.Core.Enums;
 
 namespace DocumentSigning.Core.DTOs;
 
+// ── Generic paging ────────────────────────────────────────────────────────────
+
+public record PagedResult<T>(
+    IReadOnlyList<T> Items,
+    int TotalCount,
+    int Page,
+    int PageSize)
+{
+    public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
+}
+
+// ── Audit log ─────────────────────────────────────────────────────────────────
+
+public record AuditLogResponse(
+    Guid     Id,
+    string   Action,
+    string   EntityType,
+    Guid?    EntityId,
+    Guid?    UserId,
+    Guid?    MerchantId,
+    string   Status,
+    string   Description,
+    string   IpAddress,
+    string   UserAgent,
+    string?  Metadata,
+    DateTime Timestamp);
+
+public record AuditLogQueryParams(
+    string?   Action     = null,
+    string?   EntityType = null,
+    Guid?     EntityId   = null,
+    Guid?     UserId     = null,
+    Guid?     MerchantId = null,
+    string?   Status     = null,
+    DateTime? From       = null,
+    DateTime? To         = null,
+    int       Page       = 1,
+    int       PageSize   = 50);
+
 // ── Analytics ─────────────────────────────────────────────────────────────────
 
 public record DailyCount(string Date, int Count);
