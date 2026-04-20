@@ -82,6 +82,22 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
     downloadBlob(blob, `signed_${name.replace(/\s+/g, '_')}_${id}.${ext}`);
   };
 
+  const handleDownloadOriginal = async (docId: string, fileName: string) => {
+    if (!merchant) return;
+    try {
+      const resp = await envelopeApi.downloadDocument(merchant.apiKey, id, docId);
+      const blob = resp.data as unknown as Blob;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Failed to download document.');
+    }
+  };
+
   const handleResend = async (signer: SignerSignedSummary) => {
     if (!merchant) return;
     setResendingEmail(signer.email);
@@ -219,13 +235,24 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
               {envelope.documents.map((doc) => (
                 <div
                   key={doc.documentId}
-                  className="flex items-center gap-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-750 px-4 py-3"
+                  className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-750 px-4 py-3"
                 >
-                  <FileText className="h-5 w-5 text-brand-500 shrink-0" />
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white text-sm">{doc.documentTitle}</p>
-                    <p className="text-xs text-gray-400 font-mono">{doc.documentId}</p>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <FileText className="h-5 w-5 text-brand-500 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{doc.documentTitle}</p>
+                      <p className="text-xs text-gray-400 font-mono truncate">{doc.documentId}</p>
+                    </div>
                   </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleDownloadOriginal(doc.documentId, doc.documentTitle)}
+                    className="shrink-0"
+                  >
+                    <Download className="h-3.5 w-3.5 mr-1" />
+                    Download
+                  </Button>
                 </div>
               ))}
             </CardContent>

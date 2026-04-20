@@ -500,7 +500,7 @@ export default function ContactsPage() {
                 Cancel
               </Button>
               <Button
-                variant="destructive"
+                variant="danger"
                 loading={deleteMutation.isPending}
                 onClick={() => deleteMutation.mutate(deleteTarget.id)}
               >

@@ -21,7 +21,7 @@ public class SigningRequestRepository : ISigningRequestRepository
     public async Task<SigningRequest?> GetByDocumentAndEnvelopeAsync(Guid documentId, Guid envelopeId, CancellationToken ct = default)
         => await _db.SigningRequests
             .Where(r => r.DocumentId == documentId)
-            .OrderBy(r => r.CreatedAt)
+            .OrderByDescending(r => r.CreatedAt)
             .FirstOrDefaultAsync(ct);
 
     public async Task<SigningRequest?> GetLatestByEmailAndDocumentAsync(string claimantEmail, Guid documentId, CancellationToken ct = default)

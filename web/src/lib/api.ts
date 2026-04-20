@@ -120,6 +120,11 @@ export const envelopeApi = {
     apiClient.get<import('@/types').EnvelopeActivityItem[]>(`/envelopes/${id}/activity`, {
       headers: { 'X-Api-Key': apiKey },
     }),
+  downloadDocument: (apiKey: string, envelopeId: string, docId: string) =>
+    apiClient.get<Blob>(`/envelopes/${envelopeId}/documents/${docId}/download`, {
+      headers: { 'X-Api-Key': apiKey },
+      responseType: 'blob',
+    }),
 };
 
 // ── Portal ────────────────────────────────────────────────────────────────────

@@ -31,6 +31,7 @@ public class EnvelopeController : ControllerBase
     private readonly IAuditService _audit;
     private readonly IAuditLogRepository _auditLogRepo;
     private readonly ITokenService _tokenService;
+    private readonly IDocumentRepository _documentRepo;
     private readonly IConfiguration _config;
     private readonly IWebhookService _webhookService;
     private readonly IEmailService _emailService;
@@ -47,6 +48,7 @@ public class EnvelopeController : ControllerBase
         IAuditService audit,
         IAuditLogRepository auditLogRepo,
         ITokenService tokenService,
+        IDocumentRepository documentRepo,
         IConfiguration config,
         IWebhookService webhookService,
         IEmailService emailService,
@@ -62,6 +64,7 @@ public class EnvelopeController : ControllerBase
         _audit = audit;
         _auditLogRepo = auditLogRepo;
         _tokenService = tokenService;
+        _documentRepo = documentRepo;
         _config = config;
         _webhookService = webhookService;
         _emailService = emailService;
@@ -621,6 +624,41 @@ public class EnvelopeController : ControllerBase
             l.Timestamp)).ToList();
 
         return Ok(result);
+    }
+
+    /// <summary>Downloads the original (unsigned) document bytes for a specific document in an envelope.</summary>
+    /// <remarks>
+    /// Returns the raw file bytes with the correct <c>Content-Disposition: attachment</c> header.
+    /// Useful for merchants who want to re-download the original uploaded document.
+    /// </remarks>
+    /// <param name="id">Envelope GUID (URL path).</param>
+    /// <param name="docId">Document GUID (URL path).</param>
+    /// <response code="200">Raw file bytes with Content-Disposition attachment header.</response>
+    /// <response code="404">Envelope or document not found, or not owned by this merchant.</response>
+    [HttpGet("{id:guid}/documents/{docId:guid}/download")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DownloadDocument(Guid id, Guid docId, CancellationToken ct)
+    {
+        var merchant = HttpContext.Items["Merchant"] as Merchant;
+        if (merchant is null) return Unauthorized();
+
+        var envelope = await _envelopeRepo.GetByIdAsync(id, ct);
+        if (envelope is null || envelope.MerchantId != merchant.Id)
+            return NotFound();
+
+        var doc = await _documentRepo.GetByIdAsync(docId, ct);
+        if (doc is null || doc.EnvelopeId != id)
+            return NotFound();
+
+        var contentType = string.IsNullOrWhiteSpace(doc.ContentType)
+            ? "application/octet-stream"
+            : doc.ContentType;
+
+        Response.Headers["Content-Disposition"] =
+            $"attachment; filename=\"{doc.DocumentFileName}\"";
+
+        return File(doc.ContentBytes, contentType, doc.DocumentFileName);
     }
 
     private static string ResolveDocumentType(string contentType) => contentType.ToLowerInvariant() switch    {
