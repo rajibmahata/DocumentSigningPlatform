@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import {
-  Plus, Trash2, Pencil, Search, Upload, Download, X, Check
+  Plus, Trash2, Pencil, Search, Upload, Download, X, Check, Info, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
@@ -34,11 +34,13 @@ function ContactModal({
   onClose,
   onSave,
   loading,
+  serverError,
 }: {
   initial?: SignerContactResponse | null;
   onClose: () => void;
   onSave: (data: ContactForm) => void;
   loading: boolean;
+  serverError?: string | null;
 }) {
   const {
     register,
@@ -77,6 +79,7 @@ function ContactModal({
             <Label>Email *</Label>
             <Input placeholder="jane@example.com" {...register('email')} />
             {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
+            {serverError && <p className="text-xs text-red-500">{serverError}</p>}
           </div>
           <div className="space-y-1">
             <Label>Role</Label>
@@ -115,6 +118,9 @@ export default function ContactsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<SignerContactResponse | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SignerContactResponse | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [showCsvHelp, setShowCsvHelp] = useState(false);
+  const [importResult, setImportResult] = useState<{ imported: number; skipped: number; failed: number; errors: string[] } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // ── Data ──────────────────────────────────────────────────────────────────
@@ -147,10 +153,11 @@ export default function ContactsPage() {
       toast.success('Contact added.');
       queryClient.invalidateQueries({ queryKey: ['signer-contacts'] });
       setModalOpen(false);
+      setModalError(null);
     },
     onError: (err: any) => {
       const msg = err?.response?.data?.message ?? 'Failed to add contact.';
-      toast.error(msg);
+      setModalError(msg);
     },
   });
 
@@ -168,10 +175,11 @@ export default function ContactsPage() {
       toast.success('Contact updated.');
       queryClient.invalidateQueries({ queryKey: ['signer-contacts'] });
       setEditTarget(null);
+      setModalError(null);
     },
     onError: (err: any) => {
       const msg = err?.response?.data?.message ?? 'Failed to update contact.';
-      toast.error(msg);
+      setModalError(msg);
     },
   });
 
@@ -189,10 +197,8 @@ export default function ContactsPage() {
     mutationFn: (file: File) => signerContactApi.importCsv(file),
     onSuccess: (res) => {
       const r = res.data;
-      toast.success(
-        `Import complete: ${r.imported} imported, ${r.skipped} skipped, ${r.failed} failed.`
-      );
       queryClient.invalidateQueries({ queryKey: ['signer-contacts'] });
+      setImportResult(r);
     },
     onError: () => toast.error('Import failed. Check the CSV format.'),
   });
@@ -205,6 +211,22 @@ export default function ContactsPage() {
     } else {
       createMutation.mutate(data);
     }
+  };
+
+  const handleDownloadSample = () => {
+    const csv = [
+      'name,email,role,phone,company',
+      'Jane Smith,jane.smith@example.com,signer,+1 555 0101,Acme Corp',
+      'John Doe,john.doe@example.com,reviewer,,',
+      'Alice Brown,alice.brown@example.com,approver,+44 20 7946 0958,Globex Ltd',
+    ].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'signer-contacts-sample.csv';
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleExport = async () => {
@@ -260,6 +282,15 @@ export default function ContactsPage() {
           >
             <Upload className="h-4 w-4 mr-1" /> Import CSV
           </Button>
+          <button
+            type="button"
+            onClick={() => setShowCsvHelp((v) => !v)}
+            className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-800 font-medium"
+            title="CSV format guide"
+          >
+            <Info className="h-4 w-4" />
+            {showCsvHelp ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
 
           {/* Export */}
           <Button variant="outline" size="sm" onClick={handleExport}>
@@ -269,12 +300,103 @@ export default function ContactsPage() {
           {/* Add */}
           <Button
             size="sm"
-            onClick={() => { setEditTarget(null); setModalOpen(true); }}
+            onClick={() => { setEditTarget(null); setModalError(null); setModalOpen(true); }}
           >
             <Plus className="h-4 w-4 mr-1" /> Add Contact
           </Button>
         </div>
       </div>
+
+      {/* CSV Format Guide */}
+      {showCsvHelp && (
+        <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 space-y-3 text-sm">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-2 font-semibold text-blue-800">
+              <Info className="h-4 w-4 shrink-0" />
+              CSV Import Format
+            </div>
+            <button onClick={() => setShowCsvHelp(false)} className="text-blue-400 hover:text-blue-600">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Column table */}
+          <div className="overflow-x-auto rounded-lg border border-blue-200 bg-white">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-blue-100 bg-blue-50 text-left">
+                  <th className="px-3 py-2 font-medium text-blue-700">Column</th>
+                  <th className="px-3 py-2 font-medium text-blue-700">Required</th>
+                  <th className="px-3 py-2 font-medium text-blue-700">Default</th>
+                  <th className="px-3 py-2 font-medium text-blue-700">Description</th>
+                </tr>
+              </thead>
+              <tbody className="text-gray-700">
+                <tr className="border-b border-gray-50">
+                  <td className="px-3 py-2 font-mono font-semibold text-gray-900">name</td>
+                  <td className="px-3 py-2"><span className="text-red-500 font-bold">Yes</span></td>
+                  <td className="px-3 py-2 text-gray-400">—</td>
+                  <td className="px-3 py-2">Full name of the signer</td>
+                </tr>
+                <tr className="border-b border-gray-50">
+                  <td className="px-3 py-2 font-mono font-semibold text-gray-900">email</td>
+                  <td className="px-3 py-2"><span className="text-red-500 font-bold">Yes</span></td>
+                  <td className="px-3 py-2 text-gray-400">—</td>
+                  <td className="px-3 py-2">Must be unique — duplicates are skipped automatically</td>
+                </tr>
+                <tr className="border-b border-gray-50">
+                  <td className="px-3 py-2 font-mono text-gray-900">role</td>
+                  <td className="px-3 py-2 text-gray-400">No</td>
+                  <td className="px-3 py-2 font-mono text-gray-500">signer</td>
+                  <td className="px-3 py-2">e.g. signer, reviewer, approver</td>
+                </tr>
+                <tr className="border-b border-gray-50">
+                  <td className="px-3 py-2 font-mono text-gray-900">phone</td>
+                  <td className="px-3 py-2 text-gray-400">No</td>
+                  <td className="px-3 py-2 text-gray-400">—</td>
+                  <td className="px-3 py-2">Phone number (any format)</td>
+                </tr>
+                <tr>
+                  <td className="px-3 py-2 font-mono text-gray-900">company</td>
+                  <td className="px-3 py-2 text-gray-400">No</td>
+                  <td className="px-3 py-2 text-gray-400">—</td>
+                  <td className="px-3 py-2">Company or organisation name</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Rules */}
+          <ul className="list-disc list-inside text-blue-700 space-y-1 text-xs">
+            <li>First row is treated as a header and skipped automatically.</li>
+            <li>Columns must be comma-separated; quoted values are supported.</li>
+            <li>Email must be unique per account — rows with a duplicate email are <strong>skipped</strong> (not errors).</li>
+            <li>If a previously deleted contact&apos;s email is re-imported, the contact is restored.</li>
+          </ul>
+
+          {/* Sample CSV preview */}
+          <div className="rounded-lg bg-gray-900 text-green-300 font-mono text-xs p-3 overflow-x-auto">
+            <p className="text-gray-400 mb-1">{'// sample.csv'}</p>
+            <p>name,email,role,phone,company</p>
+            <p>Jane Smith,jane.smith@example.com,signer,+1 555 0101,Acme Corp</p>
+            <p>John Doe,john.doe@example.com,reviewer,,</p>
+            <p>Alice Brown,alice.brown@example.com,approver,+44 20 7946 0958,Globex Ltd</p>
+          </div>
+
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={handleDownloadSample}>
+              <Download className="h-4 w-4 mr-1" /> Download sample.csv
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => fileRef.current?.click()}
+              loading={importMutation.isPending}
+            >
+              <Upload className="h-4 w-4 mr-1" /> Import CSV now
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative">
@@ -329,7 +451,7 @@ export default function ContactsPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2 justify-end">
                           <button
-                            onClick={() => { setEditTarget(c); setModalOpen(true); }}
+                            onClick={() => { setEditTarget(c); setModalError(null); setModalOpen(true); }}
                             className="text-gray-400 hover:text-brand-600 transition-colors"
                             title="Edit"
                           >
@@ -357,9 +479,10 @@ export default function ContactsPage() {
       {modalOpen && (
         <ContactModal
           initial={editTarget}
-          onClose={() => { setModalOpen(false); setEditTarget(null); }}
+          onClose={() => { setModalOpen(false); setEditTarget(null); setModalError(null); }}
           onSave={handleSave}
           loading={isSaving}
+          serverError={modalError}
         />
       )}
 
@@ -384,6 +507,58 @@ export default function ContactsPage() {
                 Delete
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Result */}
+      {importResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Import Complete</h2>
+              <button onClick={() => setImportResult(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Summary badges */}
+            <div className="flex gap-3">
+              <div className="flex-1 rounded-lg bg-green-50 border border-green-100 p-3 text-center">
+                <p className="text-2xl font-bold text-green-600">{importResult.imported}</p>
+                <p className="text-xs text-green-700 mt-0.5">Imported</p>
+              </div>
+              <div className="flex-1 rounded-lg bg-yellow-50 border border-yellow-100 p-3 text-center">
+                <p className="text-2xl font-bold text-yellow-600">{importResult.skipped}</p>
+                <p className="text-xs text-yellow-700 mt-0.5">Skipped (duplicate)</p>
+              </div>
+              <div className="flex-1 rounded-lg bg-red-50 border border-red-100 p-3 text-center">
+                <p className="text-2xl font-bold text-red-600">{importResult.failed}</p>
+                <p className="text-xs text-red-700 mt-0.5">Failed</p>
+              </div>
+            </div>
+
+            {/* Row-level errors */}
+            {importResult.errors.length > 0 && (
+              <div className="rounded-lg border border-red-100 bg-red-50 p-3 space-y-1 max-h-48 overflow-y-auto">
+                <p className="text-xs font-semibold text-red-700 mb-1">Row errors:</p>
+                {importResult.errors.map((err, i) => (
+                  <p key={i} className="text-xs text-red-600 flex gap-1">
+                    <span className="shrink-0">•</span> {err}
+                  </p>
+                ))}
+              </div>
+            )}
+
+            {importResult.skipped > 0 && (
+              <p className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-100 rounded-lg px-3 py-2">
+                <strong>{importResult.skipped}</strong> row{importResult.skipped !== 1 ? 's were' : ' was'} skipped because the email already exists in your contacts.
+              </p>
+            )}
+
+            <Button className="w-full" onClick={() => setImportResult(null)}>
+              <Check className="h-4 w-4 mr-1" /> Done
+            </Button>
           </div>
         </div>
       )}

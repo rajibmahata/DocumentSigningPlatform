@@ -84,6 +84,7 @@ This creates the following tables in `DocumentSigningDb`:
 - `SignedDocuments`
 - `OutboxQueue`
 - `AuditLogs`
+- `SignerContacts`
 
 ---
 
