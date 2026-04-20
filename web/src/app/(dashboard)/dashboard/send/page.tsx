@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/providers/auth-provider';
 import { useQuery } from '@tanstack/react-query';
-import { merchantApi, envelopeApi } from '@/lib/api';
+import { merchantApi, envelopeApi, signerContactApi } from '@/lib/api';
+import type { SignerContactResponse } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -36,6 +37,84 @@ interface FileDoc {
   contentType: string;
 }
 
+// ── Email autocomplete input ──────────────────────────────────────────────────
+
+interface SignerEmailInputProps {
+  value: string;
+  onChange: (email: string) => void;
+  onSelectContact: (contact: SignerContactResponse) => void;
+  error?: string;
+}
+
+function SignerEmailInput({ value, onChange, onSelectContact, error }: SignerEmailInputProps) {
+  const [suggestions, setSuggestions] = useState<SignerContactResponse[]>([]);
+  const [open, setOpen] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const fetchSuggestions = useCallback(async (query: string) => {
+    if (query.length < 2) { setSuggestions([]); setOpen(false); return; }
+    try {
+      const res = await signerContactApi.search(query);
+      setSuggestions(res.data);
+      setOpen(res.data.length > 0);
+    } catch {
+      setSuggestions([]);
+      setOpen(false);
+    }
+  }, []);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    onChange(v);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchSuggestions(v), 200);
+  };
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node))
+        setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <Input
+        placeholder="john@example.com"
+        value={value}
+        onChange={handleChange}
+        onFocus={() => suggestions.length > 0 && setOpen(true)}
+        autoComplete="off"
+      />
+      {open && (
+        <ul className="absolute z-30 w-full mt-1 rounded-xl border border-gray-200 bg-white shadow-lg max-h-48 overflow-auto text-sm">
+          {suggestions.map((c) => (
+            <li
+              key={c.id}
+              className="flex flex-col px-3 py-2 cursor-pointer hover:bg-gray-50 transition-colors"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onSelectContact(c);
+                setOpen(false);
+              }}
+            >
+              <span className="font-medium text-gray-900">{c.name}</span>
+              <span className="text-xs text-gray-500">{c.email} · {c.role}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {error && <p className="text-xs text-red-500 mt-0.5">{error}</p>}
+    </div>
+  );
+}
+
+// ── Send page ─────────────────────────────────────────────────────────────────
+
 export default function SendPage() {
   const router    = useRouter();
   const { user }  = useAuth();
@@ -48,7 +127,7 @@ export default function SendPage() {
   });
   const merchant = merchants?.[0];
 
-  const { register, control, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
+  const { register, control, handleSubmit, setValue, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       signers: [{ name: '', email: '', role: 'signer', order: 1, message: 'Please review and sign the document.' }],
@@ -56,6 +135,9 @@ export default function SendPage() {
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: 'signers' });
+
+  // Watch signer values for the autocomplete component
+  const signerValues = useWatch({ control, name: 'signers' });
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -221,10 +303,16 @@ export default function SendPage() {
                   </div>
                   <div className="space-y-1">
                     <Label>Email</Label>
-                    <Input placeholder="john@example.com" {...register(`signers.${index}.email`)} />
-                    {errors.signers?.[index]?.email && (
-                      <p className="text-xs text-red-500">{errors.signers[index]!.email!.message}</p>
-                    )}
+                    <SignerEmailInput
+                      value={signerValues?.[index]?.email ?? ''}
+                      onChange={(v) => setValue(`signers.${index}.email`, v, { shouldValidate: true })}
+                      onSelectContact={(c) => {
+                        setValue(`signers.${index}.email`, c.email, { shouldValidate: true });
+                        setValue(`signers.${index}.name`, c.name,  { shouldValidate: true });
+                        setValue(`signers.${index}.role`, c.role,  { shouldValidate: true });
+                      }}
+                      error={errors.signers?.[index]?.email?.message}
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label>Role (must match placeholder)</Label>

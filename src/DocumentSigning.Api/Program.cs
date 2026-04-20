@@ -30,6 +30,7 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IEmailVerificationTokenRepository, EmailVerificationTokenRepository>();
 builder.Services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
 builder.Services.AddScoped<ITicketRepository, TicketRepository>();
+builder.Services.AddScoped<ISignerContactRepository, SignerContactRepository>();
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<MerchantApiKeyFilter>();
@@ -39,6 +40,7 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IDocumentStamper, DocumentStamperDispatcher>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
+builder.Services.AddScoped<ISignerContactService, SignerContactService>();
 
 // ─── Background job handler (scoped — instantiated inside OutboxWorker scope) ─
 builder.Services.AddScoped<StampDocJobHandler>();
@@ -170,6 +172,7 @@ builder.Services.AddSwaggerGen(c =>
             | Merchants | Merchant workspaces and API key management |
             | Envelope | Send signing envelopes and retrieve signed documents |
             | Portal | Signing flow — validate token, submit signature, view signer's own envelopes |
+            | Signer Contacts | Saved contact management — list, search, CRUD, CSV import/export |
             | Tickets | Support ticket creation and messaging |
             | Tickets — Admin | Admin-level ticket management (Admin only) |
             | Audit Logs — Admin | Paged audit log viewer and entity timeline (Admin only) |
@@ -193,13 +196,14 @@ builder.Services.AddSwaggerGen(c =>
         var controller = api.ActionDescriptor.RouteValues["controller"] ?? string.Empty;
         var tag = controller switch
         {
-            "AdminTickets"  => "Tickets — Admin",
-            "AdminAudit"    => "Audit Logs — Admin",
-            "Tickets"       => "Tickets",
-            "Portal"        => "Portal",
-            "Envelope"      => "Envelope",
-            "Webhooks"      => "Webhooks",
-            _               => controller
+            "AdminTickets"    => "Tickets — Admin",
+            "AdminAudit"      => "Audit Logs — Admin",
+            "Tickets"         => "Tickets",
+            "Portal"          => "Portal",
+            "Envelope"        => "Envelope",
+            "Webhooks"        => "Webhooks",
+            "SignerContacts"  => "Signer Contacts",
+            _                 => controller
         };
         return new[] { tag };
     });
