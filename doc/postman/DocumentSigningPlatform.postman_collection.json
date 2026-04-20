@@ -634,6 +634,143 @@
         }
 
       ]
+    },
+
+    {
+      "name": "Signer Contacts",
+      "description": "Saved contact management — list, search, create, update, delete, CSV import/export. All endpoints require JWT Bearer authentication and operate only on the caller's own contacts.",
+      "item": [
+
+        {
+          "name": "List Contacts",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/signer-contacts", "host": ["{{baseUrl}}"], "path": ["api","signer-contacts"] },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — JWT from login" }
+            ],
+            "description": "Returns all active signer contacts for the authenticated user, sorted by name."
+          },
+          "response": []
+        },
+
+        {
+          "name": "Search Contacts",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/signer-contacts/search?query=bob",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","signer-contacts","search"],
+              "query": [{ "key": "query", "value": "bob", "description": "Partial name or email to search for (case-insensitive)" }]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — JWT from login" }
+            ],
+            "description": "Case-insensitive substring match on `name` and `email`. Returns up to 10 results. Designed for use as an autocomplete source on the send form."
+          },
+          "response": []
+        },
+
+        {
+          "name": "Create Contact",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/signer-contacts", "host": ["{{baseUrl}}"], "path": ["api","signer-contacts"] },
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — JWT from login" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\":    \"Bob Jones\",\n  \"email\":   \"bob@example.com\",\n  \"role\":    \"Signer\",\n  \"phone\":   \"+1-555-0100\",\n  \"company\": \"Acme Corp\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Creates a new signer contact. `email` must be unique per user — returns `409 Conflict` if a contact with that email already exists.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `name` | string | ✅ | Full name |\n| `email` | string | ✅ | Must be unique per user |\n| `role` | string | ❌ | Default: `\"signer\"` |\n| `phone` | string | ❌ | Optional phone number |\n| `company` | string | ❌ | Optional company name |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Update Contact",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/signer-contacts/:contactId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","signer-contacts",":contactId"],
+              "variable": [{ "key": "contactId", "value": "", "description": "Contact GUID to update" }]
+            },
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — JWT from login" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\":     \"Robert Jones\",\n  \"email\":    \"robert@example.com\",\n  \"role\":     \"Counter-Signer\",\n  \"phone\":    \"+1-555-0101\",\n  \"company\":  \"Acme Corp\",\n  \"isActive\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Updates all fields of an existing contact. Returns `404` if not found or owned by another user. Set `isActive` to `false` to disable without deleting.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `name` | string | ✅ | Full name |\n| `email` | string | ✅ | Must remain unique per user |\n| `role` | string | ✅ | Role string |\n| `phone` | string | ❌ | Pass `null` to clear |\n| `company` | string | ❌ | Pass `null` to clear |\n| `isActive` | bool | ✅ | `false` to soft-disable |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Delete Contact",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/signer-contacts/:contactId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","signer-contacts",":contactId"],
+              "variable": [{ "key": "contactId", "value": "", "description": "Contact GUID to soft-delete" }]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — JWT from login" }
+            ],
+            "description": "Soft-deletes the contact (`isActive = false`). Returns `204 No Content` on success, `404` if not found or owned by another user."
+          },
+          "response": []
+        },
+
+        {
+          "name": "Import Contacts (CSV)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/signer-contacts/import", "host": ["{{baseUrl}}"], "path": ["api","signer-contacts","import"] },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — JWT from login" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "",
+                  "description": "CSV file to import. Required columns: name, email. Optional: role, phone, company."
+                }
+              ]
+            },
+            "description": "Imports contacts from a `.csv` file upload (`multipart/form-data`). Existing contacts matched by email are updated; new ones are created.\n\n**Required CSV columns:** `name`, `email`\n\n**Optional CSV columns:** `role` (default `signer`), `phone`, `company`\n\nReturns an import summary: `{ imported, skipped, failed, errors[] }`."
+          },
+          "response": []
+        },
+
+        {
+          "name": "Export Contacts (CSV)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/signer-contacts/export", "host": ["{{baseUrl}}"], "path": ["api","signer-contacts","export"] },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — JWT from login" }
+            ],
+            "description": "Downloads all contacts (active and inactive) for the authenticated user as a `text/csv` file named `signer-contacts.csv`.\n\n**CSV columns:** `Name`, `Email`, `Role`, `Phone`, `Company`, `IsActive`, `CreatedAt`"
+          },
+          "response": []
+        }
+
+      ]
     }
 
   ]

@@ -172,6 +172,7 @@ builder.Services.AddSwaggerGen(c =>
             | Merchants | Merchant workspaces and API key management |
             | Envelope | Send signing envelopes and retrieve signed documents |
             | Portal | Signing flow — validate token, submit signature, view signer's own envelopes |
+            | Signer Contacts | Saved contact management — list, search, CRUD, CSV import/export |
             | Tickets | Support ticket creation and messaging |
             | Tickets — Admin | Admin-level ticket management (Admin only) |
             | Audit Logs — Admin | Paged audit log viewer and entity timeline (Admin only) |
@@ -195,13 +196,14 @@ builder.Services.AddSwaggerGen(c =>
         var controller = api.ActionDescriptor.RouteValues["controller"] ?? string.Empty;
         var tag = controller switch
         {
-            "AdminTickets"  => "Tickets — Admin",
-            "AdminAudit"    => "Audit Logs — Admin",
-            "Tickets"       => "Tickets",
-            "Portal"        => "Portal",
-            "Envelope"      => "Envelope",
-            "Webhooks"      => "Webhooks",
-            _               => controller
+            "AdminTickets"    => "Tickets — Admin",
+            "AdminAudit"      => "Audit Logs — Admin",
+            "Tickets"         => "Tickets",
+            "Portal"          => "Portal",
+            "Envelope"        => "Envelope",
+            "Webhooks"        => "Webhooks",
+            "SignerContacts"  => "Signer Contacts",
+            _                 => controller
         };
         return new[] { tag };
     });

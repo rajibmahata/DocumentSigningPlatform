@@ -764,6 +764,179 @@ curl "http://localhost:5163/api/webhooks/<webhook-id>/deliveries?page=1&pageSize
 
 ---
 
+---
+
+## Signer Contacts
+
+> All signer contact endpoints require **`Authorization: Bearer <jwt>`**.  
+> Contacts are scoped to the authenticated user.  
+> Envelope creation automatically upserts contacts for each signer.
+
+### List All Contacts  — all active contacts for the current user
+```bash
+curl http://localhost:5163/api/signer-contacts \
+  -H "Authorization: Bearer <jwt>"
+```
+> Returns `SignerContactResponse[]` sorted by `Name` ascending.
+
+**Response shape**
+```json
+[
+  {
+    "id":        "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "userId":    "<user-id>",
+    "name":      "Bob Jones",
+    "email":     "bob@example.com",
+    "role":      "Signer",
+    "phone":     "+1-555-0100",
+    "company":   "Acme Corp",
+    "isActive":  true,
+    "createdAt": "2026-04-19T10:00:00Z",
+    "updatedAt": "2026-04-19T10:00:00Z"
+  }
+]
+```
+
+---
+
+### Search Contacts  ✅ Required: query (query string)
+```bash
+curl "http://localhost:5163/api/signer-contacts/search?query=bob" \
+  -H "Authorization: Bearer <jwt>"
+```
+> Case-insensitive substring match on `Name` and `Email`. Returns up to 10 results.  
+> Designed for use in autocomplete dropdowns on the send form.
+
+---
+
+### Create Contact  ✅ Required: name, email  |  ❌ Optional: role, phone, company
+```bash
+curl -X POST http://localhost:5163/api/signer-contacts \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <jwt>" \
+  -d '{
+    "name":    "Bob Jones",
+    "email":   "bob@example.com",
+    "role":    "Signer",
+    "phone":   "+1-555-0100",
+    "company": "Acme Corp"
+  }'
+```
+> Returns `201 Created` with the new `SignerContactResponse`.  
+> `role` defaults to `"signer"` if omitted.  
+> Returns `409 Conflict` if a contact with the same email already exists for this user.
+
+**Body fields**
+| Field | Required | Notes |
+|---|---|---|
+| `name` | ✅ | Full name |
+| `email` | ✅ | Must be unique per user |
+| `role` | ❌ | Default: `"signer"` |
+| `phone` | ❌ | Optional phone number |
+| `company` | ❌ | Optional company name |
+
+---
+
+### Update Contact  ✅ Required: id (URL path), name, email, role, isActive
+```bash
+curl -X PUT http://localhost:5163/api/signer-contacts/<contact-id> \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <jwt>" \
+  -d '{
+    "name":     "Robert Jones",
+    "email":    "robert@example.com",
+    "role":     "Counter-Signer",
+    "phone":    "+1-555-0101",
+    "company":  "Acme Corp",
+    "isActive": true
+  }'
+```
+> Returns `200 OK` with the updated `SignerContactResponse`.  
+> Returns `404 Not Found` if the contact does not exist or belongs to another user.
+
+**Body fields**
+| Field | Required | Notes |
+|---|---|---|
+| `name` | ✅ | Full name |
+| `email` | ✅ | Must remain unique per user |
+| `role` | ✅ | Role string |
+| `phone` | ❌ | Pass `null` to clear |
+| `company` | ❌ | Pass `null` to clear |
+| `isActive` | ✅ | `false` to soft-disable the contact |
+
+---
+
+### Delete Contact  ✅ Required: id (URL path)
+```bash
+curl -X DELETE http://localhost:5163/api/signer-contacts/<contact-id> \
+  -H "Authorization: Bearer <jwt>"
+```
+> Returns `204 No Content`. Performs a **soft-delete** — sets `isActive = false`.  
+> Returns `404 Not Found` if the contact does not exist or belongs to another user.
+
+---
+
+### Import Contacts from CSV  ✅ Required: file (multipart/form-data)
+```bash
+curl -X POST http://localhost:5163/api/signer-contacts/import \
+  -H "Authorization: Bearer <jwt>" \
+  -F "file=@contacts.csv;type=text/csv"
+```
+> Parses uploaded CSV and upserts each row. Existing contacts (matched by email) are updated; new ones are created.  
+> Returns `200 OK` with an import summary.
+
+**CSV format** — first row must be a header row:
+```
+name,email,role,phone,company
+Bob Jones,bob@example.com,Signer,+1-555-0100,Acme Corp
+Carol White,carol@example.com,Counter-Signer,,
+```
+
+| Column | Required | Notes |
+|---|---|---|
+| `name` | ✅ | Full name |
+| `email` | ✅ | Used as unique key per user |
+| `role` | ❌ | Defaults to `"signer"` if blank |
+| `phone` | ❌ | May be blank |
+| `company` | ❌ | May be blank |
+
+**Response shape**
+```json
+{
+  "imported": 8,
+  "skipped":  1,
+  "failed":   1,
+  "errors":   ["Row 4: invalid email format"]
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `imported` | int | Rows successfully created or updated |
+| `skipped` | int | Rows with no changes (already up-to-date) |
+| `failed` | int | Rows that could not be processed |
+| `errors` | string[] | Per-row error descriptions |
+
+**Generate a sample CSV (PowerShell):**
+```powershell
+"name,email,role,phone,company`nBob Jones,bob@example.com,Signer,+1-555-0100,Acme Corp" | Out-File contacts.csv -Encoding utf8
+```
+
+---
+
+### Export Contacts as CSV  — download all contacts for the current user
+```bash
+curl http://localhost:5163/api/signer-contacts/export \
+  -H "Authorization: Bearer <jwt>" \
+  --output contacts.csv
+```
+> Returns a `text/csv` file named `signer-contacts.csv`.  
+> Includes all active **and** inactive contacts.
+
+**CSV columns in exported file:** `Name`, `Email`, `Role`, `Phone`, `Company`, `IsActive`, `CreatedAt`
+
+---
+
 ## Quick Workflow (end-to-end test sequence)
 
 ```
@@ -773,6 +946,7 @@ curl "http://localhost:5163/api/webhooks/<webhook-id>/deliveries?page=1&pageSize
 4.  GET  /api/merchants/by-user/:userId                  → list merchant(s), note apiKey + merchantId
     (optional) POST /api/merchants                       → create an additional merchant for the same user
 5.  POST /api/envelopes                                  → create envelope (X-Api-Key header)
+                                                           → signer contacts auto-created for each signer
 6.  GET  /api/envelopes/:id                              → confirm status = "Sent"
 7.  GET  /api/portal/validate/:t                         → signer validates token (t from email)
 8a. POST /api/portal/submit/:t                           → signer submits signature (happy path)
@@ -784,21 +958,30 @@ curl "http://localhost:5163/api/webhooks/<webhook-id>/deliveries?page=1&pageSize
 10. GET  /api/portal/my-envelopes                        → signer views all their pending/completed envelopes (JWT)
     → use signingToken from response to build signing URL: /sign/<signingToken>
 
+── Signer Contacts ───────────────────────────────────────────────────────────────
+11. GET  /api/signer-contacts                            → list all saved contacts (JWT)
+12. GET  /api/signer-contacts/search?query=bob           → autocomplete search by name or email (JWT)
+13. POST /api/signer-contacts                            → add a new contact manually (JWT)
+14. PUT  /api/signer-contacts/:id                        → update a contact (JWT)
+15. DELETE /api/signer-contacts/:id                      → soft-delete a contact (JWT)
+16. POST /api/signer-contacts/import                     → bulk import from CSV file (JWT)
+17. GET  /api/signer-contacts/export                     → download all contacts as CSV (JWT)
+
 ── Tickets ──────────────────────────────────────────────────────────────────────
-11. POST /api/tickets                                    → user raises a Bug / Feedback / FeatureRequest
-12. GET  /api/tickets/my                                 → user lists their own tickets
-13. POST /api/tickets/:id/message                        → user adds a follow-up message
-14. GET  /api/admin/tickets                              → admin lists all tickets  (Admin JWT)
-15. PUT  /api/admin/tickets/:id/status                   → admin sets status + priority  (Admin JWT)
-16. POST /api/tickets/:id/message (admin JWT)            → admin replies to the ticket
+18. POST /api/tickets                                    → user raises a Bug / Feedback / FeatureRequest
+19. GET  /api/tickets/my                                 → user lists their own tickets
+20. POST /api/tickets/:id/message                        → user adds a follow-up message
+21. GET  /api/admin/tickets                              → admin lists all tickets  (Admin JWT)
+22. PUT  /api/admin/tickets/:id/status                   → admin sets status + priority  (Admin JWT)
+23. POST /api/tickets/:id/message (admin JWT)            → admin replies to the ticket
 
 ── Audit Logs ───────────────────────────────────────────────────────────────────
-17. GET  /api/admin/audit-logs                           → admin views paged audit log  (Admin JWT)
-18. GET  /api/admin/audit-logs?userId=:id                → all activity for a specific user (envelope lifecycle, logins, etc.)
-19. GET  /api/admin/audit-logs?merchantId=:id            → all events for a specific merchant
-20. GET  /api/admin/audit-logs?action=Envelope.Rejected  → all rejected envelopes across the platform
-21. GET  /api/admin/audit-logs?action=Envelope.Cancelled → all cancelled envelopes
-22. GET  /api/admin/audit-logs/entity/Envelope/:id       → full signing timeline for one envelope
-23. GET  /api/admin/audit-logs/entity/Document/:id       → stamp/signature history for one document
+24. GET  /api/admin/audit-logs                           → admin views paged audit log  (Admin JWT)
+25. GET  /api/admin/audit-logs?userId=:id                → all activity for a specific user (envelope lifecycle, logins, etc.)
+26. GET  /api/admin/audit-logs?merchantId=:id            → all events for a specific merchant
+27. GET  /api/admin/audit-logs?action=Envelope.Rejected  → all rejected envelopes across the platform
+28. GET  /api/admin/audit-logs?action=Envelope.Cancelled → all cancelled envelopes
+29. GET  /api/admin/audit-logs/entity/Envelope/:id       → full signing timeline for one envelope
+30. GET  /api/admin/audit-logs/entity/Document/:id       → stamp/signature history for one document
 ```
 
