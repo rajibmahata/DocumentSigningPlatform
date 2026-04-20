@@ -11,11 +11,11 @@ import { getStatusColor, base64ToBlob, downloadBlob, resolveDocMimeType } from '
 import {
   FileText, Download, ArrowLeft, User, Ban, AlertTriangle,
   Clock, CheckCircle2, XCircle, RotateCcw, Calendar, Hash,
-  FileCheck, MessageSquare, ListOrdered,
+  FileCheck, MessageSquare, ListOrdered, SendHorizonal,
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import type { EnvelopeSignedResponse, SignerSignedSummary } from '@/types';
+import type { EnvelopeSignedResponse, SignerSignedSummary, EnvelopeActivityItem } from '@/types';
 
 const CANCELLABLE_STATUSES = ['Processing', 'Sent', 'Signed'];
 
@@ -59,6 +59,13 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
     enabled: !!merchant && !!id,
   });
 
+  const { data: activityLog = [] } = useQuery({
+    queryKey: ['envelope-activity', id, merchant?.apiKey],
+    queryFn: (): Promise<EnvelopeActivityItem[]> =>
+      envelopeApi.getActivity(merchant!.apiKey, id).then((r) => r.data),
+    enabled: !!merchant && !!id,
+  });
+
   const cancelMutation = useMutation({
     mutationFn: () => envelopeApi.cancel(merchant!.apiKey, id),
     onSuccess: () => {
@@ -73,6 +80,22 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
     const blob = base64ToBlob(base64, resolveDocMimeType(mimeType));
     const ext = resolveDocMimeType(mimeType).includes('pdf') ? 'pdf' : mimeType;
     downloadBlob(blob, `signed_${name.replace(/\s+/g, '_')}_${id}.${ext}`);
+  };
+
+  const handleDownloadOriginal = async (docId: string, fileName: string) => {
+    if (!merchant) return;
+    try {
+      const resp = await envelopeApi.downloadDocument(merchant.apiKey, id, docId);
+      const blob = resp.data as unknown as Blob;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Failed to download document.');
+    }
   };
 
   const handleResend = async (signer: SignerSignedSummary) => {
@@ -212,13 +235,24 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
               {envelope.documents.map((doc) => (
                 <div
                   key={doc.documentId}
-                  className="flex items-center gap-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-750 px-4 py-3"
+                  className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-750 px-4 py-3"
                 >
-                  <FileText className="h-5 w-5 text-brand-500 shrink-0" />
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white text-sm">{doc.documentTitle}</p>
-                    <p className="text-xs text-gray-400 font-mono">{doc.documentId}</p>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <FileText className="h-5 w-5 text-brand-500 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{doc.documentTitle}</p>
+                      <p className="text-xs text-gray-400 font-mono truncate">{doc.documentId}</p>
+                    </div>
                   </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleDownloadOriginal(doc.documentId, doc.documentTitle)}
+                    className="shrink-0"
+                  >
+                    <Download className="h-3.5 w-3.5 mr-1" />
+                    Download
+                  </Button>
                 </div>
               ))}
             </CardContent>
@@ -358,11 +392,14 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
           </CardHeader>
           <CardContent>
             <ol className="relative border-l border-gray-200 dark:border-gray-700 space-y-5 ml-2 pl-4">
+              {/* Created — always first */}
               <li>
                 <div className="absolute -left-[7px] h-3 w-3 rounded-full border-2 border-brand-500 bg-white dark:bg-gray-800" />
                 <p className="text-sm font-medium text-gray-900 dark:text-white">Envelope created &amp; invitations sent</p>
                 <p className="text-xs text-gray-500 mt-0.5">{fmtDate(envelope.sentDate)}</p>
               </li>
+
+              {/* Signed events from signers */}
               {envelope.signers.filter(s => s.signedAt).map(s => (
                 <li key={s.email + '_signed'}>
                   <div className="absolute -left-[7px] h-3 w-3 rounded-full border-2 border-green-500 bg-white dark:bg-gray-800" />
@@ -372,6 +409,8 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
                   <p className="text-xs text-gray-500 mt-0.5">{fmtDate(s.signedAt)}</p>
                 </li>
               ))}
+
+              {/* Rejected events from signers */}
               {envelope.signers.filter(s => s.status === 'Rejected').map(s => (
                 <li key={s.email + '_rejected'}>
                   <div className="absolute -left-[7px] h-3 w-3 rounded-full border-2 border-red-500 bg-white dark:bg-gray-800" />
@@ -381,6 +420,25 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
                   {s.rejectionReason && <p className="text-xs text-red-400 italic mt-0.5">&ldquo;{s.rejectionReason}&rdquo;</p>}
                 </li>
               ))}
+
+              {/* Resend events from audit log */}
+              {activityLog
+                .filter(e => e.action === 'Invitation.Resent')
+                .map((e, i) => (
+                  <li key={'resend_' + i}>
+                    <div className="absolute -left-[7px] h-3 w-3 rounded-full border-2 border-blue-400 bg-white dark:bg-gray-800 flex items-center justify-center">
+                      <SendHorizonal className="h-1.5 w-1.5 text-blue-400" />
+                    </div>
+                    <p className="text-sm font-medium text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      Invitation resent
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">{e.description}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{fmtDate(e.timestamp)}</p>
+                  </li>
+                ))}
+
+              {/* Terminal states */}
               {envelope.status === 'Completed' && (
                 <li>
                   <div className="absolute -left-[7px] h-3 w-3 rounded-full bg-green-600" />

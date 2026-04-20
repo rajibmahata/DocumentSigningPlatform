@@ -29,7 +29,9 @@ public class EnvelopeController : ControllerBase
     private readonly ISignedDocumentRepository _signedDocRepo;
     private readonly IOutboxQueueRepository _outboxRepo;
     private readonly IAuditService _audit;
+    private readonly IAuditLogRepository _auditLogRepo;
     private readonly ITokenService _tokenService;
+    private readonly IDocumentRepository _documentRepo;
     private readonly IConfiguration _config;
     private readonly IWebhookService _webhookService;
     private readonly IEmailService _emailService;
@@ -44,7 +46,9 @@ public class EnvelopeController : ControllerBase
         ISignedDocumentRepository signedDocRepo,
         IOutboxQueueRepository outboxRepo,
         IAuditService audit,
+        IAuditLogRepository auditLogRepo,
         ITokenService tokenService,
+        IDocumentRepository documentRepo,
         IConfiguration config,
         IWebhookService webhookService,
         IEmailService emailService,
@@ -58,7 +62,9 @@ public class EnvelopeController : ControllerBase
         _signedDocRepo = signedDocRepo;
         _outboxRepo = outboxRepo;
         _audit = audit;
+        _auditLogRepo = auditLogRepo;
         _tokenService = tokenService;
+        _documentRepo = documentRepo;
         _config = config;
         _webhookService = webhookService;
         _emailService = emailService;
@@ -488,6 +494,18 @@ public class EnvelopeController : ControllerBase
     }
 
     /// <summary>Resends the signing invitation email to a specific pending signer.</summary>
+    /// <remarks>
+    /// Regenerates a fresh signing token (with a new expiry window) and queues a new
+    /// invitation email for the signer identified by <c>signerEmail</c>.  
+    /// Only signers with status <c>Pending</c> can receive a resend.  
+    /// Each resend is recorded as an <c>Invitation.Resent</c> audit-log entry and will
+    /// appear in the envelope's activity timeline (<c>GET /api/envelopes/{id}/activity</c>).
+    /// </remarks>
+    /// <param name="id">Envelope GUID (URL path).</param>
+    /// <param name="request">Body containing the signer's email address.</param>
+    /// <response code="204">Invitation queued successfully — new email will be sent.</response>
+    /// <response code="400">Signer is not in <c>Pending</c> status (already signed, rejected, or expired).</response>
+    /// <response code="404">Envelope not found / not owned by this merchant, or signer email not on this envelope.</response>
     [HttpPost("{id:guid}/resend")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -573,6 +591,74 @@ public class EnvelopeController : ControllerBase
             UserAgent:   Request.Headers.UserAgent.ToString()));
 
         return NoContent();
+    }
+
+    /// <summary>Returns the audit-log activity timeline for a specific envelope.</summary>
+    /// <remarks>
+    /// Returns all <c>AuditLog</c> entries where <c>EntityType = "Envelope"</c> and
+    /// <c>EntityId = {id}</c>, ordered chronologically (oldest first).  
+    /// Covers events such as <c>Envelope.Created</c>, <c>Invitation.Resent</c>,
+    /// <c>Envelope.Signed</c>, <c>Envelope.Completed</c>, <c>Envelope.Cancelled</c>, and
+    /// <c>Envelope.Rejected</c>.
+    /// </remarks>
+    /// <param name="id">Envelope GUID (URL path).</param>
+    /// <response code="200">Array of activity items ordered by timestamp ascending (may be empty).</response>
+    /// <response code="404">Envelope not found or not owned by this merchant.</response>
+    [HttpGet("{id:guid}/activity")]
+    [ProducesResponseType(typeof(IReadOnlyList<EnvelopeActivityResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetActivity(Guid id, CancellationToken ct)
+    {
+        var merchant = HttpContext.Items["Merchant"] as Merchant;
+        if (merchant is null) return Unauthorized();
+
+        var envelope = await _envelopeRepo.GetByIdAsync(id, ct);
+        if (envelope is null || envelope.MerchantId != merchant.Id)
+            return NotFound();
+
+        var logs = await _auditLogRepo.GetByEntityAsync(AuditEntities.Envelope, id, ct);
+
+        var result = logs.Select(l => new EnvelopeActivityResponse(
+            l.Action,
+            l.Description,
+            l.Timestamp)).ToList();
+
+        return Ok(result);
+    }
+
+    /// <summary>Downloads the original (unsigned) document bytes for a specific document in an envelope.</summary>
+    /// <remarks>
+    /// Returns the raw file bytes with the correct <c>Content-Disposition: attachment</c> header.
+    /// Useful for merchants who want to re-download the original uploaded document.
+    /// </remarks>
+    /// <param name="id">Envelope GUID (URL path).</param>
+    /// <param name="docId">Document GUID (URL path).</param>
+    /// <response code="200">Raw file bytes with Content-Disposition attachment header.</response>
+    /// <response code="404">Envelope or document not found, or not owned by this merchant.</response>
+    [HttpGet("{id:guid}/documents/{docId:guid}/download")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DownloadDocument(Guid id, Guid docId, CancellationToken ct)
+    {
+        var merchant = HttpContext.Items["Merchant"] as Merchant;
+        if (merchant is null) return Unauthorized();
+
+        var envelope = await _envelopeRepo.GetByIdAsync(id, ct);
+        if (envelope is null || envelope.MerchantId != merchant.Id)
+            return NotFound();
+
+        var doc = await _documentRepo.GetByIdAsync(docId, ct);
+        if (doc is null || doc.EnvelopeId != id)
+            return NotFound();
+
+        var contentType = string.IsNullOrWhiteSpace(doc.ContentType)
+            ? "application/octet-stream"
+            : doc.ContentType;
+
+        Response.Headers["Content-Disposition"] =
+            $"attachment; filename=\"{doc.DocumentFileName}\"";
+
+        return File(doc.ContentBytes, contentType, doc.DocumentFileName);
     }
 
     private static string ResolveDocumentType(string contentType) => contentType.ToLowerInvariant() switch    {
