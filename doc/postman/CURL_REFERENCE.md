@@ -197,6 +197,61 @@ curl -X PUT http://localhost:5163/api/envelopes/<envelope-id>/cancel \
 ```
 > Cancels an envelope with status `Processing`, `Sent`, or `Signed`. Returns `204 No Content`.
 
+### Resend Invitation  ✅ Required: id (URL path), signerEmail (body)
+```bash
+curl -X POST http://localhost:5163/api/envelopes/<envelope-id>/resend \
+  -H "Content-Type: application/json" \
+  -H "X-Api-Key: <api-key>" \
+  -d '{
+    "signerEmail": "bob@example.com"
+  }'
+```
+> Re-generates a fresh signing token and queues a new invitation email to the specified signer.  
+> Only works for signers with status `Pending`. Returns `204 No Content`.  
+> Each resend is recorded in the audit log and appears in the activity timeline.
+
+**Status codes**
+| Code | Meaning |
+|---|---|
+| `204` | Invitation queued — new email will be sent |
+| `400` | Signer is not `Pending` (already signed, rejected, or expired) |
+| `404` | Envelope not found, not owned by this merchant, or signer email not on this envelope |
+
+### Get Activity Timeline  ✅ Required: id (URL path)
+```bash
+curl http://localhost:5163/api/envelopes/<envelope-id>/activity \
+  -H "X-Api-Key: <api-key>"
+```
+> Returns a chronological list of all audit-log events for the envelope — creation, resends, signatures, completion, cancellation, and rejection.
+
+**Response shape**
+```json
+[
+  {
+    "action":      "Envelope.Created",
+    "description": "Envelope 'Service Agreement' created with 2 signer(s)",
+    "timestamp":   "2026-04-18T10:00:00Z"
+  },
+  {
+    "action":      "Invitation.Resent",
+    "description": "Invitation resent to bob@example.com for envelope 'Service Agreement'",
+    "timestamp":   "2026-04-19T09:15:42Z"
+  },
+  {
+    "action":      "Envelope.Signed",
+    "description": "Bob Jones signed the document",
+    "timestamp":   "2026-04-19T11:30:00Z"
+  }
+]
+```
+
+**Response fields**
+| Field | Type | Description |
+|---|---|---|
+| `action` | string | Audit action key (e.g. `Envelope.Created`, `Invitation.Resent`) |
+| `description` | string | Human-readable event description |
+| `timestamp` | ISO-8601 UTC | When the event occurred |
+
 **Envelope status lifecycle**
 | Status | Description |
 |---|---|

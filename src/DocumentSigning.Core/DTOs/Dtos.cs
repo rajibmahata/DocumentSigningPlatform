@@ -119,6 +119,11 @@ public record EnvelopeSignedResponse(
 
 public record ResendInvitationRequest(string SignerEmail);
 
+public record EnvelopeActivityResponse(
+    string Action,
+    string Description,
+    DateTime Timestamp);
+
 public record InitiateEnvelopeResponse(
     Guid EnvelopeId,
     string Title,

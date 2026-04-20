@@ -141,6 +141,12 @@ export interface EnvelopeSignedResponse {
   signers: SignerSignedSummary[];
 }
 
+export interface EnvelopeActivityItem {
+  action: string;
+  description: string;
+  timestamp: string;
+}
+
 export type EnvelopeStatus = 'Processing' | 'Sent' | 'Signed' | 'Completed' | 'Failed' | 'Cancelled' | 'Expired' | 'Rejected';
 
 // ── Portal / Signing ──────────────────────────────────────────────────────────

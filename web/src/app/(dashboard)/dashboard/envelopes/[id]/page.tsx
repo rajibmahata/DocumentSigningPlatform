@@ -11,11 +11,11 @@ import { getStatusColor, base64ToBlob, downloadBlob, resolveDocMimeType } from '
 import {
   FileText, Download, ArrowLeft, User, Ban, AlertTriangle,
   Clock, CheckCircle2, XCircle, RotateCcw, Calendar, Hash,
-  FileCheck, MessageSquare, ListOrdered,
+  FileCheck, MessageSquare, ListOrdered, SendHorizonal,
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import type { EnvelopeSignedResponse, SignerSignedSummary } from '@/types';
+import type { EnvelopeSignedResponse, SignerSignedSummary, EnvelopeActivityItem } from '@/types';
 
 const CANCELLABLE_STATUSES = ['Processing', 'Sent', 'Signed'];
 
@@ -56,6 +56,13 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
     queryKey: ['envelope', id, merchant?.apiKey],
     queryFn: (): Promise<EnvelopeSignedResponse> =>
       envelopeApi.getSignedDocuments(merchant!.apiKey, id).then((r) => r.data),
+    enabled: !!merchant && !!id,
+  });
+
+  const { data: activityLog = [] } = useQuery({
+    queryKey: ['envelope-activity', id, merchant?.apiKey],
+    queryFn: (): Promise<EnvelopeActivityItem[]> =>
+      envelopeApi.getActivity(merchant!.apiKey, id).then((r) => r.data),
     enabled: !!merchant && !!id,
   });
 
@@ -358,11 +365,14 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
           </CardHeader>
           <CardContent>
             <ol className="relative border-l border-gray-200 dark:border-gray-700 space-y-5 ml-2 pl-4">
+              {/* Created — always first */}
               <li>
                 <div className="absolute -left-[7px] h-3 w-3 rounded-full border-2 border-brand-500 bg-white dark:bg-gray-800" />
                 <p className="text-sm font-medium text-gray-900 dark:text-white">Envelope created &amp; invitations sent</p>
                 <p className="text-xs text-gray-500 mt-0.5">{fmtDate(envelope.sentDate)}</p>
               </li>
+
+              {/* Signed events from signers */}
               {envelope.signers.filter(s => s.signedAt).map(s => (
                 <li key={s.email + '_signed'}>
                   <div className="absolute -left-[7px] h-3 w-3 rounded-full border-2 border-green-500 bg-white dark:bg-gray-800" />
@@ -372,6 +382,8 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
                   <p className="text-xs text-gray-500 mt-0.5">{fmtDate(s.signedAt)}</p>
                 </li>
               ))}
+
+              {/* Rejected events from signers */}
               {envelope.signers.filter(s => s.status === 'Rejected').map(s => (
                 <li key={s.email + '_rejected'}>
                   <div className="absolute -left-[7px] h-3 w-3 rounded-full border-2 border-red-500 bg-white dark:bg-gray-800" />
@@ -381,6 +393,25 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
                   {s.rejectionReason && <p className="text-xs text-red-400 italic mt-0.5">&ldquo;{s.rejectionReason}&rdquo;</p>}
                 </li>
               ))}
+
+              {/* Resend events from audit log */}
+              {activityLog
+                .filter(e => e.action === 'Invitation.Resent')
+                .map((e, i) => (
+                  <li key={'resend_' + i}>
+                    <div className="absolute -left-[7px] h-3 w-3 rounded-full border-2 border-blue-400 bg-white dark:bg-gray-800 flex items-center justify-center">
+                      <SendHorizonal className="h-1.5 w-1.5 text-blue-400" />
+                    </div>
+                    <p className="text-sm font-medium text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      Invitation resent
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">{e.description}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{fmtDate(e.timestamp)}</p>
+                  </li>
+                ))}
+
+              {/* Terminal states */}
               {envelope.status === 'Completed' && (
                 <li>
                   <div className="absolute -left-[7px] h-3 w-3 rounded-full bg-green-600" />

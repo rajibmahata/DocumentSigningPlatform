@@ -339,6 +339,83 @@ A signer may reject a document instead of signing it.
 
 ---
 
+## Resend Invitation Flow
+
+A merchant may resend a signing invitation email to a **Pending** signer at any time while the envelope is still active.
+
+**Endpoint**: `POST /api/envelopes/{id}/resend`  
+**Auth**: `X-Api-Key` header required.
+
+**Request body**:
+```json
+{ "signerEmail": "bob@example.com" }
+```
+
+**Server processing**:
+1. Looks up envelope by ID; verifies merchant ownership via API key
+2. Finds the signer matching `signerEmail` — returns `404` if not found
+3. Checks signer status is `Pending` — returns `400` if already signed, rejected, or expired
+4. Re-generates a fresh signing token with a new expiry window
+5. Queues a new invitation email via the outbox
+6. Writes `AuditLog`: `Action="Invitation.Resent"`, `EntityType="Envelope"`, `EntityId=envelope.Id`, `Description="Invitation resent to {email} for envelope '{title}'"`
+7. Returns `204 No Content`
+
+**Status codes**
+| Code | Meaning |
+|---|---|
+| `204` | Invitation queued successfully |
+| `400` | Signer is not in `Pending` status |
+| `404` | Envelope not found, not owned by this merchant, or signer email not on this envelope |
+| `401` | Missing or invalid API key |
+
+---
+
+## Envelope Activity Timeline
+
+Returns a chronological audit-log feed for a specific envelope. Powers the **Activity Timeline** panel in the dashboard.
+
+**Endpoint**: `GET /api/envelopes/{id}/activity`  
+**Auth**: `X-Api-Key` header required.
+
+**Response**:
+```json
+[
+  {
+    "action":      "Envelope.Created",
+    "description": "Envelope 'Service Agreement' created with 2 signer(s)",
+    "timestamp":   "2026-04-18T10:00:00Z"
+  },
+  {
+    "action":      "Invitation.Resent",
+    "description": "Invitation resent to bob@example.com for envelope 'Service Agreement'",
+    "timestamp":   "2026-04-19T09:15:42Z"
+  },
+  {
+    "action":      "Envelope.Signed",
+    "description": "Bob Jones signed the document",
+    "timestamp":   "2026-04-19T11:30:00Z"
+  }
+]
+```
+
+**Response fields**
+| Field | Type | Description |
+|---|---|---|
+| `action` | string | Audit action key (e.g. `Envelope.Created`, `Invitation.Resent`) |
+| `description` | string | Human-readable event description |
+| `timestamp` | ISO-8601 UTC | When the event occurred |
+
+**Status codes**
+| Code | Meaning |
+|---|---|
+| `200` | Array of activity items (may be empty) |
+| `404` | Envelope not found or not owned by this merchant |
+| `401` | Missing or invalid API key |
+
+> The timeline includes all `AuditLog` entries where `EntityType = "Envelope"` and `EntityId = {id}`, ordered by `Timestamp` ascending.
+
+---
+
 ## Envelope Cancellation Flow
 
 A merchant (sender) may cancel an envelope before it reaches a terminal state.
@@ -404,6 +481,7 @@ Every significant event is recorded in `AuditLogs` with IP address, user agent, 
 | `Envelope.Completed` | All signers have signed |
 | `Envelope.Cancelled` | Sender cancels via `PUT /api/envelopes/{id}/cancel` |
 | `Envelope.Rejected` | Signer rejects via `POST /api/portal/reject/{token}` |
+| `Invitation.Resent` | Merchant resends invitation via `POST /api/envelopes/{id}/resend` |
 | `Envelope.Failed` | System error during send or document stamping |
 | `Envelope.Expired` | Signing window elapsed without all signers completing |
 | `Document.Uploaded` | Document attached to envelope |

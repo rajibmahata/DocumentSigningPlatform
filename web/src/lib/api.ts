@@ -116,6 +116,10 @@ export const envelopeApi = {
     apiClient.post(`/envelopes/${id}/resend`, { signerEmail }, {
       headers: { 'X-Api-Key': apiKey },
     }),
+  getActivity: (apiKey: string, id: string) =>
+    apiClient.get<import('@/types').EnvelopeActivityItem[]>(`/envelopes/${id}/activity`, {
+      headers: { 'X-Api-Key': apiKey },
+    }),
 };
 
 // ── Portal ────────────────────────────────────────────────────────────────────
