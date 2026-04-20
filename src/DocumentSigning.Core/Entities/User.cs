@@ -10,6 +10,7 @@ public class User
     public string     PasswordHash     { get; set; } = string.Empty;
     public string?    Country          { get; set; }
     public bool       IsEmailVerified  { get; set; } = false;
+    public bool       IsActive         { get; set; } = true;
     public AccessRole AccessRole       { get; set; } = AccessRole.User;
     public DateTime   CreatedAt        { get; set; } = DateTime.UtcNow;
 }

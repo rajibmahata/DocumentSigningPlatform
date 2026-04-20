@@ -1,4 +1,5 @@
 using DocumentSigning.Core.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace DocumentSigning.Infrastructure.Services;
 
@@ -8,8 +9,13 @@ namespace DocumentSigning.Infrastructure.Services;
 /// </summary>
 public class DocumentStamperDispatcher : IDocumentStamper
 {
-    private readonly PdfDocumentStamper _pdfStamper = new();
+    private readonly PdfDocumentStamper _pdfStamper;
     private readonly DocxDocumentStamper _docxStamper = new();
+
+    public DocumentStamperDispatcher(ILogger<PdfDocumentStamper> pdfLogger)
+    {
+        _pdfStamper = new PdfDocumentStamper(pdfLogger);
+    }
 
     public async Task<byte[]> StampAsync(
         byte[] docBytes,

@@ -330,6 +330,23 @@
             "description": "Returns each signer's signed document as base64. `signedDocumentBase64` is `null` if not yet signed.\n\n| Param | Location | Required | Notes |\n|---|---|---|---|\n| `id` | URL path | ✅ | Envelope GUID |"
           },
           "response": []
+        },
+
+        {
+          "name": "Cancel Envelope",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/envelopes/{{envelopeId}}/cancel",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","envelopes","{{envelopeId}}","cancel"]
+            },
+            "header": [
+              { "key": "X-Api-Key", "value": "{{merchantApiKey}}", "description": "Merchant API Key (REQUIRED)" }
+            ],
+            "description": "Cancels an envelope, preventing any further signing. Only envelopes in `Processing`, `Sent`, or `Signed` state can be cancelled. Returns `204 No Content` on success.\n\n**Envelope status lifecycle**\n| Status | Description |\n|---|---|\n| `Processing` | Request accepted; system preparing invitation emails |\n| `Sent` | Invitation emails queued for all signers |\n| `Signed` | At least one signer has signed (multi-signer in progress) |\n| `Completed` | All signers have completed |\n| `Failed` | System error during send or stamping |\n| `Cancelled` | Sender cancelled before completion |\n| `Expired` | Signing window elapsed without completion |\n| `Rejected` | A signer explicitly rejected the document |"
+          },
+          "response": []
         }
 
       ]
@@ -389,6 +406,27 @@
             "description": "Submits the claimant's drawn or typed signature. Enqueues a background job to stamp the document.\n\n| Param | Location | Required | Notes |\n|---|---|---|---|\n| `token` | URL path | ✅ | HMAC-signed signing token |\n\n**Body**\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `signatureBase64` | string | ✅ | Base64-encoded PNG signature image (data-URL prefix NOT included — raw base64 only) |"
           },
           "response": []
+        },
+
+        {
+          "name": "Reject Document",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/portal/reject/:token",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","portal","reject",":token"],
+              "variable": [{ "key": "token", "value": "{{signingToken}}", "description": "REQUIRED – signing token from email link" }]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Terms are not acceptable.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Signer rejects the document. Sets the envelope status to `Rejected` and prevents further signing.\n\n| Param | Location | Required | Notes |\n|---|---|---|---|\n| `token` | URL path | ✅ | HMAC-signed signing token |\n\n**Body**\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `reason` | string | ❌ | Optional rejection reason recorded in the audit log |"
+          },
+          "response": []
         }
 
       ]
@@ -407,7 +445,7 @@
             "header": [
               { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED – Admin JWT" }
             ],
-            "description": "Returns total counts for users, envelopes sent, envelopes completed, envelopes cancelled, and documents signed across the platform.\n\n**Response fields**\n| Field | Type | Notes |\n|---|---|---|\n| `totalUsers` | int | All registered users |\n| `totalEnvelopesSent` | int | All envelopes created |\n| `totalEnvelopesSigned` | int | Envelopes with status Completed |\n| `totalEnvelopesCancelled` | int | Envelopes with status Cancelled |\n| `totalDocumentsSigned` | int | Individual signed document records |"
+            "description": "Returns total counts for users, envelopes, signed documents, and support tickets across the platform.\n\n**Response fields**\n| Field | Type | Notes |\n|---|---|---|\n| `totalUsers` | int | All registered users |\n| `totalEnvelopesSent` | int | All envelopes created |\n| `totalEnvelopesSigned` | int | Envelopes with status Completed |\n| `totalEnvelopesCancelled` | int | Envelopes with status Cancelled |\n| `totalDocumentsSigned` | int | Individual signed document records |\n| `totalTickets` | int | All support tickets |\n| `openTickets` | int | Tickets with status Open |\n| `inProgressTickets` | int | Tickets with status InProgress |\n| `resolvedTickets` | int | Tickets with status Resolved |\n| `closedTickets` | int | Tickets with status Closed |"
           },
           "response": []
         },
@@ -425,7 +463,7 @@
             "header": [
               { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED – Admin JWT" }
             ],
-            "description": "Returns daily activity counts for user registrations, envelopes sent, and documents signed over the specified period.\n\n| Query param | Type | Required | Notes |\n|---|---|---|---|\n| `days` | int | ❌ | Look-back window: 7–90 days. Default 30. |\n\n**Response fields**\n| Field | Type | Notes |\n|---|---|---|\n| `userRegistrations` | DailyCount[] | New user sign-ups per day |\n| `envelopesSent` | DailyCount[] | Envelopes created per day |\n| `documentsSigned` | DailyCount[] | Documents signed per day |\n\n**DailyCount shape:** `{ \"date\": \"2026-03-15\", \"count\": 3 }`"
+            "description": "Returns daily activity counts for user registrations, envelopes sent, documents signed, and support tickets opened over the specified period.\n\n| Query param | Type | Required | Notes |\n|---|---|---|---|\n| `days` | int | ❌ | Look-back window: 7–90 days. Default 30. |\n\n**Response fields**\n| Field | Type | Notes |\n|---|---|---|\n| `userRegistrations` | DailyCount[] | New user sign-ups per day |\n| `envelopesSent` | DailyCount[] | Envelopes created per day |\n| `documentsSigned` | DailyCount[] | Documents signed per day |\n| `ticketsCreated` | DailyCount[] | New support tickets opened per day |\n\n**DailyCount shape:** `{ \"date\": \"2026-03-15\", \"count\": 3 }`"
           },
           "response": []
         }
@@ -487,6 +525,247 @@
               "options": { "raw": { "language": "json" } }
             },
             "description": "Updates a user profile. Regular users may only change their own `name`. Only Admins may change `accessRole`.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `name` | string | ❌ | New display name; ignored if blank |\n| `accessRole` | string | ❌ | `\"User\"` or `\"Admin\"`. Non-admins receive 403 if set. |"
+          },
+          "response": []
+        }
+
+      ]
+    },
+
+    {
+      "name": "Tickets",
+      "description": "Support ticket system — users raise tickets, admins manage them.\n\n**User endpoints** require `Authorization: Bearer <jwt>`.\n**Admin endpoints** require `Authorization: Bearer <admin-jwt>`.\n\nValid `type` values: `Bug` | `Feedback` | `FeatureRequest`\nValid `status` values: `Open` | `InProgress` | `Resolved` | `Closed`\nValid `priority` values: `Low` | `Medium` | `High`",
+      "item": [
+
+        {
+          "name": "Create Ticket",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/tickets", "host": ["{{baseUrl}}"], "path": ["api","tickets"] },
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — authenticated user JWT" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Login page crashes on mobile\",\n  \"description\": \"Tapping the login button on iOS Safari causes a white screen.\",\n  \"type\": \"Bug\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Creates a new support ticket for the authenticated user. Status is always `Open` on creation.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `title` | string | ✅ | Short summary |\n| `description` | string | ✅ | Full description |\n| `type` | string | ✅ | `Bug` \\| `Feedback` \\| `FeatureRequest` |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Get My Tickets",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/tickets/my", "host": ["{{baseUrl}}"], "path": ["api","tickets","my"] },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — authenticated user JWT" }
+            ],
+            "description": "Returns all tickets raised by the currently authenticated user, sorted by creation date descending."
+          },
+          "response": []
+        },
+
+        {
+          "name": "Get Ticket by ID",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/tickets/:ticketId", "host": ["{{baseUrl}}"], "path": ["api","tickets",":ticketId"], "variable": [{ "key": "ticketId", "value": "" }] },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — own user or Admin JWT" }
+            ],
+            "description": "Returns full ticket detail including all messages. Regular users may only access their own tickets (returns 403 otherwise). Admins can access any ticket."
+          },
+          "response": []
+        },
+
+        {
+          "name": "Add Message to Ticket",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/tickets/:ticketId/message", "host": ["{{baseUrl}}"], "path": ["api","tickets",":ticketId","message"], "variable": [{ "key": "ticketId", "value": "" }] },
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — own user or Admin JWT" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"I can reproduce this consistently on iPhone 14 running iOS 17.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Appends a message to the ticket thread. `senderType` is set automatically: `\"User\"` for regular users, `\"Admin\"` for admin users. Returns `201 Created` with the new `TicketMessageResponse`."
+          },
+          "response": []
+        },
+
+        {
+          "name": "Get All Tickets (Admin)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/admin/tickets", "host": ["{{baseUrl}}"], "path": ["api","admin","tickets"] },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — Admin JWT" }
+            ],
+            "description": "Returns all tickets across all users, sorted by creation date descending. **Admin role required.**"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Update Ticket Status (Admin)",
+          "request": {
+            "method": "PUT",
+            "url": { "raw": "{{baseUrl}}/api/admin/tickets/:ticketId/status", "host": ["{{baseUrl}}"], "path": ["api","admin","tickets",":ticketId","status"], "variable": [{ "key": "ticketId", "value": "" }] },
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — Admin JWT" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"InProgress\",\n  \"priority\": \"High\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Updates ticket status and optionally sets priority. Returns `204 No Content` on success. **Admin role required.**\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `status` | string | ✅ | `Open` \\| `InProgress` \\| `Resolved` \\| `Closed` |\n| `priority` | string | ❌ | `Low` \\| `Medium` \\| `High`; omit or `null` to clear |"
+          },
+          "response": []
+        }
+
+      ]
+    },
+
+    {
+      "name": "Signer Contacts",
+      "description": "Saved contact management — list, search, create, update, delete, CSV import/export. All endpoints require JWT Bearer authentication and operate only on the caller's own contacts.",
+      "item": [
+
+        {
+          "name": "List Contacts",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/signer-contacts", "host": ["{{baseUrl}}"], "path": ["api","signer-contacts"] },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — JWT from login" }
+            ],
+            "description": "Returns all active signer contacts for the authenticated user, sorted by name."
+          },
+          "response": []
+        },
+
+        {
+          "name": "Search Contacts",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/signer-contacts/search?query=bob",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","signer-contacts","search"],
+              "query": [{ "key": "query", "value": "bob", "description": "Partial name or email to search for (case-insensitive)" }]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — JWT from login" }
+            ],
+            "description": "Case-insensitive substring match on `name` and `email`. Returns up to 10 results. Designed for use as an autocomplete source on the send form."
+          },
+          "response": []
+        },
+
+        {
+          "name": "Create Contact",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/signer-contacts", "host": ["{{baseUrl}}"], "path": ["api","signer-contacts"] },
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — JWT from login" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\":    \"Bob Jones\",\n  \"email\":   \"bob@example.com\",\n  \"role\":    \"Signer\",\n  \"phone\":   \"+1-555-0100\",\n  \"company\": \"Acme Corp\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Creates a new signer contact. `email` must be unique per user — returns `409 Conflict` if a contact with that email already exists.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `name` | string | ✅ | Full name |\n| `email` | string | ✅ | Must be unique per user |\n| `role` | string | ❌ | Default: `\"signer\"` |\n| `phone` | string | ❌ | Optional phone number |\n| `company` | string | ❌ | Optional company name |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Update Contact",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/signer-contacts/:contactId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","signer-contacts",":contactId"],
+              "variable": [{ "key": "contactId", "value": "", "description": "Contact GUID to update" }]
+            },
+            "header": [
+              { "key": "Content-Type",  "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — JWT from login" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\":     \"Robert Jones\",\n  \"email\":    \"robert@example.com\",\n  \"role\":     \"Counter-Signer\",\n  \"phone\":    \"+1-555-0101\",\n  \"company\":  \"Acme Corp\",\n  \"isActive\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Updates all fields of an existing contact. Returns `404` if not found or owned by another user. Set `isActive` to `false` to disable without deleting.\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| `name` | string | ✅ | Full name |\n| `email` | string | ✅ | Must remain unique per user |\n| `role` | string | ✅ | Role string |\n| `phone` | string | ❌ | Pass `null` to clear |\n| `company` | string | ❌ | Pass `null` to clear |\n| `isActive` | bool | ✅ | `false` to soft-disable |"
+          },
+          "response": []
+        },
+
+        {
+          "name": "Delete Contact",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/signer-contacts/:contactId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api","signer-contacts",":contactId"],
+              "variable": [{ "key": "contactId", "value": "", "description": "Contact GUID to soft-delete" }]
+            },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — JWT from login" }
+            ],
+            "description": "Soft-deletes the contact (`isActive = false`). Returns `204 No Content` on success, `404` if not found or owned by another user."
+          },
+          "response": []
+        },
+
+        {
+          "name": "Import Contacts (CSV)",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/signer-contacts/import", "host": ["{{baseUrl}}"], "path": ["api","signer-contacts","import"] },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — JWT from login" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "",
+                  "description": "CSV file to import. Required columns: name, email. Optional: role, phone, company."
+                }
+              ]
+            },
+            "description": "Imports contacts from a `.csv` file upload (`multipart/form-data`). Existing contacts matched by email are updated; new ones are created.\n\n**Required CSV columns:** `name`, `email`\n\n**Optional CSV columns:** `role` (default `signer`), `phone`, `company`\n\nReturns an import summary: `{ imported, skipped, failed, errors[] }`."
+          },
+          "response": []
+        },
+
+        {
+          "name": "Export Contacts (CSV)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/signer-contacts/export", "host": ["{{baseUrl}}"], "path": ["api","signer-contacts","export"] },
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwtToken}}", "description": "REQUIRED — JWT from login" }
+            ],
+            "description": "Downloads all contacts (active and inactive) for the authenticated user as a `text/csv` file named `signer-contacts.csv`.\n\n**CSV columns:** `Name`, `Email`, `Role`, `Phone`, `Company`, `IsActive`, `CreatedAt`"
           },
           "response": []
         }

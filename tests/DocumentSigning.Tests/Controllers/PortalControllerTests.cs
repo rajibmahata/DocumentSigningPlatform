@@ -13,10 +13,12 @@ namespace DocumentSigning.Tests.Controllers;
 public class PortalControllerTests
 {
     private readonly Mock<ISigningRequestRepository> _signingRequestRepo = new();
-    private readonly Mock<IDocumentRepository> _docRepo = new();
-    private readonly Mock<IClaimRepository> _claimRepo = new();
-    private readonly Mock<IAuditLogRepository> _auditRepo = new();
-    private readonly Mock<ITokenService> _tokenService = new();
+    private readonly Mock<IDocumentRepository>        _docRepo            = new();
+    private readonly Mock<IClaimRepository>           _claimRepo          = new();
+    private readonly Mock<IAuditService>              _audit              = new();
+    private readonly Mock<ITokenService>              _tokenService       = new();
+    private readonly Mock<ISigningEnvelopeRepository> _envelopeRepo       = new();
+    private readonly Mock<ISignedDocumentRepository>  _signedDocRepo      = new();
 
     private PortalController CreateController()
     {
@@ -24,8 +26,10 @@ public class PortalControllerTests
             _signingRequestRepo.Object,
             _docRepo.Object,
             _claimRepo.Object,
-            _auditRepo.Object,
-            _tokenService.Object);
+            _audit.Object,
+            _tokenService.Object,
+            _envelopeRepo.Object,
+            _signedDocRepo.Object);
 
         controller.ControllerContext = new ControllerContext
         {
@@ -177,10 +181,7 @@ public class PortalControllerTests
             .ReturnsAsync(doc);
         _claimRepo.Setup(r => r.GetByIdAsync(sr.ClaimId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(claim);
-        _auditRepo.Setup(r => r.AppendAsync(It.IsAny<AuditLog>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        _auditRepo.Setup(r => r.SaveChangesAsync(It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+        _audit.Setup(a => a.Log(It.IsAny<AuditEntry>()));
 
         var result = await CreateController().Validate("goodtoken", CancellationToken.None);
 

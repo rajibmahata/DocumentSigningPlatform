@@ -1,9 +1,8 @@
 import axios from 'axios';
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5163';
+import { apiBaseUrl } from '@/lib/config';
 
 export const apiClient = axios.create({
-  baseURL: `${BASE_URL}/api`,
+  baseURL: `${apiBaseUrl}/api`,
   headers: { 'Content-Type': 'application/json' },
   timeout: 30_000,
 });
@@ -59,6 +58,12 @@ export const userApi = {
     apiClient.get<UserResponse[]>('/users'),
   update: (id: string, data: UpdateUserRequest) =>
     apiClient.put<UserResponse>(`/users/${id}`, data),
+  getPendingAdmins: () =>
+    apiClient.get<UserResponse[]>('/admin/users/pending'),
+  activate: (id: string) =>
+    apiClient.post<UserResponse>(`/admin/users/${id}/activate`),
+  deactivate: (id: string) =>
+    apiClient.post<UserResponse>(`/admin/users/${id}/deactivate`),
 };
 
 // ── Merchant ──────────────────────────────────────────────────────────────────
@@ -103,19 +108,40 @@ export const envelopeApi = {
     apiClient.get<EnvelopeSignedResponse>(`/envelopes/${id}/signed-documents`, {
       headers: { 'X-Api-Key': apiKey },
     }),
+  cancel: (apiKey: string, id: string) =>
+    apiClient.put(`/envelopes/${id}/cancel`, {}, {
+      headers: { 'X-Api-Key': apiKey },
+    }),
+  resendInvitation: (apiKey: string, id: string, signerEmail: string) =>
+    apiClient.post(`/envelopes/${id}/resend`, { signerEmail }, {
+      headers: { 'X-Api-Key': apiKey },
+    }),
+  getActivity: (apiKey: string, id: string) =>
+    apiClient.get<import('@/types').EnvelopeActivityItem[]>(`/envelopes/${id}/activity`, {
+      headers: { 'X-Api-Key': apiKey },
+    }),
+  downloadDocument: (apiKey: string, envelopeId: string, docId: string) =>
+    apiClient.get<Blob>(`/envelopes/${envelopeId}/documents/${docId}/download`, {
+      headers: { 'X-Api-Key': apiKey },
+      responseType: 'blob',
+    }),
 };
 
 // ── Portal ────────────────────────────────────────────────────────────────────
 
-import type { AnalyticsSummary, AnalyticsTrends, DocumentPreviewResponse, PlatformStats, SubmitSignatureRequest } from '@/types';
+import type { AnalyticsSummary, AnalyticsTrends, DocumentPreviewResponse, PlatformStats, SubmitSignatureRequest, RejectSignatureRequest, MyEnvelopeResponse } from '@/types';
 
 export const portalApi = {
   validate: (token: string) =>
     apiClient.get<DocumentPreviewResponse>(`/portal/validate/${token}`),
   submit: (token: string, data: SubmitSignatureRequest) =>
     apiClient.post(`/portal/submit/${token}`, data),
+  reject: (token: string, data: RejectSignatureRequest) =>
+    apiClient.post(`/portal/reject/${token}`, data),
   getStats: () =>
     apiClient.get<PlatformStats>('/portal/stats'),
+  getMyEnvelopes: () =>
+    apiClient.get<MyEnvelopeResponse[]>('/portal/my-envelopes'),
 };
 
 // ── Analytics ─────────────────────────────────────────────────────────────────
@@ -125,4 +151,149 @@ export const analyticsApi = {
     apiClient.get<AnalyticsSummary>('/analytics/summary'),
   getTrends: (days = 30) =>
     apiClient.get<AnalyticsTrends>(`/analytics/trends?days=${days}`),
+};
+
+// ── Tickets ───────────────────────────────────────────────────────────────────
+
+import type {
+  CreateTicketRequest, AddTicketMessageRequest, UpdateTicketStatusRequest,
+  TicketResponse, TicketSummary, TicketMessageResponse,
+} from '@/types';
+
+export const ticketsApi = {
+  // User endpoints
+  create: (data: CreateTicketRequest) =>
+    apiClient.post<TicketResponse>('/tickets', data),
+  getMy: () =>
+    apiClient.get<TicketSummary[]>('/tickets/my'),
+  getById: (id: string) =>
+    apiClient.get<TicketResponse>(`/tickets/${id}`),
+  addMessage: (id: string, data: AddTicketMessageRequest) =>
+    apiClient.post<TicketMessageResponse>(`/tickets/${id}/message`, data),
+
+  // Admin endpoints
+  adminGetAll: () =>
+    apiClient.get<TicketSummary[]>('/admin/tickets'),
+  adminUpdateStatus: (id: string, data: UpdateTicketStatusRequest) =>
+    apiClient.put(`/admin/tickets/${id}/status`, data),
+};
+
+// ── Audit Logs ────────────────────────────────────────────────────────────────
+
+export interface AuditLogResponse {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  userId: string | null;
+  merchantId: string | null;
+  status: string;
+  description: string;
+  ipAddress: string;
+  userAgent: string;
+  metadata: string | null;
+  timestamp: string;
+}
+
+export interface AuditPagedResult {
+  items: AuditLogResponse[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export interface AuditLogQueryParams {
+  action?: string;
+  entityType?: string;
+  entityId?: string;
+  userId?: string;
+  merchantId?: string;
+  status?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export const auditApi = {
+  getPaged: (params: AuditLogQueryParams = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== '') qs.set(k, String(v));
+    });
+    return apiClient.get<AuditPagedResult>(`/admin/audit-logs?${qs.toString()}`);
+  },
+  getByEntity: (entityType: string, entityId: string) =>
+    apiClient.get<AuditLogResponse[]>(`/admin/audit-logs/entity/${entityType}/${entityId}`),
+};
+
+// ── Webhook API ───────────────────────────────────────────────────────────────
+import type {
+  CreateWebhookRequest,
+  WebhookResponse,
+  WebhookDeliveryPagedResult,
+} from '@/types';
+
+export interface WebhookTestResult {
+  success: boolean;
+  statusCode: number;
+  durationMs: number;
+  body: string;
+}
+
+export const webhookApi = {
+  create: (data: CreateWebhookRequest) =>
+    apiClient.post<WebhookResponse>('/webhooks', data),
+
+  getByMerchant: (merchantId: string) =>
+    apiClient.get<WebhookResponse[]>(`/webhooks?merchantId=${merchantId}`),
+
+  delete: (id: string) =>
+    apiClient.delete(`/webhooks/${id}`),
+
+  getDeliveries: (id: string, page = 1, pageSize = 20) =>
+    apiClient.get<WebhookDeliveryPagedResult>(
+      `/webhooks/${id}/deliveries?page=${page}&pageSize=${pageSize}`
+    ),
+
+  test: (id: string) =>
+    apiClient.post<WebhookTestResult>(`/webhooks/${id}/test`),
+};
+
+// ── Signer Contacts ───────────────────────────────────────────────────────────
+
+import type {
+  SignerContactResponse,
+  CreateSignerContactRequest,
+  UpdateSignerContactRequest,
+  SignerContactImportResult,
+} from '@/types';
+
+export const signerContactApi = {
+  list: () =>
+    apiClient.get<SignerContactResponse[]>('/signer-contacts'),
+
+  search: (query: string) =>
+    apiClient.get<SignerContactResponse[]>(`/signer-contacts/search?query=${encodeURIComponent(query)}`),
+
+  create: (data: CreateSignerContactRequest) =>
+    apiClient.post<SignerContactResponse>('/signer-contacts', data),
+
+  update: (id: string, data: UpdateSignerContactRequest) =>
+    apiClient.put<SignerContactResponse>(`/signer-contacts/${id}`, data),
+
+  delete: (id: string) =>
+    apiClient.delete(`/signer-contacts/${id}`),
+
+  importCsv: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiClient.post<SignerContactImportResult>('/signer-contacts/import', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
+  exportCsv: () =>
+    apiClient.get('/signer-contacts/export', { responseType: 'blob' }),
 };

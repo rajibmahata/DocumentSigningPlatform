@@ -82,6 +82,34 @@ public class OutboxWorker : BackgroundService
 
             if (job.RetryCount >= 3)
             {
+                // For StampDoc failures: reset the signing request back to Pending
+                // so the signer can retry — otherwise it stays stuck at Processing forever.
+                if (job.JobType == JobTypes.StampDoc)
+                {
+                    try
+                    {
+                        var stampPayload = JsonSerializer.Deserialize<StampPdfPayload>(job.Payload, JsonOpts);
+                        if (stampPayload is not null)
+                        {
+                            var signingReqRepo = scope.ServiceProvider.GetRequiredService<ISigningRequestRepository>();
+                            var sr = await signingReqRepo.GetByIdAsync(stampPayload.SigningRequestId, ct);
+                            if (sr is not null && sr.Status == SigningStatus.Processing)
+                            {
+                                sr.Status = SigningStatus.Pending;
+                                await signingReqRepo.UpdateAsync(sr, ct);
+                                await signingReqRepo.SaveChangesAsync(ct);
+                                _logger.LogWarning(
+                                    "StampDoc job {JobId} permanently failed. Signing request {SrId} reset to Pending.",
+                                    job.Id, sr.Id);
+                            }
+                        }
+                    }
+                    catch (Exception resetEx)
+                    {
+                        _logger.LogError(resetEx, "Failed to reset signing request after StampDoc failure for job {JobId}.", job.Id);
+                    }
+                }
+
                 await outbox.MoveToFailedAsync(job, ct);
             }
             else
@@ -103,7 +131,8 @@ public class OutboxWorker : BackgroundService
                     ?? throw new InvalidOperationException("Null SendEmail payload.");
                 var emailSvc = sp.GetRequiredService<IEmailService>();
                 await emailSvc.SendSigningInvitationAsync(
-                    payload.To, payload.ToName, payload.SigningLink, payload.ExpiresAt, ct);
+                    payload.To, payload.ToName, payload.SigningLink, payload.ExpiresAt,
+                    payload.EnvelopeTitle, payload.SenderName, ct);
                 break;
             }
             case JobTypes.StampDoc:
@@ -148,6 +177,27 @@ public class OutboxWorker : BackgroundService
                 await emailSvc.SendPasswordResetAsync(payload.To, payload.ToName, payload.ResetLink, ct);
                 break;
             }
+            case JobTypes.SendMerchantSignedDoc:
+            {
+                var payload = JsonSerializer.Deserialize<MerchantSignedDocPayload>(job.Payload, JsonOpts)
+                    ?? throw new InvalidOperationException("Null MerchantSignedDoc payload.");
+                var emailSvc = sp.GetRequiredService<IEmailService>();
+                var signedDocRepo = sp.GetRequiredService<ISignedDocumentRepository>();
+                var signedDoc = await signedDocRepo.GetByIdAsync(payload.SignedDocumentId, ct)
+                    ?? throw new InvalidOperationException("SignedDocument not found.");
+                await emailSvc.SendMerchantSignedDocAsync(
+                    payload.To, payload.ToName, payload.SignerName, payload.EnvelopeTitle,
+                    signedDoc.ContentBytes, signedDoc.ContentType, ct);
+                break;
+            }
+            case JobTypes.SendAccountPendingApproval:
+            {
+                var payload = JsonSerializer.Deserialize<AccountPendingApprovalPayload>(job.Payload, JsonOpts)
+                    ?? throw new InvalidOperationException("Null AccountPendingApproval payload.");
+                var emailSvc = sp.GetRequiredService<IEmailService>();
+                await emailSvc.SendAccountPendingApprovalAsync(payload.To, payload.ToName, ct);
+                break;
+            }
             default:
                 throw new NotSupportedException($"Unknown job type: {job.JobType}");
         }
@@ -158,10 +208,12 @@ public class OutboxWorker : BackgroundService
 /// <summary>Constants for job type strings in OutboxQueue.JobType.</summary>
 public static class JobTypes
 {
-    public const string SendEmail             = "SendEmail";
-    public const string StampDoc              = "StampDoc";
-    public const string SendConfirmation      = "SendConfirmation";
-    public const string SendFirmNotification  = "SendFirmNotification";
-    public const string SendVerificationEmail = "SendVerificationEmail";
-    public const string SendPasswordReset     = "SendPasswordReset";
+    public const string SendEmail                   = "SendEmail";
+    public const string StampDoc                    = "StampDoc";
+    public const string SendConfirmation            = "SendConfirmation";
+    public const string SendFirmNotification        = "SendFirmNotification";
+    public const string SendVerificationEmail       = "SendVerificationEmail";
+    public const string SendPasswordReset           = "SendPasswordReset";
+    public const string SendMerchantSignedDoc       = "SendMerchantSignedDoc";
+    public const string SendAccountPendingApproval  = "SendAccountPendingApproval";
 }

@@ -210,10 +210,40 @@ AuditLogs
 
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| `POST` | `/api/signing/initiate` | None (internal API) | Firm uploads document, gets signing link |
-| `GET` | `/api/signing/status/{id}` | None | Poll status of a signing request |
-| `GET` | `/api/portal/validate/{token}` | HMAC token | Validate token, return document for preview |
+| `POST` | `/api/auth/register` | None | Register a new user |
+| `POST` | `/api/auth/login` | None | Login, receive JWT |
+| `GET` | `/api/auth/verify-email/{token}` | None | Verify email address |
+| `POST` | `/api/auth/forgot-password` | None | Request password-reset email |
+| `POST` | `/api/auth/reset-password` | None | Reset password using emailed token |
+| `GET` | `/api/users` | JWT (Admin) | List all users |
+| `GET` | `/api/users/{id}` | JWT | Get user by ID |
+| `PUT` | `/api/users/{id}` | JWT | Update user profile |
+| `GET` | `/api/merchants` | JWT | List all merchants |
+| `POST` | `/api/merchants` | JWT | Create a merchant |
+| `GET` | `/api/merchants/by-user/{userId}` | JWT | Get merchant(s) for a user |
+| `GET` | `/api/merchants/{id}` | JWT | Get merchant by ID |
+| `PUT` | `/api/merchants/{id}` | JWT | Update merchant settings |
+| `POST` | `/api/merchants/{id}/regenerate-key` | JWT | Rotate merchant API key |
+| `POST` | `/api/envelopes` | X-Api-Key | Create envelope (upload docs, add signers) |
+| `GET` | `/api/envelopes` | X-Api-Key | List envelopes for merchant |
+| `GET` | `/api/envelopes/{id}` | X-Api-Key | Get envelope details |
+| `GET` | `/api/envelopes/{id}/signed-documents` | X-Api-Key | Download signed documents (base64) |
+| `PUT` | `/api/envelopes/{id}/cancel` | X-Api-Key | Cancel envelope (Processing/Sent/Signed only) |
+| `GET` | `/api/portal/validate/{token}` | HMAC token | Validate signing token, return doc preview |
+| `GET` | `/api/portal/document/{token}` | HMAC token | Stream raw document bytes |
 | `POST` | `/api/portal/submit/{token}` | HMAC token | Submit signature, enqueue stamp job |
+| `POST` | `/api/portal/reject/{token}` | HMAC token | Reject document with optional reason |
+| `GET` | `/api/portal/my-envelopes` | JWT | Signer's envelope history |
+| `GET` | `/api/analytics/summary` | JWT (Admin) | Platform statistics |
+| `GET` | `/api/analytics/trends` | JWT (Admin) | Daily signing trends |
+| `POST` | `/api/tickets` | JWT | Create support ticket |
+| `GET` | `/api/tickets/my` | JWT | List my tickets |
+| `GET` | `/api/tickets/{id}` | JWT | Get ticket detail |
+| `POST` | `/api/tickets/{id}/message` | JWT | Add message to ticket thread |
+| `GET` | `/api/admin/tickets` | JWT (Admin) | List all tickets |
+| `PUT` | `/api/admin/tickets/{id}/status` | JWT (Admin) | Update ticket status and priority |
+| `GET` | `/api/admin/audit-logs` | JWT (Admin) | Paged audit log (filter by userId, merchantId, action) |
+| `GET` | `/api/admin/audit-logs/entity/{type}/{id}` | JWT (Admin) | Full event timeline for an entity |
 
 ---
 

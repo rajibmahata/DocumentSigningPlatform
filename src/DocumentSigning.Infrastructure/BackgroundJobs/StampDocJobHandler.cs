@@ -23,9 +23,12 @@ public class StampDocJobHandler
     private readonly IAuditLogRepository _auditRepo;
     private readonly IOutboxQueueRepository _outboxRepo;
     private readonly ISigningEnvelopeRepository _envelopeRepo;
+    private readonly IMerchantRepository _merchantRepo;
+    private readonly IUserRepository _userRepo;
     private readonly IDocumentStamper _stamper;
     private readonly IConfiguration _config;
     private readonly ILogger<StampDocJobHandler> _logger;
+    private readonly IWebhookService _webhookService;
 
     public StampDocJobHandler(
         IDocumentRepository docRepo,
@@ -35,9 +38,12 @@ public class StampDocJobHandler
         IAuditLogRepository auditRepo,
         IOutboxQueueRepository outboxRepo,
         ISigningEnvelopeRepository envelopeRepo,
+        IMerchantRepository merchantRepo,
+        IUserRepository userRepo,
         IDocumentStamper stamper,
         IConfiguration config,
-        ILogger<StampDocJobHandler> logger)
+        ILogger<StampDocJobHandler> logger,
+        IWebhookService webhookService)
     {
         _docRepo = docRepo;
         _signingRequestRepo = signingRequestRepo;
@@ -46,9 +52,12 @@ public class StampDocJobHandler
         _auditRepo = auditRepo;
         _outboxRepo = outboxRepo;
         _envelopeRepo = envelopeRepo;
+        _merchantRepo = merchantRepo;
+        _userRepo = userRepo;
         _stamper = stamper;
         _config = config;
         _logger = logger;
+        _webhookService = webhookService;
     }
 
     public async Task HandleAsync(OutboxQueue job, CancellationToken ct = default)
@@ -100,8 +109,13 @@ public class StampDocJobHandler
         await _claimRepo.UpdateAsync(claim, ct);
         await _claimRepo.SaveChangesAsync(ct);
 
-        // Update matching Signer status on any envelope containing this email
-        var envelope = await _envelopeRepo.GetBySignerEmailAsync(claim.ClaimantEmail, ct);
+        // Update matching Signer status on the specific envelope this document belongs to.
+        // Use doc.EnvelopeId for precision — GetBySignerEmailAsync is unreliable when
+        // the same signer email appears in multiple envelopes.
+        SigningEnvelope? envelope = null;
+        if (doc.EnvelopeId.HasValue)
+            envelope = await _envelopeRepo.GetByIdAsync(doc.EnvelopeId.Value, ct);
+
         if (envelope is not null)
         {
             var signer = envelope.Signers.FirstOrDefault(s => s.Email == claim.ClaimantEmail);
@@ -111,10 +125,26 @@ public class StampDocJobHandler
 
                 // Promote envelope status based on how many signers remain
                 bool allSigned = envelope.Signers.All(s => s.Status == SigningStatus.Signed);
-                envelope.Status = allSigned ? EnvelopeStatus.Completed : EnvelopeStatus.InProgress;
+                envelope.Status = allSigned ? EnvelopeStatus.Completed : EnvelopeStatus.Signed;
 
                 await _envelopeRepo.UpdateAsync(envelope, ct);
                 await _envelopeRepo.SaveChangesAsync(ct);
+
+                // ── Webhook: envelope.signed / envelope.completed ────────────
+                var webhookEvent = allSigned
+                    ? WebhookEvents.EnvelopeCompleted
+                    : WebhookEvents.EnvelopeSigned;
+
+                await _webhookService.TriggerAsync(
+                    webhookEvent,
+                    envelope.MerchantId,
+                    new
+                    {
+                        envelopeId  = envelope.Id,
+                        status      = envelope.Status.ToString(),
+                        signerEmail = claim.ClaimantEmail,
+                    },
+                    ct);
             }
         }
 
@@ -142,6 +172,33 @@ public class StampDocJobHandler
             Status = JobStatus.Pending,
             CreatedAt = DateTime.UtcNow
         }, ct);
+
+        // Enqueue signed-document notification to the merchant owner
+        if (envelope is not null)
+        {
+            var merchant = await _merchantRepo.GetByIdAsync(envelope.MerchantId, ct);
+            if (merchant is not null)
+            {
+                var merchantUser = await _userRepo.GetByIdAsync(merchant.UserId, ct);
+                if (merchantUser is not null)
+                {
+                    var merchantPayload = JsonSerializer.Serialize(new MerchantSignedDocPayload(
+                        merchantUser.Email,
+                        merchantUser.Name,
+                        claim.ClaimantName,
+                        envelope.Title,
+                        signedDoc.Id));
+                    await _outboxRepo.AddAsync(new OutboxQueue
+                    {
+                        Id        = Guid.NewGuid(),
+                        JobType   = JobTypes.SendMerchantSignedDoc,
+                        Payload   = merchantPayload,
+                        Status    = JobStatus.Pending,
+                        CreatedAt = DateTime.UtcNow
+                    }, ct);
+                }
+            }
+        }
 
         // Enqueue firm notification — read from config
         var firmEmail = _config["Email:FirmAddress"]

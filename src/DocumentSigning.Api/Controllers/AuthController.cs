@@ -23,6 +23,7 @@ public class AuthController : ControllerBase
     private readonly IJwtService                        _jwtService;
     private readonly IConfiguration                     _config;
     private readonly IMerchantRepository                _merchantRepo;
+    private readonly IAuditService                      _audit;
 
     public AuthController(
         IUserRepository                   userRepo,
@@ -31,7 +32,8 @@ public class AuthController : ControllerBase
         IOutboxQueueRepository            outboxRepo,
         IJwtService                       jwtService,
         IConfiguration                    config,
-        IMerchantRepository               merchantRepo)
+        IMerchantRepository               merchantRepo,
+        IAuditService                     audit)
     {
         _userRepo       = userRepo;
         _tokenRepo      = tokenRepo;
@@ -40,6 +42,7 @@ public class AuthController : ControllerBase
         _jwtService     = jwtService;
         _config         = config;
         _merchantRepo   = merchantRepo;
+        _audit          = audit;
     }
 
     /// <summary>Register a new user account.</summary>
@@ -64,6 +67,7 @@ public class AuthController : ControllerBase
         if (existing is not null)
             return Conflict(new { message = "Email is already registered." });
 
+        var userRole = req.AccessRole ?? AccessRole.User;
         var user = new User
         {
             Id              = Guid.NewGuid(),
@@ -72,7 +76,8 @@ public class AuthController : ControllerBase
             PasswordHash    = PasswordHelper.Hash(req.Password),
             Country         = req.Country?.Trim(),
             IsEmailVerified = false,
-            AccessRole      = req.AccessRole ?? AccessRole.User,
+            IsActive        = userRole != AccessRole.Admin,
+            AccessRole      = userRole,
             CreatedAt       = DateTime.UtcNow
         };
 
@@ -129,7 +134,32 @@ public class AuthController : ControllerBase
         };
 
         await _outboxRepo.AddAsync(outboxJob, ct);
+
+        // If registering as Admin, send "pending approval" notification
+        if (user.AccessRole == AccessRole.Admin)
+        {
+            var pendingApprovalJob = new OutboxQueue
+            {
+                Id        = Guid.NewGuid(),
+                JobType   = JobTypes.SendAccountPendingApproval,
+                Payload   = JsonSerializer.Serialize(
+                                new AccountPendingApprovalPayload(normalizedEmail, user.Name)),
+                Status    = JobStatus.Pending,
+                CreatedAt = DateTime.UtcNow
+            };
+            await _outboxRepo.AddAsync(pendingApprovalJob, ct);
+        }
+
         await _userRepo.SaveChangesAsync(ct);   // saves User + EmailVerificationToken + OutboxJob (same DbContext)
+
+        _audit.Log(new AuditEntry(
+            Action:      AuditActions.UserRegistered,
+            EntityType:  AuditEntities.User,
+            EntityId:    user.Id,
+            UserId:      user.Id,
+            Description: $"New user registered: {user.Email}",
+            IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            UserAgent:   Request.Headers.UserAgent.ToString()));
 
         return StatusCode(StatusCodes.Status201Created);
     }
@@ -147,9 +177,40 @@ public class AuthController : ControllerBase
 
         var user = await _userRepo.GetByEmailAsync(normalizedEmail, ct);
         if (user is null || !PasswordHelper.Verify(req.Password, user.PasswordHash))
+        {
+            _audit.Log(new AuditEntry(
+                Action:      AuditActions.UserLoginFailed,
+                EntityType:  AuditEntities.User,
+                Status:      AuditStatuses.Failure,
+                Description: $"Failed login attempt for email: {normalizedEmail}",
+                IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                UserAgent:   Request.Headers.UserAgent.ToString()));
             return Unauthorized(new { message = "Invalid email or password." });
+        }
+
+        if (!user.IsActive)
+        {
+            _audit.Log(new AuditEntry(
+                Action:      AuditActions.UserLoginBlocked,
+                EntityType:  AuditEntities.User,
+                Status:      AuditStatuses.Failure,
+                Description: $"Login blocked — account inactive: {normalizedEmail}",
+                IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                UserAgent:   Request.Headers.UserAgent.ToString()));
+            return Unauthorized(new { message = "Your account is pending admin approval." });
+        }
 
         var jwt = _jwtService.GenerateToken(user);
+
+        _audit.Log(new AuditEntry(
+            Action:      AuditActions.UserLoggedIn,
+            EntityType:  AuditEntities.User,
+            EntityId:    user.Id,
+            UserId:      user.Id,
+            Description: $"User logged in: {user.Email}",
+            IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            UserAgent:   Request.Headers.UserAgent.ToString()));
+
         return Ok(new LoginResponse(jwt, user.IsEmailVerified));
     }
 
@@ -178,6 +239,18 @@ public class AuthController : ControllerBase
         }
 
         await _tokenRepo.SaveChangesAsync(ct);
+
+        if (user is not null)
+        {
+            _audit.Log(new AuditEntry(
+                Action:      AuditActions.EmailVerified,
+                EntityType:  AuditEntities.User,
+                EntityId:    user.Id,
+                UserId:      user.Id,
+                Description: $"Email verified for user: {user.Email}",
+                IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                UserAgent:   Request.Headers.UserAgent.ToString()));
+        }
 
         return Content(VerifyEmailPage(success: true, frontendUrl), "text/html");
     }
@@ -322,6 +395,15 @@ public class AuthController : ControllerBase
         await _outboxRepo.AddAsync(outboxJob, ct);
         await _resetTokenRepo.SaveChangesAsync(ct);
 
+        _audit.Log(new AuditEntry(
+            Action:      AuditActions.PasswordResetRequested,
+            EntityType:  AuditEntities.User,
+            EntityId:    user.Id,
+            UserId:      user.Id,
+            Description: $"Password reset requested for: {normalizedEmail}",
+            IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            UserAgent:   Request.Headers.UserAgent.ToString()));
+
         return silentResponse;
     }
 
@@ -364,6 +446,18 @@ public class AuthController : ControllerBase
         }
 
         await _resetTokenRepo.SaveChangesAsync(ct);
+
+        if (user is not null)
+        {
+            _audit.Log(new AuditEntry(
+                Action:      AuditActions.PasswordReset,
+                EntityType:  AuditEntities.User,
+                EntityId:    user.Id,
+                UserId:      user.Id,
+                Description: $"Password reset completed for user: {user.Email}",
+                IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                UserAgent:   Request.Headers.UserAgent.ToString()));
+        }
 
         return Ok(new { message = "Password has been reset successfully." });
     }

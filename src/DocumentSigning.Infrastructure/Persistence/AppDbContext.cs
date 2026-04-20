@@ -20,6 +20,12 @@ public class AppDbContext : DbContext
     public DbSet<User>                    Users                    => Set<User>();
     public DbSet<EmailVerificationToken>  EmailVerificationTokens  => Set<EmailVerificationToken>();
     public DbSet<PasswordResetToken>      PasswordResetTokens      => Set<PasswordResetToken>();
+    public DbSet<Ticket>                  Tickets                  => Set<Ticket>();
+    public DbSet<TicketMessage>           TicketMessages           => Set<TicketMessage>();
+    public DbSet<Webhook>                 Webhooks                 => Set<Webhook>();
+    public DbSet<WebhookSubscription>     WebhookSubscriptions     => Set<WebhookSubscription>();
+    public DbSet<WebhookDelivery>         WebhookDeliveries        => Set<WebhookDelivery>();
+    public DbSet<SignerContact>            SignerContacts            => Set<SignerContact>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -105,13 +111,24 @@ public class AppDbContext : DbContext
             e.HasIndex(x => x.Status);
         });
 
-        // AuditLog — append-only
+        // AuditLog — append-only, immutable
         model.Entity<AuditLog>(e =>
         {
             e.HasKey(x => x.Id);
-            e.Property(x => x.Action).HasMaxLength(64).IsRequired();
-            e.Property(x => x.IpAddress).HasMaxLength(64).IsRequired();
-            e.Property(x => x.UserAgent).HasMaxLength(512).IsRequired();
+            e.Property(x => x.Action).HasMaxLength(100).IsRequired();
+            e.Property(x => x.EntityType).HasMaxLength(50).HasDefaultValue(string.Empty);
+            e.Property(x => x.Status).HasMaxLength(20).HasDefaultValue("Success");
+            e.Property(x => x.Description).HasMaxLength(1000).HasDefaultValue(string.Empty);
+            e.Property(x => x.IpAddress).HasMaxLength(64).HasDefaultValue(string.Empty);
+            e.Property(x => x.UserAgent).HasMaxLength(512).HasDefaultValue(string.Empty);
+            e.Property(x => x.Hash).HasMaxLength(128).HasDefaultValue(string.Empty);
+            e.Property(x => x.Metadata).HasMaxLength(4000);
+            // Indexes for common query patterns
+            e.HasIndex(x => x.Timestamp);
+            e.HasIndex(x => x.Action);
+            e.HasIndex(x => new { x.EntityType, x.EntityId });
+            e.HasIndex(x => x.UserId);
+            e.HasIndex(x => x.MerchantId);
             e.HasIndex(x => x.SigningRequestId);
         });
 
@@ -147,6 +164,93 @@ public class AppDbContext : DbContext
             e.Property(x => x.Token).HasMaxLength(128).IsRequired();
             e.HasIndex(x => x.Token).IsUnique();
             e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Tickets
+        model.Entity<Ticket>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("Tickets");
+            e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Type).HasMaxLength(50).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(50).IsRequired().HasDefaultValue("Open");
+            e.Property(x => x.Priority).HasMaxLength(50);
+            e.Property(x => x.AttachmentBase64).HasColumnType("nvarchar(max)");
+            e.Property(x => x.AttachmentContentType).HasMaxLength(100);
+            e.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+            e.HasMany(x => x.Messages).WithOne(m => m.Ticket).HasForeignKey(m => m.TicketId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.UserId);
+            e.HasIndex(x => x.Status);
+        });
+
+        // TicketMessages
+        model.Entity<TicketMessage>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("TicketMessages");
+            e.Property(x => x.SenderType).HasMaxLength(20).IsRequired();
+        });
+
+        // Webhooks
+        model.Entity<Webhook>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("Webhooks");
+            e.Property(x => x.Url).HasMaxLength(2000).IsRequired();
+            e.Property(x => x.Secret).HasMaxLength(100).IsRequired();
+            e.HasOne(x => x.Merchant)
+             .WithMany()
+             .HasForeignKey(x => x.MerchantId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasMany(x => x.Subscriptions)
+             .WithOne(s => s.Webhook)
+             .HasForeignKey(s => s.WebhookId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.MerchantId);
+        });
+
+        // WebhookSubscriptions
+        model.Entity<WebhookSubscription>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("WebhookSubscriptions");
+            e.Property(x => x.EventName).HasMaxLength(100).IsRequired();
+            e.HasIndex(x => new { x.WebhookId, x.EventName }).IsUnique();
+        });
+
+        // WebhookDeliveries
+        model.Entity<WebhookDelivery>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("WebhookDeliveries");
+            e.Property(x => x.EventName).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Payload).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.Status).HasConversion<int>();
+            e.Property(x => x.Response).HasMaxLength(1000);
+            e.HasOne(x => x.Webhook)
+             .WithMany()
+             .HasForeignKey(x => x.WebhookId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.Status, x.NextAttempt });
+            e.HasIndex(x => x.WebhookId);
+        });
+
+        // SignerContacts
+        model.Entity<SignerContact>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("SignerContacts");
+            e.Property(x => x.Name).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Email).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Role).HasMaxLength(64).IsRequired().HasDefaultValue("signer");
+            e.Property(x => x.Phone).HasMaxLength(64);
+            e.Property(x => x.Company).HasMaxLength(256);
+            e.HasIndex(x => new { x.UserId, x.Email }).IsUnique();
+            e.HasIndex(x => x.UserId);
+            e.HasOne(x => x.User)
+             .WithMany()
+             .HasForeignKey(x => x.UserId)
+             .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

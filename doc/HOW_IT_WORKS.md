@@ -314,13 +314,425 @@ Comparison:        CryptographicOperations.FixedTimeEquals (timing-attack safe)
 
 ---
 
+## Signer Rejection Flow
+
+A signer may reject a document instead of signing it.
+
+**Endpoint**: `POST /api/portal/reject/{token}`
+
+**Optional request body**:
+```json
+{ "reason": "Terms are not acceptable." }
+```
+
+**Server processing**:
+1. Looks up `SigningRequest` by token
+2. Checks `ExpiresAt` — returns `410 Gone` if expired
+3. Checks `Status == Pending` — returns `400` if already processed
+4. Validates HMAC signature
+5. Marks `SigningRequest.Status = Failed` (terminal state for the signer)
+6. Sets `SigningEnvelope.Status = Rejected`
+7. Writes `AuditLog`: `Action="Envelope.Rejected"` with rejection reason, claimant name/email, merchantId
+8. Returns `204 No Content`
+
+> Once rejected, the envelope enters a terminal state — no further signing can occur. The merchant can see the `Rejected` status via `GET /api/envelopes/{id}` or in the dashboard.
+
+---
+
+## Resend Invitation Flow
+
+A merchant may resend a signing invitation email to a **Pending** signer at any time while the envelope is still active.
+
+**Endpoint**: `POST /api/envelopes/{id}/resend`  
+**Auth**: `X-Api-Key` header required.
+
+**Request body**:
+```json
+{ "signerEmail": "bob@example.com" }
+```
+
+**Server processing**:
+1. Looks up envelope by ID; verifies merchant ownership via API key
+2. Finds the signer matching `signerEmail` — returns `404` if not found
+3. Checks signer status is `Pending` — returns `400` if already signed, rejected, or expired
+4. Re-generates a fresh signing token with a new expiry window
+5. Queues a new invitation email via the outbox
+6. Writes `AuditLog`: `Action="Invitation.Resent"`, `EntityType="Envelope"`, `EntityId=envelope.Id`, `Description="Invitation resent to {email} for envelope '{title}'"`
+7. Returns `204 No Content`
+
+**Status codes**
+| Code | Meaning |
+|---|---|
+| `204` | Invitation queued successfully |
+| `400` | Signer is not in `Pending` status |
+| `404` | Envelope not found, not owned by this merchant, or signer email not on this envelope |
+| `401` | Missing or invalid API key |
+
+---
+
+## Envelope Activity Timeline
+
+Returns a chronological audit-log feed for a specific envelope. Powers the **Activity Timeline** panel in the dashboard.
+
+**Endpoint**: `GET /api/envelopes/{id}/activity`  
+**Auth**: `X-Api-Key` header required.
+
+**Response**:
+```json
+[
+  {
+    "action":      "Envelope.Created",
+    "description": "Envelope 'Service Agreement' created with 2 signer(s)",
+    "timestamp":   "2026-04-18T10:00:00Z"
+  },
+  {
+    "action":      "Invitation.Resent",
+    "description": "Invitation resent to bob@example.com for envelope 'Service Agreement'",
+    "timestamp":   "2026-04-19T09:15:42Z"
+  },
+  {
+    "action":      "Envelope.Signed",
+    "description": "Bob Jones signed the document",
+    "timestamp":   "2026-04-19T11:30:00Z"
+  }
+]
+```
+
+**Response fields**
+| Field | Type | Description |
+|---|---|---|
+| `action` | string | Audit action key (e.g. `Envelope.Created`, `Invitation.Resent`) |
+| `description` | string | Human-readable event description |
+| `timestamp` | ISO-8601 UTC | When the event occurred |
+
+**Status codes**
+| Code | Meaning |
+|---|---|
+| `200` | Array of activity items (may be empty) |
+| `404` | Envelope not found or not owned by this merchant |
+| `401` | Missing or invalid API key |
+
+> The timeline includes all `AuditLog` entries where `EntityType = "Envelope"` and `EntityId = {id}`, ordered by `Timestamp` ascending.
+
+---
+
+## Envelope Cancellation Flow
+
+A merchant (sender) may cancel an envelope before it reaches a terminal state.
+
+**Endpoint**: `PUT /api/envelopes/{id}/cancel`  
+**Auth**: `X-Api-Key` header required.
+
+**Cancellable statuses**: `Processing`, `Sent`, `Signed`  
+**Non-cancellable (terminal) statuses**: `Completed`, `Failed`, `Expired`, `Rejected`, `Cancelled`
+
+**Server processing**:
+1. Looks up envelope by ID, verifies merchant ownership via API key
+2. Checks that current status is one of the cancellable statuses — returns `409 Conflict` otherwise
+3. Atomically sets `Status = Cancelled` via `ExecuteUpdateAsync`
+4. Writes `AuditLog`: `Action="Envelope.Cancelled"` with merchantId and envelope title
+5. Returns `204 No Content`
+
+> The UI dashboard "Cancel Envelope" button is only shown when the envelope is in a cancellable state (`Processing`, `Sent`, or `Signed`). After cancellation the button is hidden and the status badge updates to `Cancelled`.
+
+---
+
+## Envelope Status Lifecycle
+
+```
+        ┌─────────────┐
+        │  Processing │ ←─ Created; emails being prepared
+        └──────┬──────┘
+               │ emails dispatched
+               ▼
+           ┌───────┐
+           │ Sent  │ ←─ All invitation emails queued
+           └───┬───┘
+               │ first signer signs
+               ▼
+          ┌────────┐
+          │ Signed │ ←─ At least one signer done (multi-signer)
+          └───┬────┘
+              │ all signers done
+              ▼
+        ┌───────────┐
+        │ Completed │  (terminal ✅)
+        └───────────┘
+
+ From Processing / Sent / Signed:
+   → Cancelled  (sender calls PUT /api/envelopes/{id}/cancel)     (terminal 🚫)
+   → Rejected   (signer calls POST /api/portal/reject/{token})    (terminal 🚫)
+   → Expired    (signing window elapsed without completion)        (terminal ⏰)
+   → Failed     (system error during email send or PDF stamping)   (terminal ❌)
+```
+
+---
+
 ## Audit Trail
 
 Every significant event is recorded in `AuditLogs` with IP address, user agent, and timestamp:
 
 | Action | Trigger |
 |---|---|
-| `SigningInitiated` | Firm calls `/api/signing/initiate` |
-| `PortalOpened` | Claimant's browser hits `/api/portal/validate/{token}` |
-| `SignatureSubmitted` | Claimant submits signature |
-| `DocumentStamped` | Background job completes stamping |
+| `Envelope.Created` | Envelope created via `POST /api/envelopes` |
+| `Envelope.Sent` | Invitation emails dispatched to all signers |
+| `Envelope.Viewed` | Signer opens the signing portal page |
+| `Envelope.Signed` | A signer completes signing (multi-signer in progress) |
+| `Envelope.Completed` | All signers have signed |
+| `Envelope.Cancelled` | Sender cancels via `PUT /api/envelopes/{id}/cancel` |
+| `Envelope.Rejected` | Signer rejects via `POST /api/portal/reject/{token}` |
+| `Invitation.Resent` | Merchant resends invitation via `POST /api/envelopes/{id}/resend` |
+| `Envelope.Failed` | System error during send or document stamping |
+| `Envelope.Expired` | Signing window elapsed without all signers completing |
+| `Document.Uploaded` | Document attached to envelope |
+| `Document.SignatureSubmitted` | Signer submits signature bytes |
+| `Document.Stamped` | Background job completes PDF/DOCX stamping |
+| `Document.Downloaded` | Signed document downloaded via API |
+| `Portal.Opened` | Claimant's browser hits `GET /api/portal/validate/{token}` |
+| `User.Registered` | New user registration |
+| `User.LoggedIn` | Successful login |
+| `User.LoginFailed` | Failed login attempt |
+| `User.EmailVerified` | Email address confirmed |
+| `User.PasswordResetRequested` | Forgot-password triggered |
+| `User.PasswordReset` | Password changed via reset link |
+| `User.Updated` | User profile updated |
+| `Merchant.Created` | Merchant account created |
+| `Merchant.Updated` | Merchant settings changed |
+| `Merchant.ApiKeyRegenerated` | API key rotated |
+| `Merchant.LimitUpdated` | Request limit changed |
+| `Ticket.Created` | Support ticket opened |
+| `Ticket.Updated` | Ticket fields changed |
+| `Ticket.Replied` | Message added to ticket thread |
+| `Ticket.Closed` | Ticket closed |
+| `Ticket.Resolved` | Ticket resolved |
+| `SignerContact.Created` | Contact added manually or auto-created from envelope |
+| `SignerContact.Updated` | Contact record edited |
+| `SignerContact.Deleted` | Contact soft-deleted |
+| `SignerContact.Imported` | Batch CSV import completed |
+
+---
+
+## Signer Contact Management
+
+### Overview
+
+Signer Contacts is a personal address book scoped to the authenticated user. Contacts are created automatically when an envelope is sent (via `UpsertFromSignerAsync`) and can also be managed manually via the REST API or the dashboard UI.
+
+**Key rules:**
+- Email is unique **per user** — two users may have the same contact email, but a single user cannot have two contacts with the same email.
+- Deletion is a **soft-delete** (`IsActive = false`). Re-importing or re-adding the same email restores the contact.
+- All write endpoints return `409 Conflict` when an email uniqueness violation is attempted.
+
+---
+
+### Entity
+
+```
+SignerContacts table
+────────────────────────────────────────────────────────
+Id          UNIQUEIDENTIFIER  PK  (Guid, default newid())
+UserId      UNIQUEIDENTIFIER  FK → AspNetUsers.Id
+Name        NVARCHAR(255)     NOT NULL
+Email       NVARCHAR(255)     NOT NULL
+Role        NVARCHAR(50)      NOT NULL  default 'signer'
+Phone       NVARCHAR(50)      NULL
+Company     NVARCHAR(255)     NULL
+IsActive    BIT               NOT NULL  default 1
+CreatedAt   DATETIME2         NOT NULL
+UpdatedAt   DATETIME2         NOT NULL
+
+UNIQUE INDEX: IX_SignerContacts_UserId_Email (UserId, Email)
+```
+
+---
+
+### API Endpoints
+
+All endpoints require a valid JWT in the `Authorization: Bearer <jwt>` header.  
+Contacts are always scoped to the **authenticated caller** — one user cannot see or modify another user's contacts.
+
+---
+
+#### `GET /api/signer-contacts`
+
+Returns the full list of active contacts for the caller.
+
+**Response `200 OK`**:
+```json
+[
+  {
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "userId": "...",
+    "name": "Jane Smith",
+    "email": "jane.smith@example.com",
+    "role": "signer",
+    "phone": "+1 555 0101",
+    "company": "Acme Corp",
+    "isActive": true,
+    "createdAt": "2026-04-15T10:00:00Z",
+    "updatedAt": "2026-04-15T10:00:00Z"
+  }
+]
+```
+
+---
+
+#### `GET /api/signer-contacts/search?q={query}`
+
+Full-text search across `Name` and `Email` fields.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `q` | string | Yes | Search term (partial match, case-insensitive) |
+
+**Response `200 OK`**: same shape as list endpoint.
+
+---
+
+#### `POST /api/signer-contacts`
+
+Create a new contact.
+
+**Request body**:
+```json
+{
+  "name": "Jane Smith",
+  "email": "jane.smith@example.com",
+  "role": "signer",
+  "phone": "+1 555 0101",
+  "company": "Acme Corp"
+}
+```
+
+| Field | Required | Default | Notes |
+|---|---|---|---|
+| `name` | Yes | — | |
+| `email` | Yes | — | Must be unique for this user |
+| `role` | No | `"signer"` | Free text; suggested: `signer`, `reviewer`, `approver` |
+| `phone` | No | `null` | |
+| `company` | No | `null` | |
+
+**Responses**:
+- `201 Created` — contact object
+- `409 Conflict` — `{ "message": "A contact with email '...' already exists." }`
+
+> If the email belongs to a previously soft-deleted contact, the contact is **restored** (not created again).
+
+---
+
+#### `PUT /api/signer-contacts/{id}`
+
+Update an existing contact.
+
+**Route param**: `id` — contact GUID.
+
+**Request body** (all fields required):
+```json
+{
+  "name": "Jane Smith-Jones",
+  "email": "jane.jones@example.com",
+  "role": "approver",
+  "phone": "+1 555 0102",
+  "company": "Acme Corp",
+  "isActive": true
+}
+```
+
+**Responses**:
+- `200 OK` — updated contact object
+- `404 Not Found` — contact not found or not owned by caller
+- `409 Conflict` — new email already used by another contact
+
+---
+
+#### `DELETE /api/signer-contacts/{id}`
+
+Soft-deletes a contact (`IsActive = false`). The contact is hidden from list/search results but remains in the database.
+
+**Route param**: `id` — contact GUID.
+
+**Responses**:
+- `204 No Content` — deleted
+- `404 Not Found` — not found or not owned by caller
+
+---
+
+#### `POST /api/signer-contacts/import`  *(multipart/form-data)*
+
+Bulk-import contacts from a CSV file.
+
+**Form field**: `file` — `.csv` file.
+
+**CSV format**:
+
+| Column (position) | Required | Default | Description |
+|---|---|---|---|
+| `name` (col 1) | Yes | — | Full name |
+| `email` (col 2) | Yes | — | Must be unique per user |
+| `role` (col 3) | No | `signer` | Role label |
+| `phone` (col 4) | No | — | |
+| `company` (col 5) | No | — | |
+
+- First row is automatically detected as a header and skipped if it contains `"name"` or `"email"`.
+- Values may be quoted (`"Jane Smith"`).
+- Rows with duplicate email are **skipped** (counted in `skipped`; not an error).
+- Rows with invalid email format or missing name/email are **failed** (counted in `failed`).
+
+**Sample CSV**:
+```
+name,email,role,phone,company
+Jane Smith,jane.smith@example.com,signer,+1 555 0101,Acme Corp
+John Doe,john.doe@example.com,reviewer,,
+Alice Brown,alice.brown@example.com,approver,+44 20 7946 0958,Globex Ltd
+```
+
+**Response `200 OK`**:
+```json
+{
+  "imported": 3,
+  "skipped": 1,
+  "failed": 0,
+  "errors": []
+}
+```
+
+| Field | Description |
+|---|---|
+| `imported` | Rows successfully created or restored |
+| `skipped` | Rows where email already exists as an active contact |
+| `failed` | Rows rejected due to validation errors |
+| `errors` | Array of per-row error strings, e.g. `"Row 4: 'bad-email' is not a valid email — skipped."` |
+
+---
+
+#### `GET /api/signer-contacts/export`  *(text/csv)*
+
+Exports all active contacts for the caller as a CSV file.
+
+**Response `200 OK`**: `Content-Type: text/csv`, `Content-Disposition: attachment; filename="signer-contacts.csv"`
+
+**CSV columns**: `id, name, email, role, phone, company, createdAt`
+
+---
+
+### Auto-Creation from Envelopes
+
+When a user sends an envelope, the API automatically calls `UpsertFromSignerAsync` for each recipient. This means contacts are kept in sync with sent envelopes without any extra action:
+
+- If the recipient email is **new** → a contact is created with name, email, and role from the signer row.
+- If the email **already exists** and is active → the contact is left unchanged.
+- If the email exists but was **soft-deleted** → it is restored silently.
+
+---
+
+### Duplicate Check Summary
+
+| Operation | Duplicate handling |
+|---|---|
+| `POST /api/signer-contacts` | Returns `409 Conflict` |
+| `PUT /api/signer-contacts/{id}` | Returns `409 Conflict` if new email clashes |
+| CSV Import | Row is counted as `skipped`; import continues |
+| Auto-create from envelope | Silent no-op if email already active |
+| Re-add soft-deleted email | Contact is **restored**, not duplicated |
+
+

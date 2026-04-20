@@ -29,6 +29,8 @@ builder.Services.AddScoped<ISigningEnvelopeRepository, SigningEnvelopeRepository
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IEmailVerificationTokenRepository, EmailVerificationTokenRepository>();
 builder.Services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
+builder.Services.AddScoped<ITicketRepository, TicketRepository>();
+builder.Services.AddScoped<ISignerContactRepository, SignerContactRepository>();
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<MerchantApiKeyFilter>();
@@ -38,12 +40,29 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IDocumentStamper, DocumentStamperDispatcher>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
+builder.Services.AddScoped<ISignerContactService, SignerContactService>();
 
 // ─── Background job handler (scoped — instantiated inside OutboxWorker scope) ─
 builder.Services.AddScoped<StampDocJobHandler>();
 
 // ─── Background worker ────────────────────────────────────────────────────────
 builder.Services.AddHostedService<OutboxWorker>();
+
+// ─── Webhook system ───────────────────────────────────────────────────────────
+builder.Services.AddScoped<IWebhookRepository, WebhookRepository>();
+builder.Services.AddScoped<IWebhookService, WebhookService>();
+builder.Services.AddHostedService<WebhookDeliveryWorker>();
+builder.Services.AddHttpClient("webhook", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(35);
+});
+
+// ─── Audit service (singleton channel + hosted background flush) ──────────────
+builder.Services.AddSingleton<AuditService>();
+builder.Services.AddSingleton<DocumentSigning.Core.Interfaces.IAuditService>(
+    sp => sp.GetRequiredService<AuditService>());
+builder.Services.AddHostedService(
+    sp => sp.GetRequiredService<AuditService>());
 
 // ─── HTTP client (used by Blazor components to call local API endpoints) ──────
 builder.Services.AddHttpClient("api", client =>
@@ -135,9 +154,30 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new()
     {
-        Title = "Document Signing API",
+        Title   = "Document Signing API",
         Version = "v1",
-        Description = "In-house electronic document signing platform — initiate signing, validate tokens, submit signatures."
+        Description = """
+            In-house electronic document signing platform.
+
+            ## Authentication
+            - **JWT Bearer** — most endpoints. Obtain a token via `POST /api/auth/login`.
+            - **X-Api-Key** — envelope endpoints. Obtain from `GET /api/merchants/by-user/{userId}`.
+
+            ## Sections
+            | Tag | Description |
+            |-----|-------------|
+            | Auth | Register, login, verify email, password reset |
+            | Users | User profile management |
+            | Analytics | Platform-wide statistics and daily trends (Admin only) |
+            | Merchants | Merchant workspaces and API key management |
+            | Envelope | Send signing envelopes and retrieve signed documents |
+            | Portal | Signing flow — validate token, submit signature, view signer's own envelopes |
+            | Signer Contacts | Saved contact management — list, search, CRUD, CSV import/export |
+            | Tickets | Support ticket creation and messaging |
+            | Tickets — Admin | Admin-level ticket management (Admin only) |
+            | Audit Logs — Admin | Paged audit log viewer and entity timeline (Admin only) |
+            | Webhooks | Register endpoints and view delivery history |
+        """
     });
 
     // Include XML doc comments from the Api assembly
@@ -149,6 +189,24 @@ builder.Services.AddSwaggerGen(c =>
     c.EnableAnnotations();
     c.OperationFilter<DocumentSigning.Api.Swagger.CreateMerchantExampleFilter>();
     c.OperationFilter<DocumentSigning.Api.Swagger.ApiKeyHeaderFilter>();
+
+    // Map controller names to clean Swagger tag names
+    c.TagActionsBy(api =>
+    {
+        var controller = api.ActionDescriptor.RouteValues["controller"] ?? string.Empty;
+        var tag = controller switch
+        {
+            "AdminTickets"    => "Tickets — Admin",
+            "AdminAudit"      => "Audit Logs — Admin",
+            "Tickets"         => "Tickets",
+            "Portal"          => "Portal",
+            "Envelope"        => "Envelope",
+            "Webhooks"        => "Webhooks",
+            "SignerContacts"  => "Signer Contacts",
+            _                 => controller
+        };
+        return new[] { tag };
+    });
 
     // JWT Bearer security definition
     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
@@ -198,8 +256,10 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Document Signing API v1");
-        c.RoutePrefix = "swagger";
+        c.RoutePrefix   = "swagger";
         c.DocumentTitle = "Document Signing API";
+        c.DefaultModelsExpandDepth(-1);   // collapse schemas by default
+        c.DisplayRequestDuration();       // show response time in UI
     });
 }
 
