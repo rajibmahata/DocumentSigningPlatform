@@ -427,3 +427,234 @@ Every significant event is recorded in `AuditLogs` with IP address, user agent, 
 | `Ticket.Replied` | Message added to ticket thread |
 | `Ticket.Closed` | Ticket closed |
 | `Ticket.Resolved` | Ticket resolved |
+| `SignerContact.Created` | Contact added manually or auto-created from envelope |
+| `SignerContact.Updated` | Contact record edited |
+| `SignerContact.Deleted` | Contact soft-deleted |
+| `SignerContact.Imported` | Batch CSV import completed |
+
+---
+
+## Signer Contact Management
+
+### Overview
+
+Signer Contacts is a personal address book scoped to the authenticated user. Contacts are created automatically when an envelope is sent (via `UpsertFromSignerAsync`) and can also be managed manually via the REST API or the dashboard UI.
+
+**Key rules:**
+- Email is unique **per user** — two users may have the same contact email, but a single user cannot have two contacts with the same email.
+- Deletion is a **soft-delete** (`IsActive = false`). Re-importing or re-adding the same email restores the contact.
+- All write endpoints return `409 Conflict` when an email uniqueness violation is attempted.
+
+---
+
+### Entity
+
+```
+SignerContacts table
+────────────────────────────────────────────────────────
+Id          UNIQUEIDENTIFIER  PK  (Guid, default newid())
+UserId      UNIQUEIDENTIFIER  FK → AspNetUsers.Id
+Name        NVARCHAR(255)     NOT NULL
+Email       NVARCHAR(255)     NOT NULL
+Role        NVARCHAR(50)      NOT NULL  default 'signer'
+Phone       NVARCHAR(50)      NULL
+Company     NVARCHAR(255)     NULL
+IsActive    BIT               NOT NULL  default 1
+CreatedAt   DATETIME2         NOT NULL
+UpdatedAt   DATETIME2         NOT NULL
+
+UNIQUE INDEX: IX_SignerContacts_UserId_Email (UserId, Email)
+```
+
+---
+
+### API Endpoints
+
+All endpoints require a valid JWT in the `Authorization: Bearer <jwt>` header.  
+Contacts are always scoped to the **authenticated caller** — one user cannot see or modify another user's contacts.
+
+---
+
+#### `GET /api/signer-contacts`
+
+Returns the full list of active contacts for the caller.
+
+**Response `200 OK`**:
+```json
+[
+  {
+    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "userId": "...",
+    "name": "Jane Smith",
+    "email": "jane.smith@example.com",
+    "role": "signer",
+    "phone": "+1 555 0101",
+    "company": "Acme Corp",
+    "isActive": true,
+    "createdAt": "2026-04-15T10:00:00Z",
+    "updatedAt": "2026-04-15T10:00:00Z"
+  }
+]
+```
+
+---
+
+#### `GET /api/signer-contacts/search?q={query}`
+
+Full-text search across `Name` and `Email` fields.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `q` | string | Yes | Search term (partial match, case-insensitive) |
+
+**Response `200 OK`**: same shape as list endpoint.
+
+---
+
+#### `POST /api/signer-contacts`
+
+Create a new contact.
+
+**Request body**:
+```json
+{
+  "name": "Jane Smith",
+  "email": "jane.smith@example.com",
+  "role": "signer",
+  "phone": "+1 555 0101",
+  "company": "Acme Corp"
+}
+```
+
+| Field | Required | Default | Notes |
+|---|---|---|---|
+| `name` | Yes | — | |
+| `email` | Yes | — | Must be unique for this user |
+| `role` | No | `"signer"` | Free text; suggested: `signer`, `reviewer`, `approver` |
+| `phone` | No | `null` | |
+| `company` | No | `null` | |
+
+**Responses**:
+- `201 Created` — contact object
+- `409 Conflict` — `{ "message": "A contact with email '...' already exists." }`
+
+> If the email belongs to a previously soft-deleted contact, the contact is **restored** (not created again).
+
+---
+
+#### `PUT /api/signer-contacts/{id}`
+
+Update an existing contact.
+
+**Route param**: `id` — contact GUID.
+
+**Request body** (all fields required):
+```json
+{
+  "name": "Jane Smith-Jones",
+  "email": "jane.jones@example.com",
+  "role": "approver",
+  "phone": "+1 555 0102",
+  "company": "Acme Corp",
+  "isActive": true
+}
+```
+
+**Responses**:
+- `200 OK` — updated contact object
+- `404 Not Found` — contact not found or not owned by caller
+- `409 Conflict` — new email already used by another contact
+
+---
+
+#### `DELETE /api/signer-contacts/{id}`
+
+Soft-deletes a contact (`IsActive = false`). The contact is hidden from list/search results but remains in the database.
+
+**Route param**: `id` — contact GUID.
+
+**Responses**:
+- `204 No Content` — deleted
+- `404 Not Found` — not found or not owned by caller
+
+---
+
+#### `POST /api/signer-contacts/import`  *(multipart/form-data)*
+
+Bulk-import contacts from a CSV file.
+
+**Form field**: `file` — `.csv` file.
+
+**CSV format**:
+
+| Column (position) | Required | Default | Description |
+|---|---|---|---|
+| `name` (col 1) | Yes | — | Full name |
+| `email` (col 2) | Yes | — | Must be unique per user |
+| `role` (col 3) | No | `signer` | Role label |
+| `phone` (col 4) | No | — | |
+| `company` (col 5) | No | — | |
+
+- First row is automatically detected as a header and skipped if it contains `"name"` or `"email"`.
+- Values may be quoted (`"Jane Smith"`).
+- Rows with duplicate email are **skipped** (counted in `skipped`; not an error).
+- Rows with invalid email format or missing name/email are **failed** (counted in `failed`).
+
+**Sample CSV**:
+```
+name,email,role,phone,company
+Jane Smith,jane.smith@example.com,signer,+1 555 0101,Acme Corp
+John Doe,john.doe@example.com,reviewer,,
+Alice Brown,alice.brown@example.com,approver,+44 20 7946 0958,Globex Ltd
+```
+
+**Response `200 OK`**:
+```json
+{
+  "imported": 3,
+  "skipped": 1,
+  "failed": 0,
+  "errors": []
+}
+```
+
+| Field | Description |
+|---|---|
+| `imported` | Rows successfully created or restored |
+| `skipped` | Rows where email already exists as an active contact |
+| `failed` | Rows rejected due to validation errors |
+| `errors` | Array of per-row error strings, e.g. `"Row 4: 'bad-email' is not a valid email — skipped."` |
+
+---
+
+#### `GET /api/signer-contacts/export`  *(text/csv)*
+
+Exports all active contacts for the caller as a CSV file.
+
+**Response `200 OK`**: `Content-Type: text/csv`, `Content-Disposition: attachment; filename="signer-contacts.csv"`
+
+**CSV columns**: `id, name, email, role, phone, company, createdAt`
+
+---
+
+### Auto-Creation from Envelopes
+
+When a user sends an envelope, the API automatically calls `UpsertFromSignerAsync` for each recipient. This means contacts are kept in sync with sent envelopes without any extra action:
+
+- If the recipient email is **new** → a contact is created with name, email, and role from the signer row.
+- If the email **already exists** and is active → the contact is left unchanged.
+- If the email exists but was **soft-deleted** → it is restored silently.
+
+---
+
+### Duplicate Check Summary
+
+| Operation | Duplicate handling |
+|---|---|
+| `POST /api/signer-contacts` | Returns `409 Conflict` |
+| `PUT /api/signer-contacts/{id}` | Returns `409 Conflict` if new email clashes |
+| CSV Import | Row is counted as `skipped`; import continues |
+| Auto-create from envelope | Silent no-op if email already active |
+| Re-add soft-deleted email | Contact is **restored**, not duplicated |
+
+
