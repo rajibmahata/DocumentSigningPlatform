@@ -258,6 +258,13 @@ export default function SendPage() {
                   ))}
                 </ul>
               )}
+              {/* Temporary notice — remove once PDF format issue is resolved */}
+              <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 flex gap-2.5 items-start">
+                <AlertTriangle className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-blue-700">
+                  <span className="font-semibold">Notice:</span> We are currently experiencing an issue with certain PDF document formats. Our team is actively working on a fix and will update you soon. We apologize for any inconvenience.
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -293,6 +300,19 @@ export default function SendPage() {
                     </button>
                   )}
                 </div>
+                <div className="space-y-1">
+                  <Label>Email</Label>
+                  <SignerEmailInput
+                    value={signerValues?.[index]?.email ?? ''}
+                    onChange={(v) => setValue(`signers.${index}.email`, v, { shouldValidate: true })}
+                    onSelectContact={(c) => {
+                      setValue(`signers.${index}.email`, c.email, { shouldValidate: true });
+                      setValue(`signers.${index}.name`, c.name,  { shouldValidate: true });
+                      setValue(`signers.${index}.role`, c.role,  { shouldValidate: true });
+                    }}
+                    error={errors.signers?.[index]?.email?.message}
+                  />
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label>Name</Label>
@@ -300,19 +320,6 @@ export default function SendPage() {
                     {errors.signers?.[index]?.name && (
                       <p className="text-xs text-red-500">{errors.signers[index]!.name!.message}</p>
                     )}
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Email</Label>
-                    <SignerEmailInput
-                      value={signerValues?.[index]?.email ?? ''}
-                      onChange={(v) => setValue(`signers.${index}.email`, v, { shouldValidate: true })}
-                      onSelectContact={(c) => {
-                        setValue(`signers.${index}.email`, c.email, { shouldValidate: true });
-                        setValue(`signers.${index}.name`, c.name,  { shouldValidate: true });
-                        setValue(`signers.${index}.role`, c.role,  { shouldValidate: true });
-                      }}
-                      error={errors.signers?.[index]?.email?.message}
-                    />
                   </div>
                   <div className="space-y-1">
                     <Label>Role (must match placeholder)</Label>
