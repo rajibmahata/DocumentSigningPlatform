@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, FileText, Send, Building2, User, BookOpen,
   LogOut, FileSignature, ChevronLeft, ChevronRight,
-  BarChart2, Users, Store, MessageSquare, Ticket, PenLine, Shield, Webhook, ContactRound, CreditCard, LayoutTemplate,
+  BarChart2, Users, Store, MessageSquare, Ticket, PenLine, Shield, Webhook, ContactRound, CreditCard, LayoutTemplate, Bell,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -21,8 +21,9 @@ const NAV_ITEMS = [
   { href: '/dashboard/merchant',          label: 'Merchant',               icon: Building2 },
   { href: '/dashboard/billing',           label: 'Billing & Plans',        icon: CreditCard },
   { href: '/dashboard/tickets',           label: 'Support Tickets',        icon: MessageSquare },
-  { href: '/dashboard/settings/webhooks', label: 'Webhooks',               icon: Webhook },
-  { href: '/docs',                        label: 'API Docs',               icon: BookOpen },
+  { href: '/dashboard/settings/webhooks',       label: 'Webhooks',               icon: Webhook },
+  { href: '/dashboard/settings/notifications',  label: 'Notifications',          icon: Bell },
+  { href: '/docs',                              label: 'API Docs',               icon: BookOpen },
   { href: '/dashboard/profile',           label: 'Profile',                icon: User },
 ];
 

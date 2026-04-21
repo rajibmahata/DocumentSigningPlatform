@@ -156,6 +156,52 @@ public class MerchantController : ControllerBase
         return Ok(ToResponse(merchant));
     }
 
+    /// <summary>Returns the reminder/notification settings for a merchant.</summary>
+    [HttpGet("{id:guid}/notification-settings")]
+    [ProducesResponseType(typeof(NotificationSettingsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetNotificationSettings(Guid id, CancellationToken ct)
+    {
+        var merchant = await _merchantRepo.GetByIdAsync(id, ct);
+        if (merchant is null) return NotFound();
+
+        return Ok(new NotificationSettingsResponse(merchant.ReminderEnabled, merchant.ReminderWindowHours));
+    }
+
+    /// <summary>Updates the reminder/notification settings for a merchant. Owner only.</summary>
+    [HttpPut("{id:guid}/notification-settings")]
+    [ProducesResponseType(typeof(NotificationSettingsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateNotificationSettings(
+        Guid id,
+        [FromBody] UpdateNotificationSettingsRequest request,
+        CancellationToken ct)
+    {
+        if (request.ReminderWindowHours < 1 || request.ReminderWindowHours > 168)
+            return BadRequest("ReminderWindowHours must be between 1 and 168 (1 week).");
+
+        var merchant = await _merchantRepo.GetByIdAsync(id, ct);
+        if (merchant is null) return NotFound();
+
+        merchant.ReminderEnabled     = request.ReminderEnabled;
+        merchant.ReminderWindowHours = request.ReminderWindowHours;
+
+        await _merchantRepo.UpdateAsync(merchant, ct);
+        await _merchantRepo.SaveChangesAsync(ct);
+
+        _audit.Log(new AuditEntry(
+            Action:      AuditActions.MerchantUpdated,
+            EntityType:  AuditEntities.Merchant,
+            EntityId:    merchant.Id,
+            MerchantId:  merchant.Id,
+            Description: $"Notification settings updated for merchant '{merchant.Name}'",
+            IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            UserAgent:   Request.Headers.UserAgent.ToString()));
+
+        return Ok(new NotificationSettingsResponse(merchant.ReminderEnabled, merchant.ReminderWindowHours));
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     internal static string GenerateApiKey()

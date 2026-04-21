@@ -62,17 +62,18 @@ public class SigningRequestRepository : ISigningRequestRepository
             .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status, SigningStatus.Expired), ct);
     }
 
-    public async Task<List<PendingReminderDto>> GetPendingRemindersAsync(int withinHours, CancellationToken ct = default)
+    public async Task<List<PendingReminderDto>> GetPendingRemindersAsync(CancellationToken ct = default)
     {
-        var now       = DateTime.UtcNow;
-        var threshold = now.AddHours(withinHours);
+        var now = DateTime.UtcNow;
+        // Use a broad upper cap so EF can push the filter to SQL, then per-merchant window is applied below
+        var broadCap = now.AddHours(72);
 
         return await _db.SigningRequests
             .Where(sr =>
                 sr.Status == SigningStatus.Pending &&
                 sr.ReminderSentAt == null &&
                 sr.ExpiresAt > now &&
-                sr.ExpiresAt <= threshold)
+                sr.ExpiresAt <= broadCap)
             .Join(_db.Claims,
                 sr  => sr.ClaimId,
                 c   => c.Id,
@@ -94,6 +95,9 @@ public class SigningRequestRepository : ISigningRequestRepository
                 x   => x.e.MerchantId,
                 m   => m.Id,
                 (x, m) => new { x.sr, x.c, x.e, m })
+            .Where(x =>
+                x.m.ReminderEnabled &&
+                EF.Functions.DateDiffHour(now, x.sr.ExpiresAt) <= x.m.ReminderWindowHours)
             .Join(_db.Users,
                 x   => x.m.UserId,
                 u   => u.Id,
