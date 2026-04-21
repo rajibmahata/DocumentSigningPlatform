@@ -71,6 +71,9 @@ export function Hero() {
           <Button size="lg" variant="outline" asChild>
             <Link href="/docs">View API Docs</Link>
           </Button>
+          <Button size="lg" variant="ghost" asChild>
+            <Link href="/faq">User Guide &amp; FAQ</Link>
+          </Button>
         </div>
 
         {/* Stats */}

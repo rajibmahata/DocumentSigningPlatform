@@ -11,5 +11,6 @@ public class SigningRequest
     public SigningStatus Status { get; set; } = SigningStatus.Pending;
     public DateTime ExpiresAt { get; set; }
     public DateTime? SignedAt { get; set; }
+    public DateTime? ReminderSentAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

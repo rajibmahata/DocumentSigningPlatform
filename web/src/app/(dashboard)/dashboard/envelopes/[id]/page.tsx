@@ -11,7 +11,7 @@ import { getStatusColor, base64ToBlob, downloadBlob, resolveDocMimeType } from '
 import {
   FileText, Download, ArrowLeft, User, Ban, AlertTriangle,
   Clock, CheckCircle2, XCircle, RotateCcw, Calendar, Hash,
-  FileCheck, MessageSquare, ListOrdered, SendHorizonal,
+  FileCheck, MessageSquare, ListOrdered, SendHorizonal, Award,
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -98,6 +98,22 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
     }
   };
 
+  const handleDownloadCertificate = async () => {
+    if (!merchant) return;
+    try {
+      const resp = await envelopeApi.downloadCertificate(merchant.apiKey, id);
+      const blob = resp.data as unknown as Blob;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `certificate-${id.slice(0, 8)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Failed to download certificate.');
+    }
+  };
+
   const handleResend = async (signer: SignerSignedSummary) => {
     if (!merchant) return;
     setResendingEmail(signer.email);
@@ -162,6 +178,17 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
             <span className={`rounded-full px-3 py-1 text-sm font-semibold ${getStatusColor(envelope.status)}`}>
               {envelope.status}
             </span>
+            {envelope.status === 'Completed' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadCertificate}
+                className="border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300"
+              >
+                <Award className="h-3.5 w-3.5 mr-1.5" />
+                Certificate
+              </Button>
+            )}
             {canCancel && (
               <Button
                 variant="outline"

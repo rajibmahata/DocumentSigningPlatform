@@ -69,4 +69,25 @@ public class SigningEnvelopeRepository : ISigningEnvelopeRepository
             .ToListAsync(ct);
         return rows.Select(r => (DateOnly.FromDateTime(r.Date), r.Count)).ToList();
     }
+
+    public async Task<List<SigningEnvelope>> GetExpiredActiveEnvelopesAsync(CancellationToken ct = default)
+    {
+        var now = DateTime.UtcNow;
+
+        return await _db.SigningEnvelopes
+            .Include(e => e.Signers)
+            .Include(e => e.Documents)
+            .Include(e => e.Merchant).ThenInclude(m => m!.User)
+            .Where(e =>
+                (e.Status == DocumentSigning.Core.Enums.EnvelopeStatus.Sent ||
+                 e.Status == DocumentSigning.Core.Enums.EnvelopeStatus.Processing ||
+                 e.Status == DocumentSigning.Core.Enums.EnvelopeStatus.Signed) &&
+                e.Documents.Any(d =>
+                    _db.SigningRequests.Any(sr =>
+                        sr.DocumentId == d.Id &&
+                        sr.ExpiresAt < now &&
+                        (sr.Status == DocumentSigning.Core.Enums.SigningStatus.Pending ||
+                         sr.Status == DocumentSigning.Core.Enums.SigningStatus.Processing))))
+            .ToListAsync(ct);
+    }
 }

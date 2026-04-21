@@ -1,3 +1,4 @@
+using DocumentSigning.Core.DTOs;
 using DocumentSigning.Core.Entities;
 using DocumentSigning.Core.Enums;
 
@@ -16,5 +17,24 @@ public interface ISigningRequestRepository
     /// Atomically claims a pending signing request for processing. Returns true if status was updated.
     /// </summary>
     Task<bool> TryLockForProcessingAsync(string token, CancellationToken ct = default);
+
+    /// <summary>
+    /// Marks all Pending/Processing SigningRequests for documents in <paramref name="envelopeId"/>
+    /// as Expired. Returns the number of rows updated.
+    /// </summary>
+    Task<int> ExpireByEnvelopeAsync(Guid envelopeId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns Pending SigningRequests whose ExpiresAt is within the next
+    /// <paramref name="withinHours"/> hours, no ReminderSentAt yet, and whose
+    /// envelope is still active. Used by ReminderWorker.
+    /// </summary>
+    Task<List<PendingReminderDto>> GetPendingRemindersAsync(int withinHours, CancellationToken ct = default);
+
+    /// <summary>
+    /// Stamps <c>ReminderSentAt = UtcNow</c> on the given SigningRequest.
+    /// </summary>
+    Task MarkReminderSentAsync(Guid signingRequestId, CancellationToken ct = default);
+
     Task SaveChangesAsync(CancellationToken ct = default);
 }

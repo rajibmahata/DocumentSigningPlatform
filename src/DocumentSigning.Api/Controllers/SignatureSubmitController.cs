@@ -22,6 +22,7 @@ public class SignatureSubmitController : ControllerBase
     private readonly IWebhookService _webhookService;
     private readonly IEmailService _emailService;
     private readonly IUserRepository _userRepo;
+    private readonly INotificationService _notificationService;
 
     public SignatureSubmitController(
         ISigningRequestRepository signingRequestRepo,
@@ -33,7 +34,8 @@ public class SignatureSubmitController : ControllerBase
         ISigningEnvelopeRepository envelopeRepo,
         IWebhookService webhookService,
         IEmailService emailService,
-        IUserRepository userRepo)
+        IUserRepository userRepo,
+        INotificationService notificationService)
     {
         _signingRequestRepo = signingRequestRepo;
         _outboxRepo = outboxRepo;
@@ -45,6 +47,7 @@ public class SignatureSubmitController : ControllerBase
         _webhookService = webhookService;
         _emailService = emailService;
         _userRepo = userRepo;
+        _notificationService = notificationService;
     }
 
     /// <summary>
@@ -301,6 +304,15 @@ public class SignatureSubmitController : ControllerBase
                         Description: $"Failed to send rejection alert to merchant: {t.Exception?.Message}")),
                         System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
             }
+
+            // ── In-app notification: envelope rejected ───────────────────────
+            await _notificationService.NotifyAsync(
+                merchantUserId.Value,
+                $"Envelope Rejected: {envelopeTitle}",
+                $"{signerName} rejected signing \"{envelopeTitle}\". Reason: {request.Reason ?? "not provided"}.",
+                "envelope.rejected",
+                document?.Envelope?.Id is Guid eid ? $"/dashboard/envelopes/{eid}" : null,
+                ct);
         }
 
         return NoContent();

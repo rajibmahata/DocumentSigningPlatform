@@ -37,6 +37,7 @@ public class EnvelopeController : ControllerBase
     private readonly IEmailService _emailService;
     private readonly IUserRepository _userRepo;
     private readonly ISignerContactService _signerContactService;
+    private readonly INotificationService _notificationService;
 
     public EnvelopeController(
         IMerchantRepository merchantRepo,
@@ -53,7 +54,8 @@ public class EnvelopeController : ControllerBase
         IWebhookService webhookService,
         IEmailService emailService,
         IUserRepository userRepo,
-        ISignerContactService signerContactService)
+        ISignerContactService signerContactService,
+        INotificationService notificationService)
     {
         _merchantRepo = merchantRepo;
         _envelopeRepo = envelopeRepo;
@@ -70,6 +72,7 @@ public class EnvelopeController : ControllerBase
         _emailService = emailService;
         _userRepo = userRepo;
         _signerContactService = signerContactService;
+        _notificationService = notificationService;
     }
 
     /// <summary>
@@ -268,6 +271,15 @@ public class EnvelopeController : ControllerBase
         envelope.Status = EnvelopeStatus.Sent;
         await _envelopeRepo.UpdateAsync(envelope, ct);
         await _envelopeRepo.SaveChangesAsync(ct);
+
+        // ── In-app notification: envelope sent ───────────────────────────────
+        await _notificationService.NotifyAsync(
+            merchant.UserId,
+            $"Envelope Sent: {envelope.Title}",
+            $"Your envelope \"{envelope.Title}\" has been sent to {envelope.Signers.Count} signer(s).",
+            "envelope.sent",
+            $"/dashboard/envelopes/{envelope.Id}",
+            ct);
 
         // ── Webhook: envelope.sent ───────────────────────────────────────────
         await _webhookService.TriggerAsync(
@@ -667,4 +679,35 @@ public class EnvelopeController : ControllerBase
         "application/msword"                                                              => "doc",
         _ => contentType
     };
+
+    // ── GET /api/envelopes/{id}/certificate ─────────────────────────────────
+
+    /// <summary>
+    /// Downloads a PDF Certificate of Completion for the specified envelope.
+    /// Available for envelopes in any state; shows signing status of every signer.
+    /// </summary>
+    [HttpGet("{id:guid}/certificate")]
+    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK, "application/pdf")]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetCertificate(
+        [FromRoute] Guid id,
+        [FromServices] ICertificateService certificateService,
+        CancellationToken ct)
+    {
+        var merchant = HttpContext.Items["Merchant"] as Merchant;
+        if (merchant is null) return Unauthorized();
+
+        // Verify envelope belongs to this merchant
+        var envelope = await _envelopeRepo.GetByIdAsync(id, ct);
+        if (envelope is null || envelope.MerchantId != merchant.Id)
+            return NotFound();
+
+        var pdfBytes = await certificateService.GenerateAsync(id, ct);
+        if (pdfBytes is null)
+            return NotFound();
+
+        var fileName = $"certificate-{id.ToString()[..8]}.pdf";
+        return File(pdfBytes, "application/pdf", fileName);
+    }
 }
