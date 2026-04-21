@@ -14,4 +14,11 @@ public interface ISigningEnvelopeRepository
     Task<int> CountAllAsync(CancellationToken ct = default);
     Task<int> CountByStatusAsync(Core.Enums.EnvelopeStatus status, CancellationToken ct = default);
     Task<List<(DateOnly Date, int Count)>> CountByDayAsync(int days, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns all envelopes that are still active (Sent/Processing/Signed) but have at least one
+    /// SigningRequest whose ExpiresAt is in the past and Status is Pending or Processing.
+    /// Used by ExpiryWorker.
+    /// </summary>
+    Task<List<SigningEnvelope>> GetExpiredActiveEnvelopesAsync(CancellationToken ct = default);
 }

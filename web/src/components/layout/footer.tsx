@@ -30,6 +30,7 @@ export function Footer() {
             <ul className="space-y-2 text-sm text-gray-500">
               <li><Link href="/docs" className="hover:text-brand-700">API Docs</Link></li>
               <li><Link href="/#api-integration" className="hover:text-brand-700">API Integration</Link></li>
+              <li><Link href="/faq" className="hover:text-brand-700">FAQ &amp; User Guide</Link></li>
             </ul>
           </div>
 

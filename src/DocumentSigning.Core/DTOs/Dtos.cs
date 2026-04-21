@@ -399,3 +399,18 @@ public record SignerContactImportResult(
     int Skipped,
     int Failed,
     List<string> Errors);
+
+// ── Reminder worker ───────────────────────────────────────────────────────────
+
+public record PendingReminderDto(
+    Guid     SigningRequestId,
+    string   Token,
+    DateTime ExpiresAt,
+    string   SignerEmail,
+    string   SignerName,
+    string   EnvelopeTitle,
+    string   MerchantName,
+    Guid     EnvelopeId,
+    Guid     MerchantId,
+    string   MerchantOwnerEmail,
+    string   MerchantOwnerName);

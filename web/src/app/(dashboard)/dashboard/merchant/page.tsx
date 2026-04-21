@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Building2, Key, Copy, CheckCircle, AlertTriangle } from 'lucide-react';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 
 const schema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -108,6 +109,7 @@ function MerchantDetails({ merchant }: { merchant: MerchantResponse }) {
             <div className="flex items-center justify-between mb-1">
               <Label className="text-xs text-gray-400 uppercase tracking-wide flex items-center gap-1">
                 <Key className="h-3.5 w-3.5" /> API Key
+                <InfoTooltip content="Your API key authenticates requests to the DocSignerHub REST API. Pass it in the X-Api-Key header. Keep it secret — do not commit it to source control." side="right" />
               </Label>
               <div className="flex gap-2">
                 <button
@@ -133,7 +135,10 @@ function MerchantDetails({ merchant }: { merchant: MerchantResponse }) {
           {/* Usage */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <Label className="text-xs text-gray-400 uppercase tracking-wide">Usage</Label>
+              <Label className="text-xs text-gray-400 uppercase tracking-wide flex items-center gap-1">
+                Usage
+                <InfoTooltip content="Each envelope you send consumes one credit. When requestLimit is 0 the account has unlimited credits. Contact support to increase your limit." />
+              </Label>
               <span className="text-xs text-gray-600">
                 {used} / {unlimited ? '∞' : limit} used · {remaining} remaining
               </span>

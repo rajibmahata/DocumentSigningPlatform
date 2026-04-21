@@ -1281,4 +1281,168 @@ public class EmailService : IEmailService
     }
 
     private record AttachmentDefinition(string FileName, byte[] Data, string ContentType);
+
+    public async Task SendEnvelopeExpiredAsync(
+        string toEmail, string toName, string envelopeTitle, int signerCount,
+        CancellationToken ct = default)
+    {
+        var docLabel = string.IsNullOrWhiteSpace(envelopeTitle) ? "a document" : $"\"{envelopeTitle}\"";
+        var subject  = $"Signing envelope expired: {(string.IsNullOrWhiteSpace(envelopeTitle) ? "Your envelope" : envelopeTitle)}";
+
+        var plainBody = $"""
+            Dear {toName},
+
+            Your signing envelope {docLabel} has expired without all {signerCount} signer(s) completing.
+
+            If you still need signatures on this document, please create a new envelope.
+
+            Regards,
+            Document Signing Platform
+            """;
+
+        var htmlBody = $"""
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <title>Envelope Expired</title>
+            </head>
+            <body style="margin:0;padding:0;background:#f4f6f8;font-family:'Segoe UI',Arial,sans-serif;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:40px 0;">
+                <tr>
+                  <td align="center">
+                    <table width="600" cellpadding="0" cellspacing="0"
+                           style="background:#ffffff;border-radius:12px;overflow:hidden;
+                                  box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+                      <tr>
+                        <td style="background:linear-gradient(135deg,#dc2626 0%,#991b1b 100%);
+                                   padding:36px 48px;text-align:center;">
+                          <p style="margin:0;font-size:13px;color:#fca5a5;letter-spacing:1.5px;
+                                    text-transform:uppercase;">Document Signing Platform</p>
+                          <h1 style="margin:12px 0 0;font-size:26px;font-weight:700;color:#ffffff;">
+                            Envelope Expired
+                          </h1>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:48px 48px 32px;">
+                          <p style="margin:0 0 8px;font-size:15px;color:#6b7280;">Dear,</p>
+                          <p style="margin:0 0 24px;font-size:20px;font-weight:600;color:#111827;">{toName}</p>
+                          <p style="margin:0 0 24px;font-size:15px;color:#374151;line-height:1.7;">
+                            Your signing envelope {docLabel} has expired without all
+                            <strong>{signerCount}</strong> signer(s) completing the signing process.
+                          </p>
+                          <p style="margin:0 0 24px;font-size:15px;color:#374151;line-height:1.7;">
+                            If you still need signatures on this document, please log in and create a
+                            new signing envelope.
+                          </p>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:0 48px 40px;text-align:center;color:#9ca3af;font-size:12px;">
+                          &copy; Document Signing Platform
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+            """;
+
+        await SendHtmlAsync(toEmail, toName, subject, plainBody, htmlBody, null, ct);
+    }
+
+    public async Task SendSigningReminderAsync(
+        string toEmail, string toName, string signingLink, DateTime expiresAt,
+        string envelopeTitle, string senderName,
+        CancellationToken ct = default)
+    {
+        var docLabel    = string.IsNullOrWhiteSpace(envelopeTitle) ? "a document" : $"\"{envelopeTitle}\"";
+        var senderLabel = string.IsNullOrWhiteSpace(senderName)    ? "Someone"    : senderName;
+        var subject     = $"Reminder: Your signature is still needed on {(string.IsNullOrWhiteSpace(envelopeTitle) ? "a document" : envelopeTitle)}";
+
+        var plainBody = $"""
+            Dear {toName},
+
+            This is a friendly reminder that {senderLabel} is waiting for your signature on {docLabel}.
+
+            Sign here: {signingLink}
+
+            This link will expire on {expiresAt:f} UTC.
+
+            If you were not expecting this request, please disregard this email.
+
+            Regards,
+            Document Signing Platform
+            """;
+
+        var htmlBody = $"""
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <title>Signing Reminder</title>
+            </head>
+            <body style="margin:0;padding:0;background:#f4f6f8;font-family:'Segoe UI',Arial,sans-serif;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:40px 0;">
+                <tr>
+                  <td align="center">
+                    <table width="600" cellpadding="0" cellspacing="0"
+                           style="background:#ffffff;border-radius:12px;overflow:hidden;
+                                  box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+                      <tr>
+                        <td style="background:linear-gradient(135deg,#d97706 0%,#92400e 100%);
+                                   padding:36px 48px;text-align:center;">
+                          <p style="margin:0;font-size:13px;color:#fde68a;letter-spacing:1.5px;
+                                    text-transform:uppercase;">Document Signing Platform</p>
+                          <h1 style="margin:12px 0 0;font-size:26px;font-weight:700;color:#ffffff;">
+                            Signature Reminder
+                          </h1>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:48px 48px 32px;">
+                          <p style="margin:0 0 8px;font-size:15px;color:#6b7280;">Dear,</p>
+                          <p style="margin:0 0 24px;font-size:20px;font-weight:600;color:#111827;">{toName}</p>
+                          <p style="margin:0 0 24px;font-size:15px;color:#374151;line-height:1.7;">
+                            This is a friendly reminder that
+                            <strong style="color:#d97706;">{senderLabel}</strong>
+                            is still waiting for your signature on {docLabel}.
+                          </p>
+                          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:32px;">
+                            <tr>
+                              <td align="center">
+                                <a href="{signingLink}"
+                                   style="display:inline-block;padding:16px 40px;
+                                          background:#d97706;color:#ffffff;font-size:16px;
+                                          font-weight:600;text-decoration:none;border-radius:8px;">
+                                  Sign Now
+                                </a>
+                              </td>
+                            </tr>
+                          </table>
+                          <p style="margin:0 0 8px;font-size:13px;color:#9ca3af;text-align:center;">
+                            Link expires: {expiresAt:f} UTC
+                          </p>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:0 48px 40px;text-align:center;color:#9ca3af;font-size:12px;">
+                          &copy; Document Signing Platform
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+            """;
+
+        await SendHtmlAsync(toEmail, toName, subject, plainBody, htmlBody, null, ct);
+    }
 }

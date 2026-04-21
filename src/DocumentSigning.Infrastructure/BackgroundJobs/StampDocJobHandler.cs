@@ -29,6 +29,7 @@ public class StampDocJobHandler
     private readonly IConfiguration _config;
     private readonly ILogger<StampDocJobHandler> _logger;
     private readonly IWebhookService _webhookService;
+    private readonly INotificationService _notificationService;
 
     public StampDocJobHandler(
         IDocumentRepository docRepo,
@@ -43,7 +44,8 @@ public class StampDocJobHandler
         IDocumentStamper stamper,
         IConfiguration config,
         ILogger<StampDocJobHandler> logger,
-        IWebhookService webhookService)
+        IWebhookService webhookService,
+        INotificationService notificationService)
     {
         _docRepo = docRepo;
         _signingRequestRepo = signingRequestRepo;
@@ -58,6 +60,7 @@ public class StampDocJobHandler
         _config = config;
         _logger = logger;
         _webhookService = webhookService;
+        _notificationService = notificationService;
     }
 
     public async Task HandleAsync(OutboxQueue job, CancellationToken ct = default)
@@ -145,6 +148,29 @@ public class StampDocJobHandler
                         signerEmail = claim.ClaimantEmail,
                     },
                     ct);
+
+                // ── In-app notification to merchant owner ────────────────────
+                var merchant = await _merchantRepo.GetByIdAsync(envelope.MerchantId, ct);
+                if (merchant is not null)
+                {
+                    var notifUser = await _userRepo.GetByIdAsync(merchant.UserId, ct);
+                    if (notifUser is not null)
+                    {
+                        var (notifTitle, notifBody) = allSigned
+                            ? ($"Envelope Completed: {envelope.Title}",
+                               $"All signers have signed \"{envelope.Title}\".")
+                            : ($"Document Signed: {envelope.Title}",
+                               $"{claim.ClaimantName} signed a document in \"{envelope.Title}\".");
+
+                        await _notificationService.NotifyAsync(
+                            notifUser.Id,
+                            notifTitle,
+                            notifBody,
+                            allSigned ? "envelope.completed" : "envelope.signed",
+                            $"/dashboard/envelopes/{envelope.Id}",
+                            ct);
+                    }
+                }
             }
         }
 

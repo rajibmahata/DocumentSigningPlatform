@@ -125,6 +125,11 @@ export const envelopeApi = {
       headers: { 'X-Api-Key': apiKey },
       responseType: 'blob',
     }),
+  downloadCertificate: (apiKey: string, envelopeId: string) =>
+    apiClient.get<Blob>(`/envelopes/${envelopeId}/certificate`, {
+      headers: { 'X-Api-Key': apiKey },
+      responseType: 'blob',
+    }),
 };
 
 // ── Portal ────────────────────────────────────────────────────────────────────
@@ -296,4 +301,95 @@ export const signerContactApi = {
 
   exportCsv: () =>
     apiClient.get('/signer-contacts/export', { responseType: 'blob' }),
+};
+
+export const plansApi = {
+  getAll: () =>
+    apiClient.get<SubscriptionPlan[]>('/plans'),
+
+  assignToMerchant: (merchantId: string, planName: string, subscriptionEnd?: string) =>
+    apiClient.post(`/merchants/${merchantId}/plan`, { planName, subscriptionEnd }),
+};
+
+export interface SubscriptionPlan {
+  name: string;
+  displayName: string;
+  description: string;
+  requestLimit: number;
+  priceMonthly: number;
+  isPopular: boolean;
+  features: string[];
+}
+
+// ── Document Templates ────────────────────────────────────────────────────────
+
+export interface TemplateSigner {
+  name: string;
+  email: string;
+  role: string;
+  order: number;
+  message?: string;
+}
+
+export interface TemplateResponse {
+  id: string;
+  merchantId: string;
+  name: string;
+  description?: string;
+  defaultTitle: string;
+  signers: TemplateSigner[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTemplateRequest {
+  name: string;
+  description?: string;
+  defaultTitle: string;
+  signers: TemplateSigner[];
+}
+
+export const templatesApi = {
+  list: () =>
+    apiClient.get<TemplateResponse[]>('/templates'),
+
+  getById: (id: string) =>
+    apiClient.get<TemplateResponse>(`/templates/${id}`),
+
+  create: (data: CreateTemplateRequest) =>
+    apiClient.post<TemplateResponse>('/templates', data),
+
+  update: (id: string, data: CreateTemplateRequest) =>
+    apiClient.put<TemplateResponse>(`/templates/${id}`, data),
+
+  delete: (id: string) =>
+    apiClient.delete(`/templates/${id}`),
+};
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+export interface NotificationDto {
+  id: string;
+  title: string;
+  body: string;
+  type: string;
+  link?: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface NotificationSummaryDto {
+  unreadCount: number;
+  recent: NotificationDto[];
+}
+
+export const notificationsApi = {
+  getSummary: () =>
+    apiClient.get<NotificationSummaryDto>('/notifications'),
+
+  markAllRead: () =>
+    apiClient.post('/notifications/read-all'),
+
+  markRead: (id: string) =>
+    apiClient.post(`/notifications/${id}/read`),
 };

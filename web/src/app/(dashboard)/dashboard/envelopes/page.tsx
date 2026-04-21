@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { formatDate, getStatusColor, base64ToBlob, downloadBlob, resolveDocMimeType } from '@/lib/utils';
-import { FileText, Download, ExternalLink, Clock } from 'lucide-react';
+import { FileText, Download, ExternalLink, Clock, Award } from 'lucide-react';
 import Link from 'next/link';
 import type { InitiateEnvelopeResponse } from '@/types';
 
@@ -157,6 +157,21 @@ function EnvelopeCard({
     }
   };
 
+  const handleDownloadCertificate = async () => {
+    try {
+      const resp = await envelopeApi.downloadCertificate(apiKey, env.envelopeId);
+      const blob = resp.data as unknown as Blob;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `certificate-${env.envelopeId.slice(0, 8)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // handled by global error
+    }
+  };
+
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardContent className="flex items-center justify-between gap-4 p-5">
@@ -186,9 +201,20 @@ function EnvelopeCard({
             {env.status}
           </span>
           {tab === 'closed' && env.status === 'Completed' ? (
-            <Button size="sm" variant="outline" onClick={handleViewSigned}>
-              <Download className="h-3.5 w-3.5" /> Download
-            </Button>
+            <>
+              <Button size="sm" variant="outline" asChild>
+                <Link href={`/dashboard/envelopes/${env.envelopeId}`}>
+                  <ExternalLink className="h-3.5 w-3.5" /> View
+                </Link>
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleViewSigned}>
+                <Download className="h-3.5 w-3.5" /> Download
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleDownloadCertificate}
+                className="border-green-200 text-green-700 hover:bg-green-50 hover:border-green-300">
+                <Award className="h-3.5 w-3.5" /> Certificate
+              </Button>
+            </>
           ) : (
             <Button size="sm" variant="outline" asChild>
               <Link href={`/dashboard/envelopes/${env.envelopeId}`}>

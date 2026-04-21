@@ -88,4 +88,20 @@ public interface IEmailService
         string toEmail,
         string toName,
         CancellationToken ct = default);
+
+    Task SendEnvelopeExpiredAsync(
+        string toEmail,
+        string toName,
+        string envelopeTitle,
+        int signerCount,
+        CancellationToken ct = default);
+
+    Task SendSigningReminderAsync(
+        string toEmail,
+        string toName,
+        string signingLink,
+        DateTime expiresAt,
+        string envelopeTitle,
+        string senderName,
+        CancellationToken ct = default);
 }
