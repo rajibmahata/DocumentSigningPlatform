@@ -83,6 +83,10 @@ export const merchantApi = {
     apiClient.put<MerchantResponse>(`/merchants/${id}`, data),
   regenerateKey: (id: string) =>
     apiClient.post<MerchantResponse>(`/merchants/${id}/regenerate-key`),
+  getNotificationSettings: (id: string) =>
+    apiClient.get<{ reminderEnabled: boolean; reminderWindowHours: number }>(`/merchants/${id}/notification-settings`),
+  updateNotificationSettings: (id: string, data: { reminderEnabled: boolean; reminderWindowHours: number }) =>
+    apiClient.put<{ reminderEnabled: boolean; reminderWindowHours: number }>(`/merchants/${id}/notification-settings`, data),
 };
 
 // ── Envelope ──────────────────────────────────────────────────────────────────

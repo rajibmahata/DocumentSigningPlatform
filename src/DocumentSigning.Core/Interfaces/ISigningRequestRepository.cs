@@ -25,11 +25,12 @@ public interface ISigningRequestRepository
     Task<int> ExpireByEnvelopeAsync(Guid envelopeId, CancellationToken ct = default);
 
     /// <summary>
-    /// Returns Pending SigningRequests whose ExpiresAt is within the next
-    /// <paramref name="withinHours"/> hours, no ReminderSentAt yet, and whose
-    /// envelope is still active. Used by ReminderWorker.
+    /// Returns Pending SigningRequests whose ExpiresAt is within each merchant's configured
+    /// <c>ReminderWindowHours</c>, with no ReminderSentAt yet, and whose envelope is still active.
+    /// Only returns reminders for merchants that have <c>ReminderEnabled = true</c>.
+    /// Used by ReminderWorker.
     /// </summary>
-    Task<List<PendingReminderDto>> GetPendingRemindersAsync(int withinHours, CancellationToken ct = default);
+    Task<List<PendingReminderDto>> GetPendingRemindersAsync(CancellationToken ct = default);
 
     /// <summary>
     /// Stamps <c>ReminderSentAt = UtcNow</c> on the given SigningRequest.

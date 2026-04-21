@@ -199,8 +199,9 @@ public class EnvelopeController : ControllerBase
         }
 
         // ── Create SigningRequest + send invitation for each signer ─────────
-        var baseUrl = _config["App:FrontendUrl"] ?? _config["App:BaseUrl"] ?? $"{Request.Scheme}://{Request.Host}";
-        var expiry  = DateTime.UtcNow.AddDays(7);
+        var baseUrl      = _config["App:FrontendUrl"] ?? _config["App:BaseUrl"] ?? $"{Request.Scheme}://{Request.Host}";
+        var expiryDays   = _config.GetValue<int>("App:EnvelopeExpiryDays", 7);
+        var expiry       = DateTime.UtcNow.AddDays(expiryDays);
 
         // Use first document for the signing token (multi-document support can be extended)
         var primaryDoc = docEntities.First();
@@ -547,7 +548,8 @@ public class EnvelopeController : ControllerBase
         if (primaryDoc is null) return BadRequest("Envelope has no documents.");
 
         var frontendUrl = _config["App:FrontendUrl"] ?? _config["App:BaseUrl"] ?? $"{Request.Scheme}://{Request.Host}";
-        var expiry = DateTime.UtcNow.AddDays(7);
+        var expiryDays   = _config.GetValue<int>("App:EnvelopeExpiryDays", 7);
+        var expiry       = DateTime.UtcNow.AddDays(expiryDays);
 
         var claimId = Guid.NewGuid();
         await _claimRepo.AddAsync(new Core.Entities.Claim

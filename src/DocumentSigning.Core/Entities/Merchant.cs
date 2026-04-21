@@ -17,4 +17,10 @@ public class Merchant
     public DateTime? SubscriptionEnd  { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // ── Reminder settings ────────────────────────────────────────────────────
+    /// <summary>Whether the reminder email job should send reminders for this merchant's envelopes.</summary>
+    public bool ReminderEnabled      { get; set; } = true;
+    /// <summary>How many hours before expiry to send the reminder email (default 24).</summary>
+    public int  ReminderWindowHours  { get; set; } = 24;
 }

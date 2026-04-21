@@ -286,6 +286,14 @@ public record UpdateMerchantRequest(
     int RequestLimit,
     DateTime? SubscriptionEnd);
 
+public record NotificationSettingsResponse(
+    bool ReminderEnabled,
+    int  ReminderWindowHours);
+
+public record UpdateNotificationSettingsRequest(
+    bool ReminderEnabled,
+    int  ReminderWindowHours);
+
 // ── Tickets ───────────────────────────────────────────────────────────────────
 
 public record CreateTicketRequest(
