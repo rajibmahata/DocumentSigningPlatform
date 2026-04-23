@@ -138,7 +138,7 @@ public record CreateMerchantRequest(
     Guid UserId,
     string Name,
     string? Description,
-    int RequestLimit = 100);
+    int RequestLimit = 25);
 
 public record MerchantResponse(
     Guid Id,
@@ -147,6 +147,7 @@ public record MerchantResponse(
     string? Description,
     string ApiKey,
     bool IsActive,
+    string PlanName,
     int RequestLimit,
     int RequestUsed,
     DateTime SubscriptionStart,
@@ -285,6 +286,10 @@ public record UpdateMerchantRequest(
     bool IsActive,
     int RequestLimit,
     DateTime? SubscriptionEnd);
+
+public record UpdateMerchantProfileRequest(
+    string Name,
+    string? Description);
 
 public record NotificationSettingsResponse(
     bool ReminderEnabled,

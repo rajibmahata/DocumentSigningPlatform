@@ -70,6 +70,7 @@ export interface MerchantResponse {
   description?: string;
   apiKey: string;
   isActive: boolean;
+  planName: string;
   requestLimit: number;
   requestUsed: number;
   subscriptionStart: string;

@@ -8,10 +8,11 @@ namespace DocumentSigning.Api.Controllers;
 /// <summary>
 /// Subscription plan management.
 /// GET /api/plans — public plan listing.
+/// GET /api/support-contacts — returns support contact emails from config.
 /// POST /api/merchants/{id}/plan — admin plan assignment.
 /// </summary>
 [ApiController]
-public class SubscriptionController : ControllerBase
+public class SubscriptionController(IConfiguration config) : ControllerBase
 {
     // ── Plan catalogue ────────────────────────────────────────────────────────
 
@@ -37,7 +38,7 @@ public class SubscriptionController : ControllerBase
             DisplayName:   "Starter",
             Description:   "Perfect for small teams and growing businesses.",
             RequestLimit:  100,
-            PriceMonthly:  9m,
+            PriceMonthly:  2m,
             IsPopular:     false,
             Features: new[]
             {
@@ -53,7 +54,7 @@ public class SubscriptionController : ControllerBase
             DisplayName:   "Pro",
             Description:   "For teams that need higher volume and advanced features.",
             RequestLimit:  500,
-            PriceMonthly:  29m,
+            PriceMonthly:  4m,
             IsPopular:     true,
             Features: new[]
             {
@@ -70,7 +71,7 @@ public class SubscriptionController : ControllerBase
             DisplayName:   "Enterprise",
             Description:   "Unlimited usage with dedicated support.",
             RequestLimit:  0,
-            PriceMonthly:  99m,
+            PriceMonthly:  9m,
             IsPopular:     false,
             Features: new[]
             {
@@ -90,6 +91,20 @@ public class SubscriptionController : ControllerBase
     [AllowAnonymous]
     [ProducesResponseType(typeof(IReadOnlyList<SubscriptionPlanDto>), StatusCodes.Status200OK)]
     public IActionResult GetPlans() => Ok(Plans);
+
+    // ── GET /api/support-contacts ─────────────────────────────────────────────
+
+    /// <summary>Returns support contact emails from configuration.</summary>
+    [HttpGet("api/support-contacts")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(IReadOnlyList<SupportContactDto>), StatusCodes.Status200OK)]
+    public IActionResult GetSupportContacts()
+    {
+        var contacts = config
+            .GetSection("Support:Contacts")
+            .Get<List<SupportContactDto>>() ?? [];
+        return Ok(contacts);
+    }
 
     // ── POST /api/merchants/{id}/plan ─────────────────────────────────────────
 
@@ -117,6 +132,7 @@ public class SubscriptionController : ControllerBase
         var merchant = await merchantRepo.GetByIdAsync(id, ct);
         if (merchant is null) return NotFound();
 
+        merchant.PlanName        = plan.Name;
         merchant.RequestLimit    = plan.RequestLimit;
         merchant.SubscriptionEnd = request.SubscriptionEnd ?? DateTime.UtcNow.AddDays(30);
 

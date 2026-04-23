@@ -42,6 +42,7 @@ public class MerchantController : ControllerBase
             Description       = request.Description?.Trim(),
             ApiKey            = GenerateApiKey(),
             IsActive          = true,
+            PlanName          = "free",
             RequestLimit      = request.RequestLimit,
             RequestUsed       = 0,
             SubscriptionStart = DateTime.UtcNow,
@@ -156,6 +157,40 @@ public class MerchantController : ControllerBase
         return Ok(ToResponse(merchant));
     }
 
+    /// <summary>Updates the merchant's own name and description. No Admin role required — owner can call.</summary>
+    [HttpPut("{id:guid}/profile")]
+    [ProducesResponseType(typeof(MerchantResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateProfile(
+        Guid id,
+        [FromBody] UpdateMerchantProfileRequest request,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Name))
+            return BadRequest("Name is required.");
+
+        var merchant = await _merchantRepo.GetByIdAsync(id, ct);
+        if (merchant is null) return NotFound();
+
+        merchant.Name        = request.Name.Trim();
+        merchant.Description = request.Description?.Trim();
+
+        await _merchantRepo.UpdateAsync(merchant, ct);
+        await _merchantRepo.SaveChangesAsync(ct);
+
+        _audit.Log(new AuditEntry(
+            Action:      AuditActions.MerchantUpdated,
+            EntityType:  AuditEntities.Merchant,
+            EntityId:    merchant.Id,
+            MerchantId:  merchant.Id,
+            Description: $"Merchant profile updated: '{merchant.Name}'",
+            IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            UserAgent:   Request.Headers.UserAgent.ToString()));
+
+        return Ok(ToResponse(merchant));
+    }
+
     /// <summary>Returns the reminder/notification settings for a merchant.</summary>
     [HttpGet("{id:guid}/notification-settings")]
     [ProducesResponseType(typeof(NotificationSettingsResponse), StatusCodes.Status200OK)]
@@ -209,5 +244,5 @@ public class MerchantController : ControllerBase
 
     private static MerchantResponse ToResponse(Merchant m) => new(
         m.Id, m.UserId, m.Name, m.Description, m.ApiKey, m.IsActive,
-        m.RequestLimit, m.RequestUsed, m.SubscriptionStart, m.SubscriptionEnd, m.CreatedAt);
+        m.PlanName, m.RequestLimit, m.RequestUsed, m.SubscriptionStart, m.SubscriptionEnd, m.CreatedAt);
 }

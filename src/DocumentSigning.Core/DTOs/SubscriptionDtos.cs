@@ -14,3 +14,7 @@ public record SubscriptionPlanDto(
 public record UpdateMerchantPlanRequest(
     string PlanName,
     DateTime? SubscriptionEnd = null);
+
+public record SupportContactDto(
+    string Name,
+    string Email);
