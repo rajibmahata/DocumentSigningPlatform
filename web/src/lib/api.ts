@@ -81,6 +81,8 @@ export const merchantApi = {
     apiClient.get<MerchantResponse>(`/merchants/${id}`),
   update: (id: string, data: UpdateMerchantRequest) =>
     apiClient.put<MerchantResponse>(`/merchants/${id}`, data),
+  updateProfile: (id: string, data: { name: string; description?: string }) =>
+    apiClient.put<MerchantResponse>(`/merchants/${id}/profile`, data),
   regenerateKey: (id: string) =>
     apiClient.post<MerchantResponse>(`/merchants/${id}/regenerate-key`),
   getNotificationSettings: (id: string) =>
@@ -313,6 +315,15 @@ export const plansApi = {
 
   assignToMerchant: (merchantId: string, planName: string, subscriptionEnd?: string) =>
     apiClient.post(`/merchants/${merchantId}/plan`, { planName, subscriptionEnd }),
+};
+
+export interface SupportContact {
+  name: string;
+  email: string;
+}
+
+export const supportApi = {
+  getContacts: () => apiClient.get<SupportContact[]>('/support-contacts'),
 };
 
 export interface SubscriptionPlan {

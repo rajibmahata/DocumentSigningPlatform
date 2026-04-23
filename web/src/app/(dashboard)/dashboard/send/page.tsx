@@ -21,7 +21,7 @@ import { useRouter } from 'next/navigation';
 import {
   Plus, Trash2, AlertTriangle, Upload, Download,
   LayoutTemplate, Search, CheckCircle2, X, ChevronDown, ChevronUp,
-  Users, Sparkles,
+  Users, Sparkles, Building2, CreditCard, CheckCircle, XCircle,
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -437,13 +437,22 @@ export default function SendPage() {
   const { user } = useAuth();
   const [docs, setDocs] = useState<FileDoc[]>([]);
   const [appliedTemplate, setAppliedTemplate] = useState<TemplateResponse | null>(null);
+  const [selectedMerchantId, setSelectedMerchantId] = useState<string | null>(null);
 
   const { data: merchants } = useQuery({
     queryKey: ['merchants', user?.id],
     queryFn: () => merchantApi.getByUser(user!.id).then((r) => r.data),
     enabled: !!user,
   });
-  const merchant = merchants?.[0];
+
+  // Auto-select first merchant on load
+  useEffect(() => {
+    if (merchants && merchants.length > 0 && !selectedMerchantId) {
+      setSelectedMerchantId(merchants[0].id);
+    }
+  }, [merchants, selectedMerchantId]);
+
+  const merchant = merchants?.find(m => m.id === selectedMerchantId) ?? merchants?.[0];
 
   const { data: templates = [] } = useQuery({
     queryKey: ['templates'],
@@ -508,6 +517,7 @@ export default function SendPage() {
 
   const onSubmit = async (data: FormValues) => {
     if (!merchant) { toast.error('Create a merchant account first.'); return; }
+    if (!merchant.isActive) { toast.error('Merchant account is deactivated. Cannot send envelopes.'); return; }
     if (docs.length === 0) { toast.error('Please upload at least one document.'); return; }
 
     if (merchant.requestLimit > 0 && merchant.requestUsed >= merchant.requestLimit) {
@@ -547,6 +557,104 @@ export default function SendPage() {
           Upload a document, choose signers, and send.
         </p>
       </div>
+
+      {/* ── Merchant selector + details ── */}
+      {merchants && merchants.length > 0 && (
+        <div className={`rounded-2xl border p-4 space-y-3 ${merchant && !merchant.isActive ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-white'}`}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Building2 className={`h-5 w-5 shrink-0 ${merchant && !merchant.isActive ? 'text-red-400' : 'text-indigo-500'}`} />
+              <span className="text-sm font-semibold text-gray-800">Merchant Account</span>
+            </div>
+            {/* Only show selector if user has multiple merchants */}
+            {merchants.length > 1 && (
+              <select
+                value={selectedMerchantId ?? ''}
+                onChange={e => setSelectedMerchantId(e.target.value)}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                {merchants.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}{!m.isActive ? ' (Inactive)' : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {merchant && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {/* Name + description */}
+              <div className="col-span-2 sm:col-span-2">
+                <p className="font-semibold text-gray-900 text-sm">{merchant.name}</p>
+                {merchant.description && (
+                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{merchant.description}</p>
+                )}
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-700 capitalize">
+                    {merchant.planName || 'free'}
+                  </span>
+                  {merchant.isActive
+                    ? <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium"><CheckCircle className="h-3 w-3" /> Active</span>
+                    : <span className="inline-flex items-center gap-1 text-xs text-red-600 font-medium"><XCircle className="h-3 w-3" /> Inactive</span>}
+                </div>
+              </div>
+              {/* Credits */}
+              <div className="col-span-2 sm:col-span-2">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <CreditCard className="h-4 w-4 text-gray-400" />
+                  <span className="text-xs font-medium text-gray-600">Credits</span>
+                </div>
+                {merchant.requestLimit === 0 ? (
+                  <p className="text-sm font-semibold text-emerald-600">Unlimited</p>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-xs text-gray-600 mb-1">
+                      <span>{merchant.requestUsed} used / {merchant.requestLimit}</span>
+                      <span className={
+                        merchant.requestLimit - merchant.requestUsed <= 0
+                          ? 'text-red-600 font-bold'
+                          : merchant.requestUsed / merchant.requestLimit >= 0.9
+                            ? 'text-red-500 font-semibold'
+                            : merchant.requestUsed / merchant.requestLimit >= 0.7
+                              ? 'text-amber-600'
+                              : 'text-indigo-600 font-medium'
+                      }>
+                        {Math.max(0, merchant.requestLimit - merchant.requestUsed)} remaining
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full transition-all ${
+                          merchant.requestUsed >= merchant.requestLimit
+                            ? 'bg-red-500'
+                            : merchant.requestUsed / merchant.requestLimit >= 0.9
+                              ? 'bg-red-400'
+                              : merchant.requestUsed / merchant.requestLimit >= 0.7
+                                ? 'bg-amber-400'
+                                : 'bg-indigo-500'
+                        }`}
+                        style={{ width: `${Math.min(100, Math.round((merchant.requestUsed / merchant.requestLimit) * 100))}%` }}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Inactive warning */}
+          {merchant && !merchant.isActive && (
+            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-100 px-3 py-2.5 text-sm text-red-800">
+              <XCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-500" />
+              <div>
+                <p className="font-semibold">Merchant account is deactivated</p>
+                <p className="text-xs mt-0.5">Envelope sending is disabled. Contact your administrator to reactivate this account.</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Template start section */}
       <TemplateStartSection
@@ -744,7 +852,13 @@ export default function SendPage() {
 
         <div className="flex justify-end gap-3">
           <Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button>
-          <Button type="submit" loading={isSubmitting}>Send Envelope</Button>
+          <Button
+            type="submit"
+            loading={isSubmitting}
+            disabled={isSubmitting || (merchant != null && !merchant.isActive) || (merchant != null && merchant.requestLimit > 0 && merchant.requestUsed >= merchant.requestLimit)}
+          >
+            {merchant && !merchant.isActive ? 'Account Deactivated' : 'Send Envelope'}
+          </Button>
         </div>
       </form>
     </div>

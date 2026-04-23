@@ -10,8 +10,11 @@ public class Merchant
     public string ApiKey      { get; set; } = string.Empty;
     public bool   IsActive    { get; set; } = true;
 
-    // Subscription: 0 = unlimited
-    public int      RequestLimit      { get; set; } = 100;
+    // ── Subscription ─────────────────────────────────────────────────────────
+    /// <summary>Active plan name: free | starter | pro | enterprise</summary>
+    public string PlanName        { get; set; } = "free";
+    // 0 = unlimited
+    public int      RequestLimit      { get; set; } = 25;
     public int      RequestUsed       { get; set; } = 0;
     public DateTime SubscriptionStart { get; set; } = DateTime.UtcNow;
     public DateTime? SubscriptionEnd  { get; set; }
