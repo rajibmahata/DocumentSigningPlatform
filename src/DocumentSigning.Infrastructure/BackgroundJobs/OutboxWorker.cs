@@ -132,7 +132,7 @@ public class OutboxWorker : BackgroundService
                 var emailSvc = sp.GetRequiredService<IEmailService>();
                 await emailSvc.SendSigningInvitationAsync(
                     payload.To, payload.ToName, payload.SigningLink, payload.ExpiresAt,
-                    payload.EnvelopeTitle, payload.SenderName, ct);
+                    payload.EnvelopeTitle, payload.SenderName, payload.ConfirmUrl, ct);
                 break;
             }
             case JobTypes.StampDoc:

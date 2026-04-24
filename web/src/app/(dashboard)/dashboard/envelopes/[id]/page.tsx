@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { getStatusColor, base64ToBlob, downloadBlob, resolveDocMimeType } from '@/lib/utils';
 import {
   FileText, Download, ArrowLeft, User, Ban, AlertTriangle,
-  Clock, CheckCircle2, XCircle, RotateCcw, Calendar, Hash,
+  Clock, CheckCircle2, CheckCheck, XCircle, RotateCcw, Calendar, Hash,
   FileCheck, MessageSquare, ListOrdered, SendHorizonal, Award,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -22,6 +22,7 @@ const CANCELLABLE_STATUSES = ['Processing', 'Sent', 'Signed'];
 function StatusIcon({ status }: { status: string }) {
   switch (status) {
     case 'Signed':    return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+    case 'Confirmed': return <CheckCheck className="h-4 w-4 text-emerald-500" />;
     case 'Rejected':  return <XCircle className="h-4 w-4 text-red-500" />;
     case 'Expired':   return <Clock className="h-4 w-4 text-gray-400" />;
     default:          return <Clock className="h-4 w-4 text-amber-500" />;
@@ -148,10 +149,11 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
     );
   }
 
-  const canCancel     = CANCELLABLE_STATUSES.includes(envelope.status);
-  const signedCount   = envelope.signers.filter((s) => s.status === 'Signed').length;
-  const pendingCount  = envelope.signers.filter((s) => s.status === 'Pending').length;
-  const rejectedCount = envelope.signers.filter((s) => s.status === 'Rejected').length;
+  const canCancel      = CANCELLABLE_STATUSES.includes(envelope.status);
+  const signedCount    = envelope.signers.filter((s) => s.status === 'Signed').length;
+  const confirmedCount = envelope.signers.filter((s) => s.status === 'Confirmed').length;
+  const pendingCount   = envelope.signers.filter((s) => s.status === 'Pending').length;
+  const rejectedCount  = envelope.signers.filter((s) => s.status === 'Rejected').length;
 
   return (
     <>
@@ -204,12 +206,13 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
         </div>
 
         {/* ── Stats cards ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
           {[
             { label: 'Total Signers', value: envelope.signers.length, color: 'text-gray-900 dark:text-white' },
-            { label: 'Signed',  value: signedCount,   color: 'text-green-600' },
-            { label: 'Pending', value: pendingCount,  color: 'text-amber-500' },
-            { label: 'Rejected', value: rejectedCount, color: 'text-red-500'  },
+            { label: 'Signed',    value: signedCount,    color: 'text-green-600' },
+            { label: 'Confirmed', value: confirmedCount, color: 'text-emerald-500' },
+            { label: 'Pending',   value: pendingCount,   color: 'text-amber-500' },
+            { label: 'Rejected',  value: rejectedCount,  color: 'text-red-500'  },
           ].map(({ label, value, color }) => (
             <div key={label} className="rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-4">
               <p className="text-xs text-gray-500 mb-1">{label}</p>
@@ -331,12 +334,14 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
                       <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                         <Badge
                           variant={
-                            signer.status === 'Signed'   ? 'success' :
+                            signer.status === 'Signed'    ? 'success' :
+                            signer.status === 'Confirmed' ? 'success' :
                             signer.status === 'Rejected' || signer.status === 'Expired' || signer.status === 'Failed' ? 'danger' :
                             'warning'
                           }
+                          className={signer.status === 'Confirmed' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : ''}
                         >
-                          {signer.status}
+                          {signer.status === 'Confirmed' ? '✓ Confirmed' : signer.status}
                         </Badge>
 
                         {canResend && (
@@ -389,6 +394,12 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
                           Signed: {fmtDate(signer.signedAt)}
                         </div>
                       )}
+                      {signer.confirmedAt && (
+                        <div className="flex items-center gap-1.5">
+                          <CheckCheck className="h-3 w-3 text-emerald-500" />
+                          Confirmed: {fmtDate(signer.confirmedAt)}
+                        </div>
+                      )}
                       {signer.message && (
                         <div className="flex items-start gap-1.5">
                           <MessageSquare className="h-3 w-3 mt-0.5 text-gray-400 shrink-0" />
@@ -425,6 +436,17 @@ export default function EnvelopeDetailPage({ params }: { params: { id: string } 
                 <p className="text-sm font-medium text-gray-900 dark:text-white">Envelope created &amp; invitations sent</p>
                 <p className="text-xs text-gray-500 mt-0.5">{fmtDate(envelope.sentDate)}</p>
               </li>
+
+              {/* Confirmed events from signers */}
+              {envelope.signers.filter(s => s.confirmedAt).map(s => (
+                <li key={s.email + '_confirmed'}>
+                  <div className="absolute -left-[7px] h-3 w-3 rounded-full border-2 border-emerald-500 bg-white dark:bg-gray-800" />
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    <span className="text-emerald-600">{s.name}</span> confirmed &amp; agreed to sign
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">{fmtDate(s.confirmedAt)}</p>
+                </li>
+              ))}
 
               {/* Signed events from signers */}
               {envelope.signers.filter(s => s.signedAt).map(s => (

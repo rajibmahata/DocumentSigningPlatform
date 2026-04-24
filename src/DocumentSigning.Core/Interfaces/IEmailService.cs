@@ -9,6 +9,7 @@ public interface IEmailService
         DateTime expiresAt,
         string envelopeTitle = "",
         string senderName    = "",
+        string confirmUrl    = "",
         CancellationToken ct = default);
 
     Task SendConfirmationToClaimantAsync(

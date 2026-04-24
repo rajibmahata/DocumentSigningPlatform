@@ -58,6 +58,7 @@ public class AdminAuditController : ControllerBase
         [FromQuery] Guid?     userId     = null,
         [FromQuery] Guid?     merchantId = null,
         [FromQuery] string?   status     = null,
+        [FromQuery] string?   search     = null,
         [FromQuery] DateTime? from       = null,
         [FromQuery] DateTime? to         = null,
         [FromQuery] int       page       = 1,
@@ -66,7 +67,7 @@ public class AdminAuditController : ControllerBase
     {
         var query = new AuditLogQueryParams(
             action, entityType, entityId, userId, merchantId,
-            status, from, to, page, pageSize);
+            status, search, from, to, page, pageSize);
 
         var result = await _repo.GetPagedAsync(query, ct);
 
