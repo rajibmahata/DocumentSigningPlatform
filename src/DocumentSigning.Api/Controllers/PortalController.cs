@@ -6,6 +6,7 @@ using iText.Kernel.Pdf;
 using iText.Kernel.Pdf.Canvas.Parser;
 using iText.Kernel.Pdf.Canvas.Parser.Listener;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 
 namespace DocumentSigning.Api.Controllers;
 
@@ -20,6 +21,10 @@ public class PortalController : ControllerBase
     private readonly ITokenService _tokenService;
     private readonly ISigningEnvelopeRepository _envelopeRepo;
     private readonly ISignedDocumentRepository _signedDocRepo;
+    private readonly IConfirmTokenService _confirmTokenService;
+    private readonly ISignerRepository _signerRepo;
+    private readonly IWebhookService _webhookService;
+    private readonly IConfiguration _config;
 
     public PortalController(
         ISigningRequestRepository signingRequestRepo,
@@ -28,7 +33,11 @@ public class PortalController : ControllerBase
         IAuditService audit,
         ITokenService tokenService,
         ISigningEnvelopeRepository envelopeRepo,
-        ISignedDocumentRepository signedDocRepo)
+        ISignedDocumentRepository signedDocRepo,
+        IConfirmTokenService confirmTokenService,
+        ISignerRepository signerRepo,
+        IWebhookService webhookService,
+        IConfiguration config)
     {
         _signingRequestRepo = signingRequestRepo;
         _docRepo = docRepo;
@@ -37,6 +46,10 @@ public class PortalController : ControllerBase
         _tokenService = tokenService;
         _envelopeRepo = envelopeRepo;
         _signedDocRepo = signedDocRepo;
+        _confirmTokenService = confirmTokenService;
+        _signerRepo = signerRepo;
+        _webhookService = webhookService;
+        _config = config;
     }
 
     /// <summary>
@@ -298,5 +311,136 @@ public class PortalController : ControllerBase
         }
 
         return Content(result.ToString(), "text/plain");
+    }
+
+    /// <summary>
+    /// AMP-safe "Confirm &amp; Agree" endpoint. Marks a signer as Confirmed,
+    /// writes an audit entry, and fires the envelope.confirmed webhook.
+    /// No authentication required — secured by HMAC token.
+    /// Returns AMP CORS headers so Gmail/Yahoo/Outlook AMP Email can POST directly.
+    /// GET variant: used by HTML-fallback email link buttons (returns a simple success page).
+    /// </summary>
+    [HttpPost("confirm/{token}")]
+    [HttpOptions("confirm/{token}")]
+    [HttpGet("confirm/{token}")]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("signing")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ConfirmSigner(string token, CancellationToken ct)
+    {
+        // AMP CORS headers (required for Gmail/Yahoo AMP email POST)
+        var origin = Request.Headers.Origin.ToString();
+        var allowedOrigins = new[] {
+            "https://mail.google.com",
+            "https://mail.yahoo.com",
+            "https://outlook.live.com",
+            "https://owa.outlook.com"
+        };
+        if (allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase))
+            Response.Headers.Append("Access-Control-Allow-Origin", origin);
+        else
+            Response.Headers.Append("Access-Control-Allow-Origin", "https://mail.google.com");
+
+        Response.Headers.Append("Access-Control-Allow-Headers", "Content-Type, AMP-Same-Origin");
+        Response.Headers.Append("Access-Control-Allow-Methods", "POST, OPTIONS, GET");
+
+        var senderDomain = _config["App:EmailFromDomain"] ?? "docsignerhub.com";
+        Response.Headers.Append("AMP-Email-Allow-Sender", senderDomain);
+
+        if (Request.Method.Equals("OPTIONS", StringComparison.OrdinalIgnoreCase))
+            return Ok();
+
+        if (!_confirmTokenService.ValidateToken(token, out var signerId))
+        {
+            return Request.Method.Equals("GET", StringComparison.OrdinalIgnoreCase)
+                ? Content(ConfirmPageHtml("Invalid or expired confirmation link.",
+                    "This confirmation link is invalid or has expired. Please request a new invitation.", false), "text/html")
+                : BadRequest(new { error = "Invalid or expired confirmation token." });
+        }
+
+        var signer = await _signerRepo.GetByIdAsync(signerId, ct);
+        if (signer is null)
+        {
+            return Request.Method.Equals("GET", StringComparison.OrdinalIgnoreCase)
+                ? Content(ConfirmPageHtml("Signer not found.",
+                    "We could not find your signer record. Please contact the sender.", false), "text/html")
+                : NotFound(new { error = "Signer not found." });
+        }
+
+        if (signer.Status != SigningStatus.Confirmed)
+        {
+            signer.Status      = SigningStatus.Confirmed;
+            signer.ConfirmedAt = DateTime.UtcNow;
+            await _signerRepo.SaveChangesAsync(ct);
+
+            var envelope = await _envelopeRepo.GetByIdAsync(signer.EnvelopeId, ct);
+
+            _audit.Log(new AuditEntry(
+                Action:      AuditActions.SignerConfirmed,
+                EntityType:  AuditEntities.Envelope,
+                EntityId:    envelope?.Id,
+                Description: $"Signer '{signer.Name}' ({signer.Email}) confirmed envelope '{envelope?.Title ?? signer.EnvelopeId.ToString()}'",
+                IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                UserAgent:   Request.Headers.UserAgent.ToString()));
+
+            if (envelope is not null)
+            {
+                await _webhookService.TriggerAsync(
+                    WebhookEvents.EnvelopeConfirmed,
+                    envelope.MerchantId,
+                    new
+                    {
+                        envelopeId  = envelope.Id,
+                        title       = envelope.Title,
+                        signerName  = signer.Name,
+                        signerEmail = signer.Email,
+                        confirmedAt = signer.ConfirmedAt
+                    },
+                    ct);
+            }
+        }
+
+        if (Request.Method.Equals("GET", StringComparison.OrdinalIgnoreCase))
+        {
+            return Content(ConfirmPageHtml(
+                $"Confirmed! Thank you, {signer.Name}.",
+                "Your agreement has been recorded. You can now sign the document using the button in the original email.",
+                true), "text/html");
+        }
+
+        return Ok(new { message = "Thank you! Your confirmation has been recorded.", signerName = signer.Name });
+    }
+
+    private static string ConfirmPageHtml(string title, string message, bool success)
+    {
+        var color  = success ? "#059669" : "#dc2626";
+        var icon   = success ? "&#10003;" : "&#33;";
+        var bgCard = success ? "#ecfdf5"  : "#fef2f2";
+        var border = success ? "#6ee7b7"  : "#fca5a5";
+        return $"""
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <title>{title}</title>
+            </head>
+            <body style="margin:0;padding:40px 20px;background:#f4f6f8;font-family:'Segoe UI',Arial,sans-serif;text-align:center;">
+              <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;
+                          padding:48px 40px;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+                <div style="width:64px;height:64px;background:{bgCard};border:2px solid {border};
+                            border-radius:50%;margin:0 auto 24px;line-height:60px;font-size:28px;color:{color};">
+                  {icon}
+                </div>
+                <h1 style="margin:0 0 12px;font-size:22px;font-weight:700;color:#111827;">{title}</h1>
+                <p style="margin:0;font-size:15px;color:#6b7280;line-height:1.6;">{message}</p>
+                <p style="margin:32px 0 0;font-size:12px;color:#9ca3af;">
+                  Powered by <strong>Document Signing Platform</strong>
+                </p>
+              </div>
+            </body>
+            </html>
+            """;
     }
 }

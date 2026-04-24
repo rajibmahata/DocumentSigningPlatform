@@ -36,6 +36,7 @@ public record AuditLogQueryParams(
     Guid?     UserId     = null,
     Guid?     MerchantId = null,
     string?   Status     = null,
+    string?   Search     = null,
     DateTime? From       = null,
     DateTime? To         = null,
     int       Page       = 1,
@@ -106,6 +107,7 @@ public record SignerSignedSummary(
     string? RejectionReason = null,
     DateTime? ExpiresAt = null,
     DateTime? SignedAt = null,
+    DateTime? ConfirmedAt = null,
     string? Message = null,
     int Order = 0);
 
@@ -199,7 +201,8 @@ public record SendEmailPayload(
     DateTime ExpiresAt,
     string EmailType,
     string EnvelopeTitle = "",
-    string SenderName    = "");
+    string SenderName    = "",
+    string ConfirmUrl    = "");
 
 public record StampPdfPayload(
     Guid DocumentId,

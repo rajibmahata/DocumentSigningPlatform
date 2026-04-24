@@ -38,6 +38,7 @@ public class EnvelopeController : ControllerBase
     private readonly IUserRepository _userRepo;
     private readonly ISignerContactService _signerContactService;
     private readonly INotificationService _notificationService;
+    private readonly IConfirmTokenService _confirmTokenService;
 
     public EnvelopeController(
         IMerchantRepository merchantRepo,
@@ -55,7 +56,8 @@ public class EnvelopeController : ControllerBase
         IEmailService emailService,
         IUserRepository userRepo,
         ISignerContactService signerContactService,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        IConfirmTokenService confirmTokenService)
     {
         _merchantRepo = merchantRepo;
         _envelopeRepo = envelopeRepo;
@@ -73,6 +75,7 @@ public class EnvelopeController : ControllerBase
         _userRepo = userRepo;
         _signerContactService = signerContactService;
         _notificationService = notificationService;
+        _confirmTokenService = confirmTokenService;
     }
 
     /// <summary>
@@ -234,7 +237,9 @@ public class EnvelopeController : ControllerBase
             };
             await _signingRequestRepo.AddAsync(signingRequest, ct);
 
-            var signingLink = $"{baseUrl}/sign/{token}";
+            var signingLink  = $"{baseUrl}/sign/{token}";
+            var confirmToken = _confirmTokenService.GenerateToken(signer.Id);
+            var confirmUrl   = $"{_config["App:BaseUrl"] ?? $"{Request.Scheme}://{Request.Host}"}/api/portal/confirm/{confirmToken}";
             var emailPayload = JsonSerializer.Serialize(new SendEmailPayload(
                 signer.Email,
                 signer.Name,
@@ -242,7 +247,8 @@ public class EnvelopeController : ControllerBase
                 expiry,
                 "Invitation",
                 envelope.Title,
-                merchant.Name));
+                merchant.Name,
+                confirmUrl));
 
             await _outboxRepo.AddAsync(new OutboxQueue
             {
@@ -491,6 +497,7 @@ public class EnvelopeController : ControllerBase
                 s.RejectionReason,
                 signingReq?.ExpiresAt,
                 signingReq?.SignedAt,
+                s.ConfirmedAt,
                 s.Message,
                 s.Order));
         }
@@ -575,7 +582,9 @@ public class EnvelopeController : ControllerBase
         }, ct);
         await _signingRequestRepo.SaveChangesAsync(ct);
 
-        var signingLink = $"{frontendUrl}/sign/{token}";
+        var signingLink  = $"{frontendUrl}/sign/{token}";
+        var confirmToken = _confirmTokenService.GenerateToken(signer.Id);
+        var confirmUrl   = $"{_config["App:BaseUrl"] ?? $"{Request.Scheme}://{Request.Host}"}/api/portal/confirm/{confirmToken}";
         var emailPayload = JsonSerializer.Serialize(new SendEmailPayload(
             signer.Email,
             signer.Name,
@@ -583,7 +592,8 @@ public class EnvelopeController : ControllerBase
             expiry,
             "Invitation",
             envelope.Title,
-            merchant.Name));
+            merchant.Name,
+            confirmUrl));
 
         await _outboxRepo.AddAsync(new OutboxQueue
         {

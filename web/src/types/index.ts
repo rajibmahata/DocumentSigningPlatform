@@ -120,6 +120,7 @@ export interface SignerSignedSummary extends SignerSummary {
   signedDocumentType?: string;
   expiresAt?: string;
   signedAt?: string;
+  confirmedAt?: string;
   message?: string;
   order?: number;
 }

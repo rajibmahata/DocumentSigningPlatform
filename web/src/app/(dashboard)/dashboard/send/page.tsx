@@ -847,6 +847,24 @@ export default function SendPage() {
                 </div>
               </div>
             ))}
+            {fields.length >= 2 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="w-full mt-2"
+                onClick={() =>
+                  append({
+                    name: '', email: '',
+                    role: `signer${fields.length + 1}`,
+                    order: fields.length + 1,
+                    message: 'Please sign the document.',
+                  })
+                }
+              >
+                <Plus className="h-4 w-4 mr-1" /> Add Signer
+              </Button>
+            )}
           </CardContent>
         </Card>
 

@@ -221,6 +221,7 @@ export interface AuditLogQueryParams {
   userId?: string;
   merchantId?: string;
   status?: string;
+  search?: string;
   from?: string;
   to?: string;
   page?: number;
@@ -237,6 +238,26 @@ export const auditApi = {
   },
   getByEntity: (entityType: string, entityId: string) =>
     apiClient.get<AuditLogResponse[]>(`/admin/audit-logs/entity/${entityType}/${entityId}`),
+
+  /** Current user's own audit log (JWT auth, no admin needed) */
+  getMyLogs: (params: AuditLogQueryParams = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== '') qs.set(k, String(v));
+    });
+    return apiClient.get<AuditPagedResult>(`/audit-logs/me?${qs.toString()}`);
+  },
+
+  /** Merchant audit log — requires X-Api-Key header */
+  getMerchantLogs: (apiKey: string, params: AuditLogQueryParams = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== '') qs.set(k, String(v));
+    });
+    return apiClient.get<AuditPagedResult>(`/audit-logs/merchant?${qs.toString()}`, {
+      headers: { 'X-Api-Key': apiKey },
+    });
+  },
 };
 
 // ── Webhook API ───────────────────────────────────────────────────────────────
