@@ -13,6 +13,9 @@ public class SigningEnvelope
     public EnvelopeStatus Status { get; set; } = EnvelopeStatus.Sent;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>Per-envelope token TTL override (days). NULL = use server default from appsettings.</summary>
+    public int? TokenTtlDays { get; set; }
+
     // Navigations
     public Merchant?      Merchant { get; set; }
     public List<Signer>   Signers  { get; set; } = new();

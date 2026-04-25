@@ -6,6 +6,7 @@ using DocumentSigning.Core.Interfaces;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Moq;
 
 namespace DocumentSigning.Tests.Controllers;
@@ -19,6 +20,10 @@ public class PortalControllerTests
     private readonly Mock<ITokenService>              _tokenService       = new();
     private readonly Mock<ISigningEnvelopeRepository> _envelopeRepo       = new();
     private readonly Mock<ISignedDocumentRepository>  _signedDocRepo      = new();
+    private readonly Mock<IConfirmTokenService>       _confirmTokenSvc    = new();
+    private readonly Mock<ISignerRepository>          _signerRepo         = new();
+    private readonly Mock<IWebhookService>            _webhookService     = new();
+    private readonly Mock<IConfiguration>             _config             = new();
 
     private PortalController CreateController()
     {
@@ -29,7 +34,11 @@ public class PortalControllerTests
             _audit.Object,
             _tokenService.Object,
             _envelopeRepo.Object,
-            _signedDocRepo.Object);
+            _signedDocRepo.Object,
+            _confirmTokenSvc.Object,
+            _signerRepo.Object,
+            _webhookService.Object,
+            _config.Object);
 
         controller.ControllerContext = new ControllerContext
         {

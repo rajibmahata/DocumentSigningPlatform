@@ -80,11 +80,21 @@ public record SignerInput(
     int Order,
     string Message);
 
+/// <summary>Request body for <c>POST /api/envelopes</c>.</summary>
+/// <param name="Title">Envelope display name.</param>
+/// <param name="MerchantId">Merchant that owns this envelope; must match the <c>X-Api-Key</c> caller.</param>
+/// <param name="Documents">One or more documents to be signed.</param>
+/// <param name="Signers">One or more signers; ordered by <c>Order</c>.</param>
+/// <param name="TokenTtlDays">
+/// Optional per-envelope signing window in days (1–365).
+/// When <c>null</c> the server default (<c>App:EnvelopeExpiryDays</c>) is used.
+/// </param>
 public record InitiateEnvelopeRequest(
     string Title,
     Guid MerchantId,
     List<DocumentInput> Documents,
-    List<SignerInput> Signers);
+    List<SignerInput> Signers,
+    int? TokenTtlDays = null);
 
 public record DocumentSummary(
     Guid DocumentId,
