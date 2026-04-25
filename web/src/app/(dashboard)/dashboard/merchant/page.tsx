@@ -15,7 +15,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Building2, Key, Copy, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Building2, Key, Copy, CheckCircle, AlertTriangle, Pencil, X } from 'lucide-react';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 
 const schema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -62,8 +63,32 @@ export default function MerchantPage() {
 }
 
 function MerchantDetails({ merchant }: { merchant: MerchantResponse }) {
+  const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
   const [keyVisible, setKeyVisible] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(merchant.name);
+  const [editDesc, setEditDesc] = useState(merchant.description ?? '');
+
+  const updateMutation = useMutation({
+    mutationFn: () =>
+      merchantApi.updateProfile(merchant.id, {
+        name: editName.trim(),
+        description: editDesc.trim() || undefined,
+      }),
+    onSuccess: () => {
+      toast.success('Merchant profile updated.');
+      queryClient.invalidateQueries({ queryKey: ['merchants'] });
+      setEditing(false);
+    },
+    onError: () => toast.error('Failed to update merchant.'),
+  });
+
+  const startEdit = () => {
+    setEditName(merchant.name);
+    setEditDesc(merchant.description ?? '');
+    setEditing(true);
+  };
 
   const used      = merchant.requestUsed;
   const limit     = merchant.requestLimit;
@@ -82,17 +107,66 @@ function MerchantDetails({ merchant }: { merchant: MerchantResponse }) {
       {/* Merchant card */}
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
-              <Building2 className="h-5 w-5" />
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
+                <Building2 className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle>{merchant.name}</CardTitle>
+                {merchant.description && (
+                  <p className="text-sm text-gray-500 mt-0.5">{merchant.description}</p>
+                )}
+              </div>
             </div>
-            <div>
-              <CardTitle>{merchant.name}</CardTitle>
-              {merchant.description && (
-                <p className="text-sm text-gray-500 mt-0.5">{merchant.description}</p>
-              )}
-            </div>
+            {!editing && (
+              <button
+                onClick={startEdit}
+                className="flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors shrink-0"
+              >
+                <Pencil className="h-3.5 w-3.5" /> Edit
+              </button>
+            )}
           </div>
+          {/* Inline edit form */}
+          {editing && (
+            <div className="mt-4 space-y-3 rounded-xl border border-brand-200 bg-brand-50 p-4">
+              <div className="space-y-1">
+                <Label className="text-xs text-gray-600">Merchant Name *</Label>
+                <Input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="e.g. Acme Corp"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-gray-600">Description</Label>
+                <Textarea
+                  value={editDesc}
+                  onChange={(e) => setEditDesc(e.target.value)}
+                  placeholder="Optional description"
+                  rows={2}
+                  className="resize-none"
+                />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button
+                  size="sm"
+                  onClick={() => updateMutation.mutate()}
+                  loading={updateMutation.isPending}
+                  disabled={!editName.trim() || updateMutation.isPending}
+                >
+                  Save Changes
+                </Button>
+                <button
+                  onClick={() => setEditing(false)}
+                  className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-800 transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" /> Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Merchant ID */}
@@ -108,6 +182,7 @@ function MerchantDetails({ merchant }: { merchant: MerchantResponse }) {
             <div className="flex items-center justify-between mb-1">
               <Label className="text-xs text-gray-400 uppercase tracking-wide flex items-center gap-1">
                 <Key className="h-3.5 w-3.5" /> API Key
+                <InfoTooltip content="Your API key authenticates requests to the DocSignerHub REST API. Pass it in the X-Api-Key header. Keep it secret — do not commit it to source control." side="right" />
               </Label>
               <div className="flex gap-2">
                 <button
@@ -133,7 +208,10 @@ function MerchantDetails({ merchant }: { merchant: MerchantResponse }) {
           {/* Usage */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <Label className="text-xs text-gray-400 uppercase tracking-wide">Usage</Label>
+              <Label className="text-xs text-gray-400 uppercase tracking-wide flex items-center gap-1">
+                Usage
+                <InfoTooltip content="Each envelope you send consumes one credit. When requestLimit is 0 the account has unlimited credits. Contact support to increase your limit." />
+              </Label>
               <span className="text-xs text-gray-600">
                 {used} / {unlimited ? '∞' : limit} used · {remaining} remaining
               </span>

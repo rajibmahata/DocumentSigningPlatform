@@ -18,6 +18,7 @@ public class Signer
     public SigningStatus Status         { get; set; } = SigningStatus.Pending;
     public string? RejectionReason      { get; set; }
     public DateTime CreatedAt           { get; set; } = DateTime.UtcNow;
+    public DateTime? ConfirmedAt        { get; set; }
 
     // Navigation
     public SigningEnvelope? Envelope { get; set; }

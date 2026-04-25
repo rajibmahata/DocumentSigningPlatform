@@ -16,7 +16,9 @@ namespace DocumentSigning.Tests.Controllers;
 
 public class UserControllerTests
 {
-    private readonly Mock<IUserRepository> _userRepo = new();
+    private readonly Mock<IUserRepository> _userRepo     = new();
+    private readonly Mock<IEmailService>   _emailService = new();
+    private readonly Mock<IAuditService>   _audit        = new();
 
     // ── Controller factory helpers ────────────────────────────────────────────
 
@@ -31,7 +33,7 @@ public class UserControllerTests
         var identity  = new ClaimsIdentity(claims, "Test");
         var principal = new ClaimsPrincipal(identity);
 
-        var controller = new UserController(_userRepo.Object)
+        var controller = new UserController(_userRepo.Object, _emailService.Object, _audit.Object)
         {
             ControllerContext = new ControllerContext
             {

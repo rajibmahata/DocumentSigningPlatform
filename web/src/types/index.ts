@@ -70,6 +70,7 @@ export interface MerchantResponse {
   description?: string;
   apiKey: string;
   isActive: boolean;
+  planName: string;
   requestLimit: number;
   requestUsed: number;
   subscriptionStart: string;
@@ -119,6 +120,7 @@ export interface SignerSignedSummary extends SignerSummary {
   signedDocumentType?: string;
   expiresAt?: string;
   signedAt?: string;
+  confirmedAt?: string;
   message?: string;
   order?: number;
 }

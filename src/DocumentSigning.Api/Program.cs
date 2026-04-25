@@ -31,22 +31,29 @@ builder.Services.AddScoped<IEmailVerificationTokenRepository, EmailVerificationT
 builder.Services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
 builder.Services.AddScoped<ITicketRepository, TicketRepository>();
 builder.Services.AddScoped<ISignerContactRepository, SignerContactRepository>();
+builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+builder.Services.AddScoped<ISignerRepository, SignerRepository>();
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<MerchantApiKeyFilter>();
 
 // ─── Domain services ──────────────────────────────────────────────────────────
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IConfirmTokenService, ConfirmTokenService>();
 builder.Services.AddScoped<IDocumentStamper, DocumentStamperDispatcher>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<ISignerContactService, SignerContactService>();
+builder.Services.AddScoped<ICertificateService, CertificateService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 // ─── Background job handler (scoped — instantiated inside OutboxWorker scope) ─
 builder.Services.AddScoped<StampDocJobHandler>();
 
 // ─── Background worker ────────────────────────────────────────────────────────
 builder.Services.AddHostedService<OutboxWorker>();
+builder.Services.AddHostedService<ExpiryWorker>();
+builder.Services.AddHostedService<ReminderWorker>();
 
 // ─── Webhook system ───────────────────────────────────────────────────────────
 builder.Services.AddScoped<IWebhookRepository, WebhookRepository>();

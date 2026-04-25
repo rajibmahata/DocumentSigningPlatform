@@ -76,6 +76,15 @@ public class AuditLogRepository : IAuditLogRepository
         if (!string.IsNullOrWhiteSpace(q.Status))
             query = query.Where(a => a.Status == q.Status);
 
+        if (!string.IsNullOrWhiteSpace(q.Search))
+        {
+            var s = q.Search.ToLower();
+            query = query.Where(a =>
+                a.Description.ToLower().Contains(s) ||
+                a.Action.ToLower().Contains(s) ||
+                (a.IpAddress != null && a.IpAddress.Contains(s)));
+        }
+
         if (q.From.HasValue)
             query = query.Where(a => a.Timestamp >= q.From.Value);
 

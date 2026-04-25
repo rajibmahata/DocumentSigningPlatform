@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { base64ToBlob } from '@/lib/utils';
 import {
   CheckCircle, Eraser, PenLine, FileText, AlertTriangle,
-  Clock, Shield, ClipboardList, MonitorCheck, XCircle,
+  Clock, Shield, ClipboardList, MonitorCheck, XCircle, Download,
 } from 'lucide-react';
 import SignatureCanvas from 'react-signature-canvas';
 
@@ -59,7 +59,8 @@ export default function SignPage() {
   const sigRef      = useRef<SignatureCanvas>(null);
   const [done, setDone]       = useState(false);
   const [rejected, setRejected] = useState(false);
-  const [pdfUrl, setPdfUrl]   = useState<string | null>(null);
+  const [docUrl, setDocUrl]   = useState<string | null>(null);
+  const [docContentType, setDocContentType] = useState<string>('application/pdf');
   const [mode, setMode]       = useState<'draw' | 'type'>('draw');
   const [typedName, setTypedName] = useState('');
   const [agreed, setAgreed]   = useState(false);
@@ -74,12 +75,23 @@ export default function SignPage() {
 
   useEffect(() => {
     if (preview?.documentBase64) {
-      const blob = base64ToBlob(preview.documentBase64, 'application/pdf');
-      setPdfUrl(URL.createObjectURL(blob));
+      const ct = preview.contentType || 'application/pdf';
+      setDocContentType(ct);
+      const blob = base64ToBlob(preview.documentBase64, ct);
+      setDocUrl(URL.createObjectURL(blob));
     }
-    return () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); };
+    return () => { if (docUrl) URL.revokeObjectURL(docUrl); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preview]);
+
+  /** Trigger a browser download of the document */
+  const handleDownload = () => {
+    if (!docUrl || !preview) return;
+    const a = document.createElement('a');
+    a.href = docUrl;
+    a.download = preview.documentFileName || 'document';
+    a.click();
+  };
 
   // Pre-fill typed name from claimant
   useEffect(() => {
@@ -295,19 +307,58 @@ export default function SignPage() {
                 <p className="text-sm font-semibold text-gray-800 truncate">Document to Sign</p>
                 <p className="text-xs text-gray-400 truncate">{preview?.documentFileName}</p>
               </div>
-              <span className="shrink-0 rounded-md bg-blue-600 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">
-                PDF
-              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="rounded-md bg-blue-600 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">
+                  {docContentType.includes('pdf') ? 'PDF'
+                    : docContentType.includes('word') || docContentType.includes('document') ? 'DOCX'
+                    : 'DOC'}
+                </span>
+                <button
+                  onClick={handleDownload}
+                  title="Download document"
+                  className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Download
+                </button>
+              </div>
             </div>
 
-            {/* PDF viewer */}
-            {pdfUrl ? (
-              <iframe
-                src={pdfUrl}
-                title="Document Preview"
-                className="w-full border-0"
-                style={{ height: '70vh', minHeight: '500px' }}
-              />
+            {/* Document viewer */}
+            {docUrl ? (
+              docContentType.includes('pdf') ? (
+                <iframe
+                  src={docUrl}
+                  title="Document Preview"
+                  className="w-full border-0"
+                  style={{ height: '70vh', minHeight: '500px' }}
+                />
+              ) : (
+                /* Word / other formats — can't render inline; show download prompt */
+                <div className="flex flex-col items-center justify-center gap-5 px-6 py-16 bg-gray-50">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-blue-50">
+                    <FileText className="h-10 w-10 text-blue-500" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-base font-semibold text-gray-800">
+                      {preview?.documentFileName}
+                    </p>
+                    <p className="mt-1 text-sm text-gray-500">
+                      This file type ({docContentType.includes('word') || docContentType.includes('document') ? 'Word document' : docContentType}) cannot be previewed directly in the browser.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleDownload}
+                    className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700 transition-colors"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download to Review
+                  </button>
+                  <p className="text-xs text-gray-400 text-center max-w-xs">
+                    Please download and review the document carefully before adding your signature below.
+                  </p>
+                </div>
+              )
             ) : (
               <div className="flex h-64 items-center justify-center text-sm text-gray-400">
                 Loading document…

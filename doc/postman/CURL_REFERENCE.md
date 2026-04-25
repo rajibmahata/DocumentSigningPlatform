@@ -116,7 +116,7 @@ curl -X POST http://localhost:5163/api/merchants/<merchant-id>/regenerate-key
 ## Envelopes
 > All envelope endpoints require **`X-Api-Key`** header.
 
-### Create Envelope  ✅ Required: title, merchantId, documents[], signers[]
+### Create Envelope  ✅ Required: title, merchantId, documents[], signers[]  |  ❌ Optional: tokenTtlDays
 ```bash
 curl -X POST http://localhost:5163/api/envelopes \
   -H "Content-Type: application/json" \
@@ -147,9 +147,48 @@ curl -X POST http://localhost:5163/api/envelopes \
         "order": 2,
         "message": "Please countersign once Bob has signed."
       }
-    ]
+    ],
+    "tokenTtlDays": 14
   }'
 ```
+
+**Example — short-lived 2-day signing window**
+```bash
+curl -X POST http://localhost:5163/api/envelopes \
+  -H "Content-Type: application/json" \
+  -H "X-Api-Key: <api-key>" \
+  -d '{
+    "title": "NDA – Urgent",
+    "merchantId": "<merchant-id>",
+    "documents": [
+      {
+        "documentTitle": "Non-Disclosure Agreement",
+        "documentFileName": "nda.pdf",
+        "documentBase64": "<base64-encoded-pdf-bytes>",
+        "documentContentType": "application/pdf"
+      }
+    ],
+    "signers": [
+      {
+        "name": "Alice Smith",
+        "email": "alice@example.com",
+        "role": "Signer",
+        "order": 1,
+        "message": "Please sign within 2 days."
+      }
+    ],
+    "tokenTtlDays": 2
+  }'
+```
+
+**Top-level body fields**
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `title` | string | ✅ | Envelope display name |
+| `merchantId` | UUID | ✅ | Must match the `X-Api-Key` owner |
+| `documents` | array | ✅ | At least one document |
+| `signers` | array | ✅ | At least one signer |
+| `tokenTtlDays` | int | ❌ | Per-envelope signing window in days. Must be between **1** and **365** if provided. Omit to use the server default (`App:EnvelopeExpiryDays`, typically 7 days). |
 
 **`documents[]` fields**
 | Field | Required | Notes |
@@ -170,6 +209,13 @@ curl -X POST http://localhost:5163/api/envelopes \
 
 > **Encode a PDF to base64 (PowerShell):** `[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\file.pdf"))`  
 > **Encode a PDF to base64 (bash):** `base64 -w 0 file.pdf`
+
+**`tokenTtlDays` validation**
+| Value | Behaviour |
+|---|---|
+| Omitted / `null` | Uses server default (`App:EnvelopeExpiryDays`, default **7**) |
+| `1`–`365` | Signing link expires exactly this many days from creation |
+| `< 1` or `> 365` | `400 Bad Request` — `"TokenTtlDays must be between 1 and 365."` |
 
 ### Get All Envelopes
 ```bash

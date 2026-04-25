@@ -10,6 +10,7 @@ import { formatDate, getStatusColor } from '@/lib/utils';
 import { FileText, Send, CheckCircle, Clock, CreditCard, ArrowRight, PenLine, AlertCircle, CalendarClock } from 'lucide-react';
 import Link from 'next/link';
 import { appBaseUrl } from '@/lib/config';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -60,11 +61,11 @@ export default function DashboardPage() {
     : '—';
 
   const STATS = [
-    { label: 'Total Envelopes',        value: total,          icon: FileText,    color: 'text-brand-600',  bg: 'bg-brand-50',   href: '/dashboard/envelopes'      },
-    { label: 'Pending Signature',      value: pending,        icon: Clock,       color: 'text-amber-600',  bg: 'bg-amber-50',   href: '/dashboard/envelopes?tab=active'  },
-    { label: 'Signed',                 value: signed,         icon: CheckCircle, color: 'text-green-600',  bg: 'bg-green-50',   href: '/dashboard/envelopes?tab=closed'  },
-    { label: 'Awaiting My Signature',  value: awaitingMySign, icon: PenLine,     color: 'text-violet-600', bg: 'bg-violet-50',  href: '/dashboard/my-signatures'           },
-    { label: 'Credits Remaining',      value: remaining,      icon: CreditCard,  color: 'text-purple-600', bg: 'bg-purple-50',  href: '/dashboard/merchant'                },
+    { label: 'Total Envelopes',       tooltip: 'All envelopes you have sent, regardless of status.',                                                               value: total,          icon: FileText,    color: 'text-brand-600',  bg: 'bg-brand-50',   href: '/dashboard/envelopes'             },
+    { label: 'Pending Signature',     tooltip: 'Envelopes that have been sent to signers but not yet fully completed.',                                              value: pending,        icon: Clock,       color: 'text-amber-600',  bg: 'bg-amber-50',   href: '/dashboard/envelopes?tab=active'  },
+    { label: 'Signed',                tooltip: 'Envelopes where all signers have completed their signatures.',                                                        value: signed,         icon: CheckCircle, color: 'text-green-600',  bg: 'bg-green-50',   href: '/dashboard/envelopes?tab=closed'  },
+    { label: 'Awaiting My Signature', tooltip: 'Envelopes where you personally are a signer and have not yet signed.',                                               value: awaitingMySign, icon: PenLine,     color: 'text-violet-600', bg: 'bg-violet-50',  href: '/dashboard/my-signatures'         },
+    { label: 'Credits Remaining',     tooltip: 'Each envelope sent uses one credit. When the counter reaches 0 you cannot send new envelopes until it is topped up.', value: remaining,      icon: CreditCard,  color: 'text-purple-600', bg: 'bg-purple-50',  href: '/dashboard/merchant'              },
   ];
 
   return (
@@ -197,12 +198,15 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             ))
-          : STATS.map(({ label, value, icon: Icon, color, bg, href }) => {
+          : STATS.map(({ label, tooltip, value, icon: Icon, color, bg, href }) => {
               const inner = (
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs font-medium text-gray-500">{label}</p>
+                      <p className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                        {label}
+                        <InfoTooltip content={tooltip} />
+                      </p>
                       <p className={`mt-1 text-2xl font-bold ${color}`}>{value}</p>
                     </div>
                     <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${bg} ${color}`}>

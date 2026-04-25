@@ -42,6 +42,7 @@ public class MerchantController : ControllerBase
             Description       = request.Description?.Trim(),
             ApiKey            = GenerateApiKey(),
             IsActive          = true,
+            PlanName          = "free",
             RequestLimit      = request.RequestLimit,
             RequestUsed       = 0,
             SubscriptionStart = DateTime.UtcNow,
@@ -156,6 +157,86 @@ public class MerchantController : ControllerBase
         return Ok(ToResponse(merchant));
     }
 
+    /// <summary>Updates the merchant's own name and description. No Admin role required — owner can call.</summary>
+    [HttpPut("{id:guid}/profile")]
+    [ProducesResponseType(typeof(MerchantResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateProfile(
+        Guid id,
+        [FromBody] UpdateMerchantProfileRequest request,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Name))
+            return BadRequest("Name is required.");
+
+        var merchant = await _merchantRepo.GetByIdAsync(id, ct);
+        if (merchant is null) return NotFound();
+
+        merchant.Name        = request.Name.Trim();
+        merchant.Description = request.Description?.Trim();
+
+        await _merchantRepo.UpdateAsync(merchant, ct);
+        await _merchantRepo.SaveChangesAsync(ct);
+
+        _audit.Log(new AuditEntry(
+            Action:      AuditActions.MerchantUpdated,
+            EntityType:  AuditEntities.Merchant,
+            EntityId:    merchant.Id,
+            MerchantId:  merchant.Id,
+            Description: $"Merchant profile updated: '{merchant.Name}'",
+            IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            UserAgent:   Request.Headers.UserAgent.ToString()));
+
+        return Ok(ToResponse(merchant));
+    }
+
+    /// <summary>Returns the reminder/notification settings for a merchant.</summary>
+    [HttpGet("{id:guid}/notification-settings")]
+    [ProducesResponseType(typeof(NotificationSettingsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetNotificationSettings(Guid id, CancellationToken ct)
+    {
+        var merchant = await _merchantRepo.GetByIdAsync(id, ct);
+        if (merchant is null) return NotFound();
+
+        return Ok(new NotificationSettingsResponse(merchant.ReminderEnabled, merchant.ReminderWindowHours));
+    }
+
+    /// <summary>Updates the reminder/notification settings for a merchant. Owner only.</summary>
+    [HttpPut("{id:guid}/notification-settings")]
+    [ProducesResponseType(typeof(NotificationSettingsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateNotificationSettings(
+        Guid id,
+        [FromBody] UpdateNotificationSettingsRequest request,
+        CancellationToken ct)
+    {
+        if (request.ReminderWindowHours < 1 || request.ReminderWindowHours > 168)
+            return BadRequest("ReminderWindowHours must be between 1 and 168 (1 week).");
+
+        var merchant = await _merchantRepo.GetByIdAsync(id, ct);
+        if (merchant is null) return NotFound();
+
+        merchant.ReminderEnabled     = request.ReminderEnabled;
+        merchant.ReminderWindowHours = request.ReminderWindowHours;
+
+        await _merchantRepo.UpdateAsync(merchant, ct);
+        await _merchantRepo.SaveChangesAsync(ct);
+
+        _audit.Log(new AuditEntry(
+            Action:      AuditActions.MerchantUpdated,
+            EntityType:  AuditEntities.Merchant,
+            EntityId:    merchant.Id,
+            MerchantId:  merchant.Id,
+            Description: $"Notification settings updated for merchant '{merchant.Name}'",
+            IpAddress:   HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            UserAgent:   Request.Headers.UserAgent.ToString()));
+
+        return Ok(new NotificationSettingsResponse(merchant.ReminderEnabled, merchant.ReminderWindowHours));
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     internal static string GenerateApiKey()
@@ -163,5 +244,5 @@ public class MerchantController : ControllerBase
 
     private static MerchantResponse ToResponse(Merchant m) => new(
         m.Id, m.UserId, m.Name, m.Description, m.ApiKey, m.IsActive,
-        m.RequestLimit, m.RequestUsed, m.SubscriptionStart, m.SubscriptionEnd, m.CreatedAt);
+        m.PlanName, m.RequestLimit, m.RequestUsed, m.SubscriptionStart, m.SubscriptionEnd, m.CreatedAt);
 }

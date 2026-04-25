@@ -7,5 +7,6 @@ public enum SigningStatus
     Signed = 2,
     Expired = 3,
     Failed = 4,
-    Rejected = 5
+    Rejected = 5,
+    Confirmed = 6
 }

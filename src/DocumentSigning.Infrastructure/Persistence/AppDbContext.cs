@@ -26,6 +26,8 @@ public class AppDbContext : DbContext
     public DbSet<WebhookSubscription>     WebhookSubscriptions     => Set<WebhookSubscription>();
     public DbSet<WebhookDelivery>         WebhookDeliveries        => Set<WebhookDelivery>();
     public DbSet<SignerContact>            SignerContacts            => Set<SignerContact>();
+    public DbSet<DocumentTemplate>         DocumentTemplates         => Set<DocumentTemplate>();
+    public DbSet<Notification>             Notifications             => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -247,6 +249,39 @@ public class AppDbContext : DbContext
             e.Property(x => x.Company).HasMaxLength(256);
             e.HasIndex(x => new { x.UserId, x.Email }).IsUnique();
             e.HasIndex(x => x.UserId);
+            e.HasOne(x => x.User)
+             .WithMany()
+             .HasForeignKey(x => x.UserId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // DocumentTemplates
+        model.Entity<DocumentTemplate>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("DocumentTemplates");
+            e.Property(x => x.Name).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(1000);
+            e.Property(x => x.DefaultTitle).HasMaxLength(500).IsRequired();
+            e.Property(x => x.SignersJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.HasIndex(x => x.MerchantId);
+            e.HasOne(x => x.Merchant)
+             .WithMany()
+             .HasForeignKey(x => x.MerchantId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Notifications
+        model.Entity<Notification>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("Notifications");
+            e.Property(x => x.Title).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Body).HasMaxLength(2000).IsRequired();
+            e.Property(x => x.Type).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Link).HasMaxLength(500);
+            e.HasIndex(x => new { x.UserId, x.CreatedAt });
+            e.HasIndex(x => new { x.UserId, x.IsRead });
             e.HasOne(x => x.User)
              .WithMany()
              .HasForeignKey(x => x.UserId)

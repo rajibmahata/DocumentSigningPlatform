@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using DocumentSigning.Api.Filters;
 using DocumentSigning.Api.Swagger;
+using DocumentSigning.Api.Validators;
 using DocumentSigning.Core.DTOs;
 using DocumentSigning.Core.Entities;
 using DocumentSigning.Core.Enums;
@@ -37,6 +38,8 @@ public class EnvelopeController : ControllerBase
     private readonly IEmailService _emailService;
     private readonly IUserRepository _userRepo;
     private readonly ISignerContactService _signerContactService;
+    private readonly INotificationService _notificationService;
+    private readonly IConfirmTokenService _confirmTokenService;
 
     public EnvelopeController(
         IMerchantRepository merchantRepo,
@@ -53,7 +56,9 @@ public class EnvelopeController : ControllerBase
         IWebhookService webhookService,
         IEmailService emailService,
         IUserRepository userRepo,
-        ISignerContactService signerContactService)
+        ISignerContactService signerContactService,
+        INotificationService notificationService,
+        IConfirmTokenService confirmTokenService)
     {
         _merchantRepo = merchantRepo;
         _envelopeRepo = envelopeRepo;
@@ -70,6 +75,8 @@ public class EnvelopeController : ControllerBase
         _emailService = emailService;
         _userRepo = userRepo;
         _signerContactService = signerContactService;
+        _notificationService = notificationService;
+        _confirmTokenService = confirmTokenService;
     }
 
     /// <summary>
@@ -87,6 +94,11 @@ public class EnvelopeController : ControllerBase
     ///   <item><description><b>Expired</b> — signing window elapsed without completion</description></item>
     ///   <item><description><b>Rejected</b> — a signer explicitly rejected the document</description></item>
     /// </list>
+    /// <para>
+    /// <b>TokenTtlDays</b> (optional, 1–365): overrides the server-wide signing window
+    /// (<c>App:EnvelopeExpiryDays</c>) for this envelope only. When omitted or <c>null</c>
+    /// the server default (typically 7 days) applies.
+    /// </para>
     /// </remarks>
     [HttpPost]
     [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("signing")]
@@ -110,6 +122,11 @@ public class EnvelopeController : ControllerBase
             return BadRequest("At least one document is required.");
         if (request.Signers is null || request.Signers.Count == 0)
             return BadRequest("At least one signer is required.");
+
+        // ── Validate TokenTtlDays via FluentValidation ──────────────────────
+        var ttlValidation = new InitiateEnvelopeRequestValidator().Validate(request);
+        if (!ttlValidation.IsValid)
+            return BadRequest(ttlValidation.Errors.First().ErrorMessage);
 
         // ── Validate & decode documents ─────────────────────────────────────
         var allowedTypes = new[]
@@ -160,12 +177,13 @@ public class EnvelopeController : ControllerBase
         // ── Build envelope ──────────────────────────────────────────────────
         var envelope = new SigningEnvelope
         {
-            Id         = Guid.NewGuid(),
-            MerchantId = merchant.Id,
-            Title      = request.Title.Trim(),
-            Status     = EnvelopeStatus.Processing,
-            CreatedAt  = DateTime.UtcNow,
-            Documents  = docEntities,
+            Id           = Guid.NewGuid(),
+            MerchantId   = merchant.Id,
+            Title        = request.Title.Trim(),
+            Status       = EnvelopeStatus.Processing,
+            CreatedAt    = DateTime.UtcNow,
+            TokenTtlDays = request.TokenTtlDays,  // persist per-envelope override
+            Documents    = docEntities,
             Signers    = request.Signers
                 .OrderBy(s => s.Order)
                 .Select(s => new Signer
@@ -196,8 +214,10 @@ public class EnvelopeController : ControllerBase
         }
 
         // ── Create SigningRequest + send invitation for each signer ─────────
-        var baseUrl = _config["App:FrontendUrl"] ?? _config["App:BaseUrl"] ?? $"{Request.Scheme}://{Request.Host}";
-        var expiry  = DateTime.UtcNow.AddDays(7);
+        var baseUrl      = _config["App:FrontendUrl"] ?? _config["App:BaseUrl"] ?? $"{Request.Scheme}://{Request.Host}";
+        var serverTtl    = _config.GetValue<int>("App:EnvelopeExpiryDays", 7);
+        var ttl          = request.TokenTtlDays ?? serverTtl;
+        var expiry       = DateTime.UtcNow.AddDays(ttl);
 
         // Use first document for the signing token (multi-document support can be extended)
         var primaryDoc = docEntities.First();
@@ -230,7 +250,9 @@ public class EnvelopeController : ControllerBase
             };
             await _signingRequestRepo.AddAsync(signingRequest, ct);
 
-            var signingLink = $"{baseUrl}/sign/{token}";
+            var signingLink  = $"{baseUrl}/sign/{token}";
+            var confirmToken = _confirmTokenService.GenerateToken(signer.Id);
+            var confirmUrl   = $"{_config["App:BaseUrl"] ?? $"{Request.Scheme}://{Request.Host}"}/api/portal/confirm/{confirmToken}";
             var emailPayload = JsonSerializer.Serialize(new SendEmailPayload(
                 signer.Email,
                 signer.Name,
@@ -238,7 +260,8 @@ public class EnvelopeController : ControllerBase
                 expiry,
                 "Invitation",
                 envelope.Title,
-                merchant.Name));
+                merchant.Name,
+                confirmUrl));
 
             await _outboxRepo.AddAsync(new OutboxQueue
             {
@@ -268,6 +291,15 @@ public class EnvelopeController : ControllerBase
         envelope.Status = EnvelopeStatus.Sent;
         await _envelopeRepo.UpdateAsync(envelope, ct);
         await _envelopeRepo.SaveChangesAsync(ct);
+
+        // ── In-app notification: envelope sent ───────────────────────────────
+        await _notificationService.NotifyAsync(
+            merchant.UserId,
+            $"Envelope Sent: {envelope.Title}",
+            $"Your envelope \"{envelope.Title}\" has been sent to {envelope.Signers.Count} signer(s).",
+            "envelope.sent",
+            $"/dashboard/envelopes/{envelope.Id}",
+            ct);
 
         // ── Webhook: envelope.sent ───────────────────────────────────────────
         await _webhookService.TriggerAsync(
@@ -478,6 +510,7 @@ public class EnvelopeController : ControllerBase
                 s.RejectionReason,
                 signingReq?.ExpiresAt,
                 signingReq?.SignedAt,
+                s.ConfirmedAt,
                 s.Message,
                 s.Order));
         }
@@ -535,7 +568,8 @@ public class EnvelopeController : ControllerBase
         if (primaryDoc is null) return BadRequest("Envelope has no documents.");
 
         var frontendUrl = _config["App:FrontendUrl"] ?? _config["App:BaseUrl"] ?? $"{Request.Scheme}://{Request.Host}";
-        var expiry = DateTime.UtcNow.AddDays(7);
+        var expiryDays   = _config.GetValue<int>("App:EnvelopeExpiryDays", 7);
+        var expiry       = DateTime.UtcNow.AddDays(expiryDays);
 
         var claimId = Guid.NewGuid();
         await _claimRepo.AddAsync(new Core.Entities.Claim
@@ -561,7 +595,9 @@ public class EnvelopeController : ControllerBase
         }, ct);
         await _signingRequestRepo.SaveChangesAsync(ct);
 
-        var signingLink = $"{frontendUrl}/sign/{token}";
+        var signingLink  = $"{frontendUrl}/sign/{token}";
+        var confirmToken = _confirmTokenService.GenerateToken(signer.Id);
+        var confirmUrl   = $"{_config["App:BaseUrl"] ?? $"{Request.Scheme}://{Request.Host}"}/api/portal/confirm/{confirmToken}";
         var emailPayload = JsonSerializer.Serialize(new SendEmailPayload(
             signer.Email,
             signer.Name,
@@ -569,7 +605,8 @@ public class EnvelopeController : ControllerBase
             expiry,
             "Invitation",
             envelope.Title,
-            merchant.Name));
+            merchant.Name,
+            confirmUrl));
 
         await _outboxRepo.AddAsync(new OutboxQueue
         {
@@ -667,4 +704,35 @@ public class EnvelopeController : ControllerBase
         "application/msword"                                                              => "doc",
         _ => contentType
     };
+
+    // ── GET /api/envelopes/{id}/certificate ─────────────────────────────────
+
+    /// <summary>
+    /// Downloads a PDF Certificate of Completion for the specified envelope.
+    /// Available for envelopes in any state; shows signing status of every signer.
+    /// </summary>
+    [HttpGet("{id:guid}/certificate")]
+    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK, "application/pdf")]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetCertificate(
+        [FromRoute] Guid id,
+        [FromServices] ICertificateService certificateService,
+        CancellationToken ct)
+    {
+        var merchant = HttpContext.Items["Merchant"] as Merchant;
+        if (merchant is null) return Unauthorized();
+
+        // Verify envelope belongs to this merchant
+        var envelope = await _envelopeRepo.GetByIdAsync(id, ct);
+        if (envelope is null || envelope.MerchantId != merchant.Id)
+            return NotFound();
+
+        var pdfBytes = await certificateService.GenerateAsync(id, ct);
+        if (pdfBytes is null)
+            return NotFound();
+
+        var fileName = $"certificate-{id.ToString()[..8]}.pdf";
+        return File(pdfBytes, "application/pdf", fileName);
+    }
 }

@@ -81,8 +81,14 @@ export const merchantApi = {
     apiClient.get<MerchantResponse>(`/merchants/${id}`),
   update: (id: string, data: UpdateMerchantRequest) =>
     apiClient.put<MerchantResponse>(`/merchants/${id}`, data),
+  updateProfile: (id: string, data: { name: string; description?: string }) =>
+    apiClient.put<MerchantResponse>(`/merchants/${id}/profile`, data),
   regenerateKey: (id: string) =>
     apiClient.post<MerchantResponse>(`/merchants/${id}/regenerate-key`),
+  getNotificationSettings: (id: string) =>
+    apiClient.get<{ reminderEnabled: boolean; reminderWindowHours: number }>(`/merchants/${id}/notification-settings`),
+  updateNotificationSettings: (id: string, data: { reminderEnabled: boolean; reminderWindowHours: number }) =>
+    apiClient.put<{ reminderEnabled: boolean; reminderWindowHours: number }>(`/merchants/${id}/notification-settings`, data),
 };
 
 // ── Envelope ──────────────────────────────────────────────────────────────────
@@ -122,6 +128,11 @@ export const envelopeApi = {
     }),
   downloadDocument: (apiKey: string, envelopeId: string, docId: string) =>
     apiClient.get<Blob>(`/envelopes/${envelopeId}/documents/${docId}/download`, {
+      headers: { 'X-Api-Key': apiKey },
+      responseType: 'blob',
+    }),
+  downloadCertificate: (apiKey: string, envelopeId: string) =>
+    apiClient.get<Blob>(`/envelopes/${envelopeId}/certificate`, {
       headers: { 'X-Api-Key': apiKey },
       responseType: 'blob',
     }),
@@ -210,6 +221,7 @@ export interface AuditLogQueryParams {
   userId?: string;
   merchantId?: string;
   status?: string;
+  search?: string;
   from?: string;
   to?: string;
   page?: number;
@@ -226,6 +238,26 @@ export const auditApi = {
   },
   getByEntity: (entityType: string, entityId: string) =>
     apiClient.get<AuditLogResponse[]>(`/admin/audit-logs/entity/${entityType}/${entityId}`),
+
+  /** Current user's own audit log (JWT auth, no admin needed) */
+  getMyLogs: (params: AuditLogQueryParams = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== '') qs.set(k, String(v));
+    });
+    return apiClient.get<AuditPagedResult>(`/audit-logs/me?${qs.toString()}`);
+  },
+
+  /** Merchant audit log — requires X-Api-Key header */
+  getMerchantLogs: (apiKey: string, params: AuditLogQueryParams = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== '') qs.set(k, String(v));
+    });
+    return apiClient.get<AuditPagedResult>(`/audit-logs/merchant?${qs.toString()}`, {
+      headers: { 'X-Api-Key': apiKey },
+    });
+  },
 };
 
 // ── Webhook API ───────────────────────────────────────────────────────────────
@@ -296,4 +328,104 @@ export const signerContactApi = {
 
   exportCsv: () =>
     apiClient.get('/signer-contacts/export', { responseType: 'blob' }),
+};
+
+export const plansApi = {
+  getAll: () =>
+    apiClient.get<SubscriptionPlan[]>('/plans'),
+
+  assignToMerchant: (merchantId: string, planName: string, subscriptionEnd?: string) =>
+    apiClient.post(`/merchants/${merchantId}/plan`, { planName, subscriptionEnd }),
+};
+
+export interface SupportContact {
+  name: string;
+  email: string;
+}
+
+export const supportApi = {
+  getContacts: () => apiClient.get<SupportContact[]>('/support-contacts'),
+};
+
+export interface SubscriptionPlan {
+  name: string;
+  displayName: string;
+  description: string;
+  requestLimit: number;
+  priceMonthly: number;
+  isPopular: boolean;
+  features: string[];
+}
+
+// ── Document Templates ────────────────────────────────────────────────────────
+
+export interface TemplateSigner {
+  name: string;
+  email: string;
+  role: string;
+  order: number;
+  message?: string;
+}
+
+export interface TemplateResponse {
+  id: string;
+  merchantId: string;
+  name: string;
+  description?: string;
+  defaultTitle: string;
+  signers: TemplateSigner[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTemplateRequest {
+  name: string;
+  description?: string;
+  defaultTitle: string;
+  signers: TemplateSigner[];
+}
+
+export const templatesApi = {
+  list: () =>
+    apiClient.get<TemplateResponse[]>('/templates'),
+
+  getById: (id: string) =>
+    apiClient.get<TemplateResponse>(`/templates/${id}`),
+
+  create: (data: CreateTemplateRequest) =>
+    apiClient.post<TemplateResponse>('/templates', data),
+
+  update: (id: string, data: CreateTemplateRequest) =>
+    apiClient.put<TemplateResponse>(`/templates/${id}`, data),
+
+  delete: (id: string) =>
+    apiClient.delete(`/templates/${id}`),
+};
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+export interface NotificationDto {
+  id: string;
+  title: string;
+  body: string;
+  type: string;
+  link?: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface NotificationSummaryDto {
+  unreadCount: number;
+  recent: NotificationDto[];
+}
+
+export const notificationsApi = {
+  getSummary: () =>
+    apiClient.get<NotificationSummaryDto>('/notifications'),
+
+  markAllRead: () =>
+    apiClient.post('/notifications/read-all'),
+
+  markRead: (id: string) =>
+    apiClient.post(`/notifications/${id}/read`),
 };

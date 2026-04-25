@@ -812,6 +812,209 @@ curl ${apiBaseUrl}/api/portal/stats`,
       },
     ],
   },
+  {
+    id: 'signer-contacts', title: 'Signer Contacts',
+    wiki: [
+      {
+        heading: 'Overview',
+        body: 'Signer Contacts is your personal address book of frequent signers. Contacts are automatically created when you send an envelope and can be managed manually. The search endpoint powers the email autocomplete on the Send Envelope form.',
+        table: {
+          headers: ['Endpoint', 'Auth', 'Description'],
+          rows: [
+            ['GET /api/signer-contacts', 'Bearer', 'List all contacts for the authenticated user'],
+            ['GET /api/signer-contacts/search?query=', 'Bearer', 'Autocomplete search by name or email'],
+            ['POST /api/signer-contacts', 'Bearer', 'Create a new contact'],
+            ['PUT /api/signer-contacts/{id}', 'Bearer', 'Update an existing contact'],
+            ['DELETE /api/signer-contacts/{id}', 'Bearer', 'Delete a contact permanently'],
+            ['GET /api/signer-contacts/export', 'Bearer', 'Export all contacts as a CSV file'],
+            ['POST /api/signer-contacts/import', 'Bearer', 'Import contacts from a CSV file'],
+          ],
+        },
+      },
+      {
+        heading: 'CSV Import Format',
+        body: 'The CSV file must have a header row. Supported columns: name (required), email (required), role, phone, company. Extra columns are ignored.',
+        code: {
+          label: 'csv',
+          content: `name,email,role,phone,company
+Alice Smith,alice@example.com,signer,+44 7700 900000,Acme Ltd
+Bob Jones,bob@example.com,reviewer,,`,
+        },
+      },
+      {
+        heading: 'Quick Start',
+        body: 'List your contacts, search for one, and create a new one.',
+        code: {
+          label: 'curl',
+          content: `# List all contacts
+curl ${apiBaseUrl}/api/signer-contacts \\
+  -H "Authorization: Bearer eyJ..."
+
+# Search by name or email (autocomplete)
+curl "${apiBaseUrl}/api/signer-contacts/search?query=alice" \\
+  -H "Authorization: Bearer eyJ..."
+
+# Create a contact
+curl -X POST ${apiBaseUrl}/api/signer-contacts \\
+  -H "Authorization: Bearer eyJ..." \\
+  -H "Content-Type: application/json" \\
+  -d '{"name":"Alice Smith","email":"alice@example.com","role":"signer","phone":"+1 555 0100","company":"Acme Ltd"}'
+
+# Export as CSV
+curl ${apiBaseUrl}/api/signer-contacts/export \\
+  -H "Authorization: Bearer eyJ..." \\
+  --output contacts.csv
+
+# Import from CSV
+curl -X POST ${apiBaseUrl}/api/signer-contacts/import \\
+  -H "Authorization: Bearer eyJ..." \\
+  -F "file=@contacts.csv"`,
+        },
+      },
+    ],
+    endpoints: [
+      {
+        id: 'list-contacts', method: 'GET', path: '/api/signer-contacts',
+        title: 'List Contacts',
+        description: 'Returns all active signer contacts belonging to the authenticated user, sorted by name.',
+        auth: 'bearer',
+        response: JSON.stringify([{ id: 'uuid', name: 'Alice Smith', email: 'alice@example.com', role: 'signer', phone: '+44 7700 900000', company: 'Acme Ltd', isActive: true, createdAt: '2026-04-19T12:00:00Z' }], null, 2),
+      },
+      {
+        id: 'search-contacts', method: 'GET', path: '/api/signer-contacts/search',
+        title: 'Search Contacts',
+        description: 'Case-insensitive substring match on name and email. Returns up to 10 results. Used for the email autocomplete on the Send Envelope form.',
+        auth: 'bearer',
+        params: [{ name: 'query', type: 'string', required: true, description: 'Partial name or email to search for' }],
+        response: JSON.stringify([{ id: 'uuid', name: 'Alice Smith', email: 'alice@example.com', role: 'signer' }], null, 2),
+      },
+      {
+        id: 'create-contact', method: 'POST', path: '/api/signer-contacts',
+        title: 'Create Contact',
+        description: 'Creates a new signer contact. Email must be unique per user — returns 409 Conflict if a contact with the same email already exists.',
+        auth: 'bearer',
+        body: JSON.stringify({ name: 'Alice Smith', email: 'alice@example.com', role: 'signer', phone: '+44 7700 900000', company: 'Acme Ltd' }, null, 2),
+        response: JSON.stringify({ id: 'uuid', name: 'Alice Smith', email: 'alice@example.com', role: 'signer', phone: '+44 7700 900000', company: 'Acme Ltd', isActive: true, createdAt: '2026-04-19T12:00:00Z' }, null, 2),
+      },
+      {
+        id: 'update-contact', method: 'PUT', path: '/api/signer-contacts/{id}',
+        title: 'Update Contact',
+        description: 'Replaces all writable fields for the contact. Set isActive to false to disable without deleting. Returns 404 if the contact does not belong to the caller.',
+        auth: 'bearer',
+        params: [{ name: 'id', type: 'string', required: true, description: 'Contact UUID' }],
+        body: JSON.stringify({ name: 'Alice Smith', email: 'alice@example.com', role: 'signer', phone: '+44 7700 900000', company: 'Acme Ltd', isActive: true }, null, 2),
+        response: JSON.stringify({ id: 'uuid', name: 'Alice Smith', email: 'alice@example.com', role: 'signer', isActive: true }, null, 2),
+      },
+      {
+        id: 'delete-contact', method: 'DELETE', path: '/api/signer-contacts/{id}',
+        title: 'Delete Contact',
+        description: 'Permanently deletes a signer contact. Only the owning user may delete their contacts. Returns 204 No Content.',
+        auth: 'bearer',
+        params: [{ name: 'id', type: 'string', required: true, description: 'Contact UUID' }],
+        response: '204 No Content',
+      },
+      {
+        id: 'export-contacts', method: 'GET', path: '/api/signer-contacts/export',
+        title: 'Export Contacts (CSV)',
+        description: 'Downloads all contacts for the authenticated user as a UTF-8 CSV file. Content-Type is text/csv.',
+        auth: 'bearer',
+        response: 'text/csv file download — name,email,role,phone,company columns',
+      },
+      {
+        id: 'import-contacts', method: 'POST', path: '/api/signer-contacts/import',
+        title: 'Import Contacts (CSV)',
+        description: 'Uploads a CSV file and bulk-creates contacts. Rows with duplicate emails for the user are skipped (not errors). Returns a summary of imported and skipped counts.',
+        auth: 'bearer',
+        body: 'multipart/form-data — field name: file (.csv)',
+        response: JSON.stringify({ imported: 12, skipped: 2, errors: [] }, null, 2),
+      },
+    ],
+  },
+  {
+    id: 'audit-logs', title: 'Audit Logs',
+    wiki: [
+      {
+        heading: 'Overview',
+        body: 'The audit log captures every significant action on the platform as a tamper-evident, hash-chained record. Each entry includes an HMAC-SHA256 integrity hash linked to the previous entry. Admin role is required for all audit log endpoints.',
+        table: {
+          headers: ['Field', 'Description'],
+          rows: [
+            ['action', 'What happened — e.g. Envelope.Completed, User.LoggedIn'],
+            ['entityType', 'Which entity was affected — Envelope | Document | User | Merchant | Ticket | Portal'],
+            ['entityId', 'UUID of the affected entity'],
+            ['userId', 'UUID of the user who triggered the action (null for system actions)'],
+            ['status', 'Success | Failure | Warning'],
+            ['details', 'Human-readable description of the event'],
+            ['ipAddress', 'IP address of the originating request'],
+            ['hash', 'HMAC-SHA256 chain hash linking this entry to the previous one'],
+          ],
+        },
+      },
+      {
+        heading: 'Supported Filter Values',
+        body: 'Use these values in the query parameters to filter audit log results.',
+        table: {
+          headers: ['Parameter', 'Accepted values'],
+          rows: [
+            ['action', 'Envelope.Created, Envelope.Sent, Envelope.Signed, Envelope.Completed, Envelope.Cancelled, Envelope.Rejected, Envelope.Failed, Envelope.Expired, Document.Uploaded, Document.Stamped, Document.SignatureSubmitted, User.Registered, User.LoggedIn, User.LoginFailed, User.EmailVerified, User.PasswordResetRequested, User.PasswordReset, User.Updated, Merchant.Created, Merchant.Updated, Merchant.ApiKeyRegenerated, Merchant.LimitUpdated, Ticket.Created, Ticket.Updated, Ticket.Replied, Ticket.Closed, Ticket.Resolved, Portal.Opened'],
+            ['entityType', 'Envelope | Document | User | Merchant | Ticket | Portal'],
+            ['status', 'Success | Failure | Warning'],
+          ],
+        },
+      },
+      {
+        heading: 'Quick Start',
+        body: 'Query the paged audit log and retrieve the timeline for a specific entity.',
+        code: {
+          label: 'curl',
+          content: `# Paged audit log — newest first
+curl "${apiBaseUrl}/api/admin/audit-logs?page=1&pageSize=50" \\
+  -H "Authorization: Bearer eyJ..."
+
+# Filter by action and date range
+curl "${apiBaseUrl}/api/admin/audit-logs?action=Envelope.Completed&from=2026-04-01&to=2026-04-30" \\
+  -H "Authorization: Bearer eyJ..."
+
+# Filter by entity type and ID
+curl "${apiBaseUrl}/api/admin/audit-logs?entityType=Envelope&entityId=uuid" \\
+  -H "Authorization: Bearer eyJ..."
+
+# Entity timeline — all events for a specific entity
+curl "${apiBaseUrl}/api/admin/audit-logs/timeline/uuid" \\
+  -H "Authorization: Bearer eyJ..."`,
+        },
+      },
+    ],
+    endpoints: [
+      {
+        id: 'audit-log-list', method: 'GET', path: '/api/admin/audit-logs',
+        title: 'Get Audit Log (Paged)',
+        description: 'Returns a paged, filtered list of audit entries sorted newest-first. Requires Admin role. All query parameters are optional.',
+        auth: 'bearer',
+        params: [
+          { name: 'action',     type: 'string',  required: false, description: 'Filter by action name' },
+          { name: 'entityType', type: 'string',  required: false, description: 'Filter by entity type' },
+          { name: 'entityId',   type: 'string',  required: false, description: 'Filter by entity UUID' },
+          { name: 'userId',     type: 'string',  required: false, description: 'Filter by user UUID' },
+          { name: 'merchantId', type: 'string',  required: false, description: 'Filter by merchant UUID' },
+          { name: 'status',     type: 'string',  required: false, description: 'Success | Failure | Warning' },
+          { name: 'from',       type: 'string',  required: false, description: 'Start date (UTC ISO-8601)' },
+          { name: 'to',         type: 'string',  required: false, description: 'End date (UTC ISO-8601)' },
+          { name: 'page',       type: 'integer', required: false, description: 'Page number (default 1)' },
+          { name: 'pageSize',   type: 'integer', required: false, description: 'Results per page (default 50, max 200)' },
+        ],
+        response: JSON.stringify({ items: [{ id: 'uuid', action: 'Envelope.Completed', entityType: 'Envelope', entityId: 'env-uuid', userId: 'user-uuid', status: 'Success', details: 'Envelope completed', ipAddress: '1.2.3.4', createdAt: '2026-04-19T12:30:00Z' }], totalCount: 1, page: 1, pageSize: 50, totalPages: 1 }, null, 2),
+      },
+      {
+        id: 'audit-log-timeline', method: 'GET', path: '/api/admin/audit-logs/timeline/{entityId}',
+        title: 'Entity Timeline',
+        description: 'Returns all audit log entries for a specific entity UUID, sorted oldest-first. Useful for reconstructing the complete history of an envelope, user, or merchant.',
+        auth: 'bearer',
+        params: [{ name: 'entityId', type: 'string', required: true, description: 'UUID of the entity to fetch history for' }],
+        response: JSON.stringify([{ id: 'uuid', action: 'Envelope.Created', entityType: 'Envelope', entityId: 'env-uuid', status: 'Success', createdAt: '2026-04-19T10:00:00Z' }, { id: 'uuid2', action: 'Envelope.Sent', entityType: 'Envelope', entityId: 'env-uuid', status: 'Success', createdAt: '2026-04-19T10:01:00Z' }], null, 2),
+      },
+    ],
+  },
 ];
 
 const METHOD_COLOR: Record<string, string> = {

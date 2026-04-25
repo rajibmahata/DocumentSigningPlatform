@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import {
   Plus, Trash2, Pencil, Search, Upload, Download, X, Check, Info, ChevronDown, ChevronUp
 } from 'lucide-react';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -260,7 +261,10 @@ export default function ContactsPage() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Signer Contacts</h1>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            Signer Contacts
+            <InfoTooltip content="Saved contacts let you auto-fill signer details when creating envelopes. Contacts are automatically created from signers on sent envelopes, or you can import them via CSV." side="right" />
+          </h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Manage your saved signers. Contacts are auto-created when you send envelopes.
           </p>

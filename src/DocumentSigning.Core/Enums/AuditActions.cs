@@ -54,4 +54,7 @@ public static class AuditActions
 
     // ── Invitation ────────────────────────────────────────────────────────────
     public const string InvitationResent = "Invitation.Resent";
+
+    // ── Confirm ───────────────────────────────────────────────────────────────
+    public const string SignerConfirmed = "Signer.Confirmed";
 }

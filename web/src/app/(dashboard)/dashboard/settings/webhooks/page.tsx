@@ -31,6 +31,7 @@ import {
   Activity,
   X,
 } from 'lucide-react';
+import { InfoTooltip } from '@/components/ui/info-tooltip';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -735,7 +736,10 @@ export default function WebhooksPage() {
   return (
     <div className="animate-fade-in space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Webhooks</h1>
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          Webhooks
+          <InfoTooltip content="Webhooks let your server receive real-time notifications when envelope events happen. DocSignerHub POSTs a JSON payload to your URL and signs it with HMAC-SHA256 so you can verify authenticity." side="right" />
+        </h1>
         <p className="mt-1 text-sm text-gray-500">
           Receive real-time HTTP POST notifications when events occur in your account.
           Each request is signed with{' '}
