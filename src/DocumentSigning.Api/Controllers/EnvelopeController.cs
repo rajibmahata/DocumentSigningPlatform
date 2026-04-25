@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using DocumentSigning.Api.Filters;
 using DocumentSigning.Api.Swagger;
+using DocumentSigning.Api.Validators;
 using DocumentSigning.Core.DTOs;
 using DocumentSigning.Core.Entities;
 using DocumentSigning.Core.Enums;
@@ -93,6 +94,11 @@ public class EnvelopeController : ControllerBase
     ///   <item><description><b>Expired</b> — signing window elapsed without completion</description></item>
     ///   <item><description><b>Rejected</b> — a signer explicitly rejected the document</description></item>
     /// </list>
+    /// <para>
+    /// <b>TokenTtlDays</b> (optional, 1–365): overrides the server-wide signing window
+    /// (<c>App:EnvelopeExpiryDays</c>) for this envelope only. When omitted or <c>null</c>
+    /// the server default (typically 7 days) applies.
+    /// </para>
     /// </remarks>
     [HttpPost]
     [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("signing")]
@@ -116,6 +122,11 @@ public class EnvelopeController : ControllerBase
             return BadRequest("At least one document is required.");
         if (request.Signers is null || request.Signers.Count == 0)
             return BadRequest("At least one signer is required.");
+
+        // ── Validate TokenTtlDays via FluentValidation ──────────────────────
+        var ttlValidation = new InitiateEnvelopeRequestValidator().Validate(request);
+        if (!ttlValidation.IsValid)
+            return BadRequest(ttlValidation.Errors.First().ErrorMessage);
 
         // ── Validate & decode documents ─────────────────────────────────────
         var allowedTypes = new[]
@@ -166,12 +177,13 @@ public class EnvelopeController : ControllerBase
         // ── Build envelope ──────────────────────────────────────────────────
         var envelope = new SigningEnvelope
         {
-            Id         = Guid.NewGuid(),
-            MerchantId = merchant.Id,
-            Title      = request.Title.Trim(),
-            Status     = EnvelopeStatus.Processing,
-            CreatedAt  = DateTime.UtcNow,
-            Documents  = docEntities,
+            Id           = Guid.NewGuid(),
+            MerchantId   = merchant.Id,
+            Title        = request.Title.Trim(),
+            Status       = EnvelopeStatus.Processing,
+            CreatedAt    = DateTime.UtcNow,
+            TokenTtlDays = request.TokenTtlDays,  // persist per-envelope override
+            Documents    = docEntities,
             Signers    = request.Signers
                 .OrderBy(s => s.Order)
                 .Select(s => new Signer
@@ -203,8 +215,9 @@ public class EnvelopeController : ControllerBase
 
         // ── Create SigningRequest + send invitation for each signer ─────────
         var baseUrl      = _config["App:FrontendUrl"] ?? _config["App:BaseUrl"] ?? $"{Request.Scheme}://{Request.Host}";
-        var expiryDays   = _config.GetValue<int>("App:EnvelopeExpiryDays", 7);
-        var expiry       = DateTime.UtcNow.AddDays(expiryDays);
+        var serverTtl    = _config.GetValue<int>("App:EnvelopeExpiryDays", 7);
+        var ttl          = request.TokenTtlDays ?? serverTtl;
+        var expiry       = DateTime.UtcNow.AddDays(ttl);
 
         // Use first document for the signing token (multi-document support can be extended)
         var primaryDoc = docEntities.First();
