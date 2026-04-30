@@ -33,6 +33,14 @@ public class SignedDocumentRepository : ISignedDocumentRepository
             .Select(x => x.sd)
             .FirstOrDefaultAsync(ct);
 
+    public async Task<IReadOnlyList<SignedDocument>> GetByEnvelopeIdAsync(Guid envelopeId, CancellationToken ct = default)
+        => await _db.SignedDocuments
+            .Join(_db.SigningRequests, sd => sd.SigningRequestId, sr => sr.Id, (sd, sr) => new { sd, sr })
+            .Join(_db.Documents, x => x.sr.DocumentId, d => d.Id, (x, d) => new { x.sd, x.sr, d })
+            .Where(x => x.d.EnvelopeId == envelopeId)
+            .Select(x => x.sd)
+            .ToListAsync(ct);
+
     public async Task AddAsync(SignedDocument signedDocument, CancellationToken ct = default)
         => await _db.SignedDocuments.AddAsync(signedDocument, ct);
 

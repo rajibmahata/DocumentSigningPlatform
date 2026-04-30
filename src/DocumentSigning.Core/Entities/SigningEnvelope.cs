@@ -16,6 +16,18 @@ public class SigningEnvelope
     /// <summary>Per-envelope token TTL override (days). NULL = use server default from appsettings.</summary>
     public int? TokenTtlDays { get; set; }
 
+    /// <summary>
+    /// Optional URL to redirect the signer browser after completion.
+    /// Supports merge tag {envelopeId}.
+    /// </summary>
+    public string? RedirectUrl { get; set; }
+
+    /// <summary>
+    /// When true, the envelope is only marked Completed after a successful payment.
+    /// See EnvelopePayment table.
+    /// </summary>
+    public bool RequirePayment { get; set; } = false;
+
     // Navigations
     public Merchant?      Merchant { get; set; }
     public List<Signer>   Signers  { get; set; } = new();

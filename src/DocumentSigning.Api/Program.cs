@@ -34,6 +34,16 @@ builder.Services.AddScoped<ISignerContactRepository, SignerContactRepository>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<ISignerRepository, SignerRepository>();
 
+// ─── Feature-roadmap repositories ────────────────────────────────────────────
+builder.Services.AddScoped<IFeatureFlagRepository, FeatureFlagRepository>();
+builder.Services.AddScoped<IDocumentInsightRepository, DocumentInsightRepository>();
+builder.Services.AddScoped<IDocumentFieldRepository, DocumentFieldRepository>();
+builder.Services.AddScoped<IBulkSendRepository, BulkSendRepository>();
+builder.Services.AddScoped<IEnvelopePaymentRepository, EnvelopePaymentRepository>();
+builder.Services.AddScoped<IIdentityVerificationRepository, IdentityVerificationRepository>();
+builder.Services.AddScoped<IMerchantBrandingRepository, MerchantBrandingRepository>();
+builder.Services.AddScoped<IBlockchainRepository, BlockchainRepository>();
+
 // ─── Filters ──────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<MerchantApiKeyFilter>();
 
@@ -46,6 +56,16 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<ISignerContactService, SignerContactService>();
 builder.Services.AddScoped<ICertificateService, CertificateService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+
+// ─── Feature-roadmap services ─────────────────────────────────────────────────
+builder.Services.AddScoped<IFeatureFlagService, FeatureFlagService>();
+builder.Services.AddScoped<IBrandingService, BrandingService>();
+builder.Services.AddScoped<IAiInsightService, AiInsightService>();
+builder.Services.AddScoped<IOcrService, OcrService>();
+builder.Services.AddScoped<IBulkSendService, BulkSendService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<IIdentityVerificationService, IdentityVerificationService>();
+builder.Services.AddScoped<IBlockchainService, BlockchainService>();
 
 // ─── Background job handler (scoped — instantiated inside OutboxWorker scope) ─
 builder.Services.AddScoped<StampDocJobHandler>();
