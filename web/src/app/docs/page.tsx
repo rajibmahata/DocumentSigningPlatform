@@ -1015,6 +1015,492 @@ curl "${apiBaseUrl}/api/admin/audit-logs/timeline/uuid" \\
       },
     ],
   },
+
+  /* ═══════════════════════════════════════════════════
+     PHASE 1 — AI & AUTOMATION FEATURES
+     ═══════════════════════════════════════════════════ */
+
+  {
+    id: 'bulk-send', title: 'Bulk Send',
+    wiki: [
+      {
+        heading: 'Overview',
+        body: 'Bulk Send lets you dispatch up to 1 000 personalised envelopes in a single API call by uploading a CSV file. Every row in the CSV creates one envelope. You can track the entire batch via the batch ID returned on submission.',
+        table: {
+          headers: ['Endpoint', 'Auth', 'Description'],
+          rows: [
+            ['POST /api/envelopes/bulk', 'X-Api-Key', 'Create a bulk batch from a CSV file'],
+            ['GET  /api/envelopes/bulk/{batchId}', 'X-Api-Key', 'Poll batch status and per-row results'],
+          ],
+        },
+      },
+      {
+        heading: 'CSV Format',
+        body: 'Each row becomes one envelope. Required columns: signerEmail, signerName, documentTitle, documentFileName. Optional: subject, message.',
+        code: {
+          label: 'csv',
+          content: `signerEmail,signerName,documentTitle,documentFileName,subject,message
+alice@example.com,Alice Smith,NDA Agreement,nda.pdf,Please sign your NDA,Hi Alice please review
+bob@corp.com,Bob Jones,Service Contract,contract.pdf,,`,
+        },
+      },
+      {
+        heading: 'Quick Start',
+        body: 'Submit a bulk batch and then poll for results.',
+        code: {
+          label: 'curl',
+          content: `# Submit bulk batch (multipart/form-data)
+curl -X POST ${apiBaseUrl}/api/envelopes/bulk \\
+  -H "X-Api-Key: your-api-key" \\
+  -F "csvFile=@recipients.csv" \\
+  -F "subject=Please sign" \\
+  -F "message=Your document is ready"
+
+# Poll status
+curl ${apiBaseUrl}/api/envelopes/bulk/{batchId} \\
+  -H "X-Api-Key: your-api-key"`,
+        },
+      },
+    ],
+    endpoints: [
+      {
+        id: 'bulk-send-create', method: 'POST', path: '/api/envelopes/bulk',
+        title: 'Create Bulk Batch',
+        description: 'Accepts a multipart/form-data request containing a CSV file and common envelope settings. Creates one envelope per CSV row. Returns a batchId for tracking.',
+        auth: 'apikey',
+        headers: { 'X-Api-Key': 'your-merchant-api-key', 'Content-Type': 'multipart/form-data' },
+        body: 'multipart/form-data — csvFile (.csv), subject (string), message (string)',
+        response: JSON.stringify({ batchId: 'batch-uuid', totalRows: 250, queued: 250, status: 'Processing' }, null, 2),
+      },
+      {
+        id: 'bulk-send-status', method: 'GET', path: '/api/envelopes/bulk/{batchId}',
+        title: 'Get Batch Status',
+        description: 'Returns the current status of a bulk batch: how many envelopes have been created, sent, failed, and a per-row breakdown.',
+        auth: 'apikey',
+        params: [{ name: 'batchId', type: 'string', required: true, description: 'Batch UUID returned by Create Bulk Batch' }],
+        response: JSON.stringify({ batchId: 'batch-uuid', totalRows: 250, sent: 248, failed: 2, status: 'Completed', results: [{ row: 1, signerEmail: 'alice@example.com', envelopeId: 'env-uuid', status: 'Sent' }, { row: 2, signerEmail: 'bad@email', envelopeId: null, status: 'Failed', error: 'Invalid email' }] }, null, 2),
+      },
+    ],
+  },
+
+  {
+    id: 'document-insights', title: 'Document Insights (AI)',
+    wiki: [
+      {
+        heading: 'Overview',
+        body: 'Document Insights uses GPT-4o-mini and computer vision to analyse uploaded documents. You can generate a plain-English summary of a contract, extract field positions for auto-placement, or run OCR to make scanned images searchable. All endpoints require the X-Api-Key merchant header.',
+        table: {
+          headers: ['Endpoint', 'Auth', 'Description'],
+          rows: [
+            ['GET  /api/documents/{id}/summary', 'X-Api-Key', 'Return cached AI summary (if exists)'],
+            ['POST /api/documents/{id}/summary', 'X-Api-Key', 'Generate AI summary with GPT-4o-mini'],
+            ['POST /api/documents/{id}/analyze', 'X-Api-Key', 'Analyse clauses and risk areas'],
+            ['GET  /api/documents/{id}/fields',  'X-Api-Key', 'Return detected signature field positions'],
+            ['POST /api/documents/{id}/fields',  'X-Api-Key', 'Trigger field detection (computer vision)'],
+            ['POST /api/documents/{id}/ocr',     'X-Api-Key', 'Run OCR on scanned image/PDF'],
+          ],
+        },
+      },
+      {
+        heading: 'Quick Start',
+        body: 'Generate a summary and run OCR on a newly uploaded document.',
+        code: {
+          label: 'curl',
+          content: `# Generate AI summary
+curl -X POST ${apiBaseUrl}/api/documents/{docId}/summary \\
+  -H "X-Api-Key: your-api-key"
+
+# Get the cached summary
+curl ${apiBaseUrl}/api/documents/{docId}/summary \\
+  -H "X-Api-Key: your-api-key"
+
+# Run OCR (for scanned PDFs or images)
+curl -X POST ${apiBaseUrl}/api/documents/{docId}/ocr \\
+  -H "X-Api-Key: your-api-key"
+
+# Detect signature field positions
+curl -X POST ${apiBaseUrl}/api/documents/{docId}/fields \\
+  -H "X-Api-Key: your-api-key"`,
+        },
+      },
+    ],
+    endpoints: [
+      {
+        id: 'doc-summary-get', method: 'GET', path: '/api/documents/{id}/summary',
+        title: 'Get Cached Summary',
+        description: 'Returns the previously generated AI summary for this document. Returns 404 if no summary has been generated yet.',
+        auth: 'apikey',
+        params: [{ name: 'id', type: 'string', required: true, description: 'Document UUID' }],
+        response: JSON.stringify({ documentId: 'doc-uuid', summary: 'This NDA agreement obligates both parties to maintain confidentiality for 3 years. Key clauses: non-disclosure (§2), non-solicitation (§5), jurisdiction: England & Wales (§12).', generatedAt: '2026-04-19T10:00:00Z' }, null, 2),
+      },
+      {
+        id: 'doc-summary-post', method: 'POST', path: '/api/documents/{id}/summary',
+        title: 'Generate AI Summary',
+        description: 'Triggers GPT-4o-mini to read the document text and generate a plain-English summary highlighting obligations, risk areas, and key dates. Result is cached for subsequent GET calls.',
+        auth: 'apikey',
+        params: [{ name: 'id', type: 'string', required: true, description: 'Document UUID' }],
+        response: JSON.stringify({ documentId: 'doc-uuid', summary: 'This is a 3-year NDA...', generatedAt: '2026-04-19T10:00:00Z' }, null, 2),
+      },
+      {
+        id: 'doc-analyze', method: 'POST', path: '/api/documents/{id}/analyze',
+        title: 'Analyse Document',
+        description: 'Deeper clause-level analysis: identifies obligations, penalties, renewal auto-rollover clauses, and assigns a risk score.',
+        auth: 'apikey',
+        params: [{ name: 'id', type: 'string', required: true, description: 'Document UUID' }],
+        response: JSON.stringify({ documentId: 'doc-uuid', riskScore: 42, clauses: [{ type: 'AutoRenewal', text: 'Agreement auto-renews unless cancelled 30 days prior', risk: 'Medium' }], analyzedAt: '2026-04-19T10:01:00Z' }, null, 2),
+      },
+      {
+        id: 'doc-fields-get', method: 'GET', path: '/api/documents/{id}/fields',
+        title: 'Get Detected Fields',
+        description: 'Returns cached computer-vision field detection results: bounding boxes and types (signature, initials, date, checkbox) for each detected field.',
+        auth: 'apikey',
+        params: [{ name: 'id', type: 'string', required: true, description: 'Document UUID' }],
+        response: JSON.stringify({ documentId: 'doc-uuid', fields: [{ type: 'Signature', page: 1, x: 120, y: 640, width: 200, height: 40 }], detectedAt: '2026-04-19T10:02:00Z' }, null, 2),
+      },
+      {
+        id: 'doc-fields-post', method: 'POST', path: '/api/documents/{id}/fields',
+        title: 'Trigger Field Detection',
+        description: 'Triggers the computer-vision pipeline to scan the document for signature and form fields. Results are cached and returned by GET /fields.',
+        auth: 'apikey',
+        params: [{ name: 'id', type: 'string', required: true, description: 'Document UUID' }],
+        response: JSON.stringify({ documentId: 'doc-uuid', fieldsDetected: 3 }, null, 2),
+      },
+      {
+        id: 'doc-ocr', method: 'POST', path: '/api/documents/{id}/ocr',
+        title: 'Run OCR',
+        description: 'Runs optical character recognition on a scanned PDF or image-based document to extract machine-readable text. The extracted text is stored and used to power AI summary and analysis endpoints.',
+        auth: 'apikey',
+        params: [{ name: 'id', type: 'string', required: true, description: 'Document UUID' }],
+        response: JSON.stringify({ documentId: 'doc-uuid', extractedTextLength: 4820, pagesProcessed: 5 }, null, 2),
+      },
+    ],
+  },
+
+  {
+    id: 'payment', title: 'Payments (Stripe)',
+    wiki: [
+      {
+        heading: 'Overview',
+        body: 'The Payments API integrates with Stripe to collect payment from signers before or after they sign. Create a PaymentIntent via the API, redirect the signer to your Stripe checkout, and receive a webhook event when payment succeeds. The envelope can be configured to complete only after payment is confirmed.',
+        table: {
+          headers: ['Endpoint', 'Auth', 'Description'],
+          rows: [
+            ['POST /api/payments/intent',          'X-Api-Key', 'Create a Stripe PaymentIntent for an envelope'],
+            ['POST /api/payments/stripe-webhook',  'None (Stripe sig)', 'Receive Stripe webhook events'],
+            ['GET  /api/payments/{envelopeId}',    'X-Api-Key', 'Get payment status for an envelope'],
+          ],
+        },
+      },
+      {
+        heading: 'Stripe Webhook Setup',
+        body: 'Register https://your-domain.com/api/payments/stripe-webhook in your Stripe dashboard. The endpoint verifies the Stripe-Signature header using your webhook secret. Events handled: payment_intent.succeeded, payment_intent.payment_failed.',
+        code: {
+          label: 'bash',
+          content: `# Register in Stripe Dashboard → Developers → Webhooks
+# Endpoint URL: https://your-api-domain.com/api/payments/stripe-webhook
+# Events to send: payment_intent.succeeded, payment_intent.payment_failed`,
+        },
+      },
+      {
+        heading: 'Quick Start',
+        body: 'Create a payment intent, show Stripe checkout to the signer, then check payment status.',
+        code: {
+          label: 'curl',
+          content: `# Create payment intent
+curl -X POST ${apiBaseUrl}/api/payments/intent \\
+  -H "X-Api-Key: your-api-key" \\
+  -H "Content-Type: application/json" \\
+  -d '{"envelopeId":"env-uuid","amountCents":4999,"currency":"gbp"}'
+
+# Check payment status
+curl ${apiBaseUrl}/api/payments/{envelopeId} \\
+  -H "X-Api-Key: your-api-key"`,
+        },
+      },
+    ],
+    endpoints: [
+      {
+        id: 'payment-intent', method: 'POST', path: '/api/payments/intent',
+        title: 'Create Payment Intent',
+        description: 'Creates a Stripe PaymentIntent for the specified envelope and returns the clientSecret needed to render Stripe Elements or redirect to Stripe Checkout.',
+        auth: 'apikey',
+        body: JSON.stringify({ envelopeId: 'env-uuid', amountCents: 4999, currency: 'gbp' }, null, 2),
+        response: JSON.stringify({ paymentId: 'pay-uuid', clientSecret: 'pi_xxx_secret_yyy', status: 'requires_payment_method' }, null, 2),
+      },
+      {
+        id: 'payment-webhook', method: 'POST', path: '/api/payments/stripe-webhook',
+        title: 'Stripe Webhook',
+        description: 'Receives raw body webhook events from Stripe. Validates the Stripe-Signature header. On payment_intent.succeeded, marks the associated envelope payment as paid. Do NOT call this endpoint directly.',
+        headers: { 'Stripe-Signature': 't=...,v1=...' },
+        response: '200 OK — { "received": true }',
+      },
+      {
+        id: 'payment-get', method: 'GET', path: '/api/payments/{envelopeId}',
+        title: 'Get Payment Status',
+        description: 'Returns the current payment record for an envelope: amount, currency, Stripe PaymentIntent ID, and status.',
+        auth: 'apikey',
+        params: [{ name: 'envelopeId', type: 'string', required: true, description: 'Envelope UUID' }],
+        response: JSON.stringify({ id: 'pay-uuid', envelopeId: 'env-uuid', paymentIntentId: 'pi_xxx', amountCents: 4999, currency: 'gbp', status: 'Paid', createdAt: '2026-04-19T10:00:00Z', paidAt: '2026-04-19T10:05:00Z' }, null, 2),
+      },
+    ],
+  },
+
+  {
+    id: 'branding', title: 'Branding',
+    wiki: [
+      {
+        heading: 'Overview',
+        body: 'The Branding API allows each merchant to white-label the signing experience. Set your own logo URL, primary colour, portal title, and custom email sender name. These settings are applied automatically when signers open the signing portal via your merchant API key.',
+        table: {
+          headers: ['Endpoint', 'Auth', 'Description'],
+          rows: [
+            ['GET /api/merchants/{merchantId}/branding', 'X-Api-Key', 'Get current branding settings'],
+            ['PUT /api/merchants/{merchantId}/branding', 'X-Api-Key', 'Update branding settings'],
+          ],
+        },
+      },
+      {
+        heading: 'Quick Start',
+        body: 'Set your brand colour and logo URL.',
+        code: {
+          label: 'curl',
+          content: `# Get current branding
+curl ${apiBaseUrl}/api/merchants/{merchantId}/branding \\
+  -H "X-Api-Key: your-api-key"
+
+# Update branding
+curl -X PUT ${apiBaseUrl}/api/merchants/{merchantId}/branding \\
+  -H "X-Api-Key: your-api-key" \\
+  -H "Content-Type: application/json" \\
+  -d '{"primaryColor":"#7C3AED","logoUrl":"https://cdn.example.com/logo.png","portalTitle":"Acme Sign","emailSenderName":"Acme Contracts"}'`,
+        },
+      },
+    ],
+    endpoints: [
+      {
+        id: 'branding-get', method: 'GET', path: '/api/merchants/{merchantId}/branding',
+        title: 'Get Branding',
+        description: 'Returns the current branding configuration for the merchant.',
+        auth: 'apikey',
+        params: [{ name: 'merchantId', type: 'string', required: true, description: 'Merchant UUID' }],
+        response: JSON.stringify({ merchantId: 'merch-uuid', primaryColor: '#7C3AED', logoUrl: 'https://cdn.example.com/logo.png', portalTitle: 'Acme Sign', emailSenderName: 'Acme Contracts', updatedAt: '2026-04-19T10:00:00Z' }, null, 2),
+      },
+      {
+        id: 'branding-put', method: 'PUT', path: '/api/merchants/{merchantId}/branding',
+        title: 'Update Branding',
+        description: 'Creates or replaces the branding settings for the merchant. All fields are optional — omitted fields retain their current value.',
+        auth: 'apikey',
+        params: [{ name: 'merchantId', type: 'string', required: true, description: 'Merchant UUID' }],
+        body: JSON.stringify({ primaryColor: '#7C3AED', logoUrl: 'https://cdn.example.com/logo.png', portalTitle: 'Acme Sign', emailSenderName: 'Acme Contracts' }, null, 2),
+        response: JSON.stringify({ merchantId: 'merch-uuid', primaryColor: '#7C3AED', logoUrl: 'https://cdn.example.com/logo.png', portalTitle: 'Acme Sign', emailSenderName: 'Acme Contracts', updatedAt: '2026-04-19T12:00:00Z' }, null, 2),
+      },
+    ],
+  },
+
+  {
+    id: 'feature-flags', title: 'Feature Flags',
+    wiki: [
+      {
+        heading: 'Overview',
+        body: 'Feature Flags let you enable or disable Phase 1 capabilities on a per-merchant basis. Use this to offer tiered plans: charge extra for AI analysis, blockchain notarisation, or Stripe payments without deploying separate code.',
+        table: {
+          headers: ['Feature Key', 'Description'],
+          rows: [
+            ['ai_summary',           'GPT-4o-mini contract summarisation'],
+            ['ocr',                  'OCR on scanned documents'],
+            ['bulk_send',            'Bulk CSV envelope dispatch'],
+            ['blockchain',           'Polygon/Ethereum notarisation'],
+            ['stripe_payments',      'Stripe payment gate before/after signing'],
+            ['identity_verification','Government-ID confidence scoring'],
+            ['white_label',          'Custom branding on signing portal'],
+          ],
+        },
+      },
+      {
+        heading: 'Quick Start',
+        body: 'List all feature flags for a merchant, then enable blockchain notarisation.',
+        code: {
+          label: 'curl',
+          content: `# Get all feature flags
+curl ${apiBaseUrl}/api/merchants/{merchantId}/features \\
+  -H "X-Api-Key: your-api-key"
+
+# Enable blockchain for this merchant
+curl -X PUT ${apiBaseUrl}/api/merchants/{merchantId}/features/blockchain \\
+  -H "X-Api-Key: your-api-key" \\
+  -H "Content-Type: application/json" \\
+  -d '{"enabled":true}'`,
+        },
+      },
+    ],
+    endpoints: [
+      {
+        id: 'features-list', method: 'GET', path: '/api/merchants/{merchantId}/features',
+        title: 'List Feature Flags',
+        description: 'Returns all feature flag keys and their enabled/disabled state for the specified merchant.',
+        auth: 'apikey',
+        params: [{ name: 'merchantId', type: 'string', required: true, description: 'Merchant UUID' }],
+        response: JSON.stringify({ merchantId: 'merch-uuid', features: [{ key: 'ai_summary', enabled: true }, { key: 'blockchain', enabled: false }, { key: 'stripe_payments', enabled: true }] }, null, 2),
+      },
+      {
+        id: 'features-update', method: 'PUT', path: '/api/merchants/{merchantId}/features/{featureKey}',
+        title: 'Update Feature Flag',
+        description: 'Enables or disables a single feature flag for the merchant. Use featureKey values from the table in the Guide section.',
+        auth: 'apikey',
+        params: [
+          { name: 'merchantId', type: 'string', required: true, description: 'Merchant UUID' },
+          { name: 'featureKey', type: 'string', required: true, description: 'Feature key e.g. blockchain, ai_summary' },
+        ],
+        body: JSON.stringify({ enabled: true }, null, 2),
+        response: JSON.stringify({ merchantId: 'merch-uuid', featureKey: 'blockchain', enabled: true, updatedAt: '2026-04-19T12:00:00Z' }, null, 2),
+      },
+    ],
+  },
+
+  {
+    id: 'verification', title: 'Identity Verification',
+    wiki: [
+      {
+        heading: 'Overview',
+        body: 'Identity Verification lets you require signers to upload a government-issued ID before signing. The AI pipeline scores confidence (0–100). Scores ≥ 80 are auto-approved; lower scores are queued for manual admin review. Merchants can review, approve, or reject pending verifications.',
+        table: {
+          headers: ['Endpoint', 'Auth', 'Description'],
+          rows: [
+            ['POST /api/verification/start',               'X-Api-Key', 'Submit a signer ID image for verification'],
+            ['GET  /api/verification/{signingRequestId}',   'X-Api-Key', 'Get verification status for a signing request'],
+            ['POST /api/verification/{id}/review',          'X-Api-Key', 'Approve or reject a pending verification (admin)'],
+          ],
+        },
+      },
+      {
+        heading: 'Confidence Score',
+        body: 'The AI assigns a confidence score from 0 to 100. ≥ 80 = auto-approved. < 80 = pending manual review. Admin calls POST /review to approve or reject.',
+        table: {
+          headers: ['Score Range', 'Status', 'Action Required'],
+          rows: [
+            ['80 – 100', 'Approved',         'None — signer may proceed'],
+            ['50 – 79',  'PendingReview',     'Admin must call POST /review'],
+            ['0 – 49',   'PendingReview',     'Admin must call POST /review'],
+            ['—',        'Rejected',          'Signer must resubmit'],
+          ],
+        },
+      },
+      {
+        heading: 'Quick Start',
+        body: 'Start a verification by sending a base64-encoded ID image, then check the result.',
+        code: {
+          label: 'curl',
+          content: `# Start verification (base64-encode the ID image first)
+curl -X POST ${apiBaseUrl}/api/verification/start \\
+  -H "X-Api-Key: your-api-key" \\
+  -H "Content-Type: application/json" \\
+  -d '{"signingRequestId":"req-uuid","documentType":"passport","idImageBase64":"<base64>"}'
+
+# Check verification status
+curl ${apiBaseUrl}/api/verification/{signingRequestId} \\
+  -H "X-Api-Key: your-api-key"
+
+# Admin: approve a pending verification
+curl -X POST ${apiBaseUrl}/api/verification/{verificationId}/review \\
+  -H "X-Api-Key: your-api-key" \\
+  -H "Content-Type: application/json" \\
+  -d '{"approved":true}'`,
+        },
+      },
+    ],
+    endpoints: [
+      {
+        id: 'verification-start', method: 'POST', path: '/api/verification/start',
+        title: 'Start Verification',
+        description: 'Submit a base64-encoded ID image for a signing request. The AI pipeline runs synchronously and returns the initial status and confidence score. Supported document types: passport, driving_licence, national_id.',
+        auth: 'apikey',
+        body: JSON.stringify({ signingRequestId: 'req-uuid', documentType: 'passport', idImageBase64: '/9j/4AAQSkZJRgAB...' }, null, 2),
+        response: JSON.stringify({ verificationId: 'ver-uuid', status: 'Approved', confidenceScore: 92 }, null, 2),
+      },
+      {
+        id: 'verification-get', method: 'GET', path: '/api/verification/{signingRequestId}',
+        title: 'Get Verification Status',
+        description: 'Returns the full verification record for a signing request, including document type, confidence score, and any rejection reason.',
+        auth: 'apikey',
+        params: [{ name: 'signingRequestId', type: 'string', required: true, description: 'Signing request UUID' }],
+        response: JSON.stringify({ id: 'ver-uuid', signingRequestId: 'req-uuid', signerEmail: 'alice@example.com', documentType: 'passport', status: 'PendingReview', confidenceScore: 67, rejectionReason: null, createdAt: '2026-04-19T10:00:00Z', expiresAt: '2026-04-26T10:00:00Z' }, null, 2),
+      },
+      {
+        id: 'verification-review', method: 'POST', path: '/api/verification/{id}/review',
+        title: 'Review Verification (Admin)',
+        description: 'Approves or rejects a verification that is in PendingReview state. Only accounts with Admin or MerchantAdmin role may call this endpoint. If rejecting, provide a rejectionReason.',
+        auth: 'apikey',
+        params: [{ name: 'id', type: 'string', required: true, description: 'Verification UUID' }],
+        body: JSON.stringify({ approved: false, rejectionReason: 'Image quality too low — please resubmit' }, null, 2),
+        response: JSON.stringify({ id: 'ver-uuid', status: 'Rejected', rejectionReason: 'Image quality too low — please resubmit', reviewedAt: '2026-04-19T12:00:00Z' }, null, 2),
+      },
+    ],
+  },
+
+  {
+    id: 'blockchain', title: 'Blockchain Notarisation',
+    wiki: [
+      {
+        heading: 'Overview',
+        body: 'Blockchain Notarisation writes a SHA-256 hash of your completed envelope to an EVM-compatible blockchain (Polygon by default). This creates an immutable, publicly verifiable proof-of-existence. Anyone can verify the document has not been altered since signing by recalculating the hash and comparing it to the on-chain record.',
+        table: {
+          headers: ['Endpoint', 'Auth', 'Description'],
+          rows: [
+            ['GET  /api/envelopes/{envelopeId}/blockchain', 'X-Api-Key', 'Get blockchain record for a completed envelope'],
+            ['POST /api/envelopes/{envelopeId}/blockchain', 'X-Api-Key', 'Notarise envelope on-chain (triggers transaction)'],
+          ],
+        },
+      },
+      {
+        heading: 'How Verification Works',
+        body: 'To independently verify a document: (1) download the signed document; (2) compute SHA-256 hash; (3) look up the txHash on a block explorer; (4) confirm the hash in the transaction data matches your computed hash. No trust in DocSignerHub is required.',
+        code: {
+          label: 'bash',
+          content: `# Compute SHA-256 of the signed document
+sha256sum signed-nda.pdf
+# => a3f9...  signed-nda.pdf
+
+# Compare with the hash returned by GET /blockchain
+# => documentHash: "a3f9..."
+
+# Verify on Polygonscan:
+# https://polygonscan.com/tx/{txHash}`,
+        },
+      },
+      {
+        heading: 'Quick Start',
+        body: 'Notarise a completed envelope and retrieve the transaction hash.',
+        code: {
+          label: 'curl',
+          content: `# Notarise envelope on-chain
+curl -X POST ${apiBaseUrl}/api/envelopes/{envelopeId}/blockchain \\
+  -H "X-Api-Key: your-api-key"
+
+# Get blockchain record
+curl ${apiBaseUrl}/api/envelopes/{envelopeId}/blockchain \\
+  -H "X-Api-Key: your-api-key"`,
+        },
+      },
+    ],
+    endpoints: [
+      {
+        id: 'blockchain-get', method: 'GET', path: '/api/envelopes/{envelopeId}/blockchain',
+        title: 'Get Blockchain Record',
+        description: 'Returns the blockchain notarisation record for a completed envelope: document hash, transaction hash, block number, and chain.',
+        auth: 'apikey',
+        params: [{ name: 'envelopeId', type: 'string', required: true, description: 'Envelope UUID' }],
+        response: JSON.stringify({ envelopeId: 'env-uuid', documentHash: 'a3f9...', txHash: '0xabc123...', blockNumber: 45123456, chain: 'polygon', notarisedAt: '2026-04-19T10:05:00Z' }, null, 2),
+      },
+      {
+        id: 'blockchain-post', method: 'POST', path: '/api/envelopes/{envelopeId}/blockchain',
+        title: 'Notarise Envelope',
+        description: 'Triggers an on-chain transaction to record the envelope document hash. The envelope must be in Completed status. Returns immediately with the pending transaction hash; confirmations happen asynchronously.',
+        auth: 'apikey',
+        params: [{ name: 'envelopeId', type: 'string', required: true, description: 'Envelope UUID (must be Completed)' }],
+        response: JSON.stringify({ envelopeId: 'env-uuid', documentHash: 'a3f9...', txHash: '0xabc123...', status: 'Pending', chain: 'polygon' }, null, 2),
+      },
+    ],
+  },
 ];
 
 const METHOD_COLOR: Record<string, string> = {
