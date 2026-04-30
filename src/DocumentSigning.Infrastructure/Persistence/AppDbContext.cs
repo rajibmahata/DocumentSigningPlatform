@@ -29,6 +29,16 @@ public class AppDbContext : DbContext
     public DbSet<DocumentTemplate>         DocumentTemplates         => Set<DocumentTemplate>();
     public DbSet<Notification>             Notifications             => Set<Notification>();
 
+    // ── Feature-roadmap DbSets ────────────────────────────────────────────────
+    public DbSet<MerchantFeatureFlag>      MerchantFeatureFlags      => Set<MerchantFeatureFlag>();
+    public DbSet<DocumentInsight>          DocumentInsights          => Set<DocumentInsight>();
+    public DbSet<DocumentField>            DocumentFields            => Set<DocumentField>();
+    public DbSet<BulkSendJob>              BulkSendJobs              => Set<BulkSendJob>();
+    public DbSet<EnvelopePayment>          EnvelopePayments          => Set<EnvelopePayment>();
+    public DbSet<IdentityVerification>     IdentityVerifications     => Set<IdentityVerification>();
+    public DbSet<MerchantBranding>         MerchantBrandings         => Set<MerchantBranding>();
+    public DbSet<BlockchainRecord>         BlockchainRecords         => Set<BlockchainRecord>();
+
     protected override void OnModelCreating(ModelBuilder model)
     {
         base.OnModelCreating(model);
@@ -286,6 +296,111 @@ public class AppDbContext : DbContext
              .WithMany()
              .HasForeignKey(x => x.UserId)
              .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // MerchantFeatureFlags
+        model.Entity<MerchantFeatureFlag>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("MerchantFeatureFlags");
+            e.Property(x => x.FeatureKey).HasMaxLength(64).IsRequired();
+            e.HasIndex(x => new { x.MerchantId, x.FeatureKey }).IsUnique();
+            e.HasOne(x => x.Merchant).WithMany().HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // DocumentInsights
+        model.Entity<DocumentInsight>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("DocumentInsights");
+            e.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            e.Property(x => x.RisksJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.Summary).HasColumnType("nvarchar(max)");
+            e.Property(x => x.ErrorMessage).HasMaxLength(2000);
+            e.HasIndex(x => x.DocumentId).IsUnique();
+            e.HasOne(x => x.Document).WithMany().HasForeignKey(x => x.DocumentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // DocumentFields
+        model.Entity<DocumentField>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("DocumentFields");
+            e.Property(x => x.FieldType).HasMaxLength(50).IsRequired();
+            e.HasIndex(x => x.DocumentId);
+            e.HasOne(x => x.Document).WithMany().HasForeignKey(x => x.DocumentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // BulkSendJobs
+        model.Entity<BulkSendJob>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("BulkSendJobs");
+            e.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            e.Property(x => x.RecipientName).HasMaxLength(256).IsRequired();
+            e.Property(x => x.RecipientEmail).HasMaxLength(256).IsRequired();
+            e.Property(x => x.RecipientCompany).HasMaxLength(256);
+            e.Property(x => x.MergeDataJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.ErrorMessage).HasMaxLength(2000);
+            e.HasIndex(x => x.BatchId);
+            e.HasIndex(x => new { x.Status, x.CreatedAt });
+            e.HasOne(x => x.Merchant).WithMany().HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // EnvelopePayments
+        model.Entity<EnvelopePayment>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("EnvelopePayments");
+            e.Property(x => x.PaymentIntentId).HasMaxLength(128).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            e.Property(x => x.Currency).HasMaxLength(10).IsRequired();
+            e.Property(x => x.ClientSecret).HasMaxLength(256).IsRequired();
+            e.HasIndex(x => x.EnvelopeId).IsUnique();
+            e.HasIndex(x => x.PaymentIntentId).IsUnique();
+            e.HasOne(x => x.Envelope).WithMany().HasForeignKey(x => x.EnvelopeId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // IdentityVerifications
+        model.Entity<IdentityVerification>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("IdentityVerifications");
+            e.Property(x => x.SignerEmail).HasMaxLength(256).IsRequired();
+            e.Property(x => x.DocumentType).HasMaxLength(50).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            e.Property(x => x.IdImageUrl).HasMaxLength(2000);
+            e.Property(x => x.RejectionReason).HasMaxLength(1000);
+            e.HasIndex(x => x.SigningRequestId);
+            e.HasOne(x => x.SigningRequest).WithMany().HasForeignKey(x => x.SigningRequestId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // MerchantBrandings
+        model.Entity<MerchantBranding>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("MerchantBrandings");
+            e.Property(x => x.CustomDomain).HasMaxLength(256);
+            e.Property(x => x.LogoUrl).HasMaxLength(2000);
+            e.Property(x => x.PrimaryColor).HasMaxLength(20);
+            e.Property(x => x.EmailFromName).HasMaxLength(256);
+            e.Property(x => x.PortalFooterText).HasMaxLength(2000);
+            e.HasIndex(x => x.MerchantId).IsUnique();
+            e.HasOne(x => x.Merchant).WithMany().HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // BlockchainRecords
+        model.Entity<BlockchainRecord>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("BlockchainRecords");
+            e.Property(x => x.DocumentHash).HasMaxLength(128).IsRequired();
+            e.Property(x => x.Network).HasMaxLength(50).IsRequired();
+            e.Property(x => x.TransactionHash).HasMaxLength(128);
+            e.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            e.Property(x => x.ErrorMessage).HasMaxLength(2000);
+            e.HasIndex(x => x.EnvelopeId).IsUnique();
+            e.HasOne(x => x.Envelope).WithMany().HasForeignKey(x => x.EnvelopeId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

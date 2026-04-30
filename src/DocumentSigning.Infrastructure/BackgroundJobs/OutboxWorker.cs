@@ -198,6 +198,38 @@ public class OutboxWorker : BackgroundService
                 await emailSvc.SendAccountPendingApprovalAsync(payload.To, payload.ToName, ct);
                 break;
             }
+            case JobTypes.AiSummary:
+            {
+                var payload = JsonSerializer.Deserialize<AiSummaryPayload>(job.Payload, JsonOpts)
+                    ?? throw new InvalidOperationException("Null AiSummary payload.");
+                var aiSvc = sp.GetRequiredService<IAiInsightService>();
+                await aiSvc.ProcessInsightJobAsync(payload.DocumentId, ct);
+                break;
+            }
+            case JobTypes.OcrFields:
+            {
+                var payload = JsonSerializer.Deserialize<OcrFieldsPayload>(job.Payload, JsonOpts)
+                    ?? throw new InvalidOperationException("Null OcrFields payload.");
+                var ocrSvc = sp.GetRequiredService<IOcrService>();
+                await ocrSvc.ProcessFieldDetectionAsync(payload.DocumentId, ct);
+                break;
+            }
+            case JobTypes.BulkSendRow:
+            {
+                var payload = JsonSerializer.Deserialize<BulkSendJobPayload>(job.Payload, JsonOpts)
+                    ?? throw new InvalidOperationException("Null BulkSendRow payload.");
+                var bulkSvc = sp.GetRequiredService<IBulkSendService>();
+                await bulkSvc.ProcessJobAsync(payload.JobId, ct);
+                break;
+            }
+            case JobTypes.BlockchainNotarize:
+            {
+                var payload = JsonSerializer.Deserialize<BlockchainNotarizePayload>(job.Payload, JsonOpts)
+                    ?? throw new InvalidOperationException("Null BlockchainNotarize payload.");
+                var chainSvc = sp.GetRequiredService<IBlockchainService>();
+                await chainSvc.ProcessNotarizationAsync(payload.EnvelopeId, ct);
+                break;
+            }
             default:
                 throw new NotSupportedException($"Unknown job type: {job.JobType}");
         }
@@ -216,4 +248,9 @@ public static class JobTypes
     public const string SendPasswordReset           = "SendPasswordReset";
     public const string SendMerchantSignedDoc       = "SendMerchantSignedDoc";
     public const string SendAccountPendingApproval  = "SendAccountPendingApproval";
+    // Feature-roadmap job types
+    public const string AiSummary          = "ai.summary";
+    public const string OcrFields          = "ocr.fields";
+    public const string BulkSendRow        = "bulk.send.row";
+    public const string BlockchainNotarize = "blockchain.notarize";
 }
