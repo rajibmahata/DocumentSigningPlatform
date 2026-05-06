@@ -1084,5 +1084,260 @@ curl http://localhost:5163/api/signer-contacts/export \
 28. GET  /api/admin/audit-logs?action=Envelope.Cancelled → all cancelled envelopes
 29. GET  /api/admin/audit-logs/entity/Envelope/:id       → full signing timeline for one envelope
 30. GET  /api/admin/audit-logs/entity/Document/:id       → stamp/signature history for one document
+
+── Workflow Engine ──────────────────────────────────────────────────────────────
+31. GET  /api/workflows/templates                        → list built-in templates (no auth)
+32. POST /api/workflows/clone/:templateId                → clone template to my account (JWT)
+33. POST /api/workflows                                  → create new workflow draft (JWT)
+34. GET  /api/workflows                                  → list my workflows (JWT)
+35. GET  /api/workflows/:id                              → get workflow + triggers (JWT)
+36. PUT  /api/workflows/:id                              → save updated graph (JWT)
+37. POST /api/workflows/:id/publish                      → publish draft (JWT)
+38. POST /api/workflows/:id/trigger                      → start a run / instance (JWT)
+39. GET  /api/workflows/:id/instances                    → list runs for this workflow (JWT)
+40. GET  /api/workflows/instances                        → list all runs (merchant) (JWT)
+41. GET  /api/workflows/instances/:instanceId            → get run + node execution log (JWT)
+42. POST /api/workflows/instances/:instanceId/cancel     → cancel a running instance (JWT)
+43. GET  /api/workflows/stats                            → aggregate stats (JWT)
+44. DELETE /api/workflows/:id                            → permanently delete workflow (JWT)
 ```
+
+---
+
+## Workflow Engine
+
+> All workflow endpoints require **`Authorization: Bearer <jwt>`** (scoped to the authenticated merchant).  
+> Workflow **definition status**: `0` = Draft, `1` = Published, `2` = Archived.  
+> Workflow **instance status**: `0` = Running, `1` = Paused, `2` = Completed, `3` = Failed, `4` = Cancelled.
+
+### List Built-in Templates  — no auth required
+```bash
+curl http://localhost:5163/api/workflows/templates
+```
+> Returns all template definitions (`isTemplate: true`). Use to populate a template picker.
+
+---
+
+### List My Workflows  — all definitions for authenticated merchant
+```bash
+curl http://localhost:5163/api/workflows \
+  -H "Authorization: Bearer <jwt>"
+```
+
+---
+
+### Create Workflow  ✅ Required: name, definition  |  ❌ Optional: description
+```bash
+curl -X POST http://localhost:5163/api/workflows \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <jwt>" \
+  -d '{
+    "name": "NDA Sign-Off",
+    "description": "Automate NDA signing with AI review",
+    "definition": {
+      "nodes": [
+        { "id": "start-1", "type": "start",       "position": {"x": 100, "y": 100}, "data": {"label": "Start"} },
+        { "id": "email-1", "type": "sendEmail",   "position": {"x": 300, "y": 100}, "data": {"label": "Send NDA Email", "to": "{{signer.email}}", "subject": "Please sign the NDA"} },
+        { "id": "sign-1",  "type": "signatureRequest", "position": {"x": 500, "y": 100}, "data": {"label": "Request Signature", "signerEmail": "{{signer.email}}", "documentTitle": "NDA"} },
+        { "id": "end-1",   "type": "end",         "position": {"x": 700, "y": 100}, "data": {"label": "End"} }
+      ],
+      "edges": [
+        { "id": "e1", "source": "start-1", "target": "email-1" },
+        { "id": "e2", "source": "email-1", "target": "sign-1"  },
+        { "id": "e3", "source": "sign-1",  "target": "end-1"   }
+      ],
+      "variables": [],
+      "settings": {}
+    }
+  }'
+```
+> Returns `201 Created` with the workflow definition (status: `0` = Draft).
+
+---
+
+### Get Workflow by ID  ✅ Required: id (URL path)
+```bash
+curl http://localhost:5163/api/workflows/<workflow-id> \
+  -H "Authorization: Bearer <jwt>"
+```
+> Returns full definition including `jsonDefinition` (the graph JSON) and `triggers[]`.
+
+---
+
+### Update Workflow  ✅ Required: id (URL path), name, definition
+```bash
+curl -X PUT http://localhost:5163/api/workflows/<workflow-id> \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <jwt>" \
+  -d '{
+    "name": "NDA Sign-Off v2",
+    "description": "Updated flow with approval gate",
+    "definition": {
+      "nodes": [...],
+      "edges": [...],
+      "variables": [],
+      "settings": {}
+    }
+  }'
+```
+> Increments the `version` counter. Only Draft workflows can be updated.
+
+---
+
+### Publish Workflow  ✅ Required: id (URL path)
+```bash
+curl -X POST http://localhost:5163/api/workflows/<workflow-id>/publish \
+  -H "Authorization: Bearer <jwt>"
+```
+> Sets status from `0` (Draft) → `1` (Published). The workflow is now triggerable.
+
+---
+
+### Delete Workflow  ✅ Required: id (URL path)
+```bash
+curl -X DELETE http://localhost:5163/api/workflows/<workflow-id> \
+  -H "Authorization: Bearer <jwt>"
+```
+> Returns `204 No Content`. Permanently deletes definition and all its instances.
+
+---
+
+### Clone Template  ✅ Required: templateId (URL path)
+```bash
+curl -X POST http://localhost:5163/api/workflows/clone/<template-id> \
+  -H "Authorization: Bearer <jwt>"
+```
+> Copies the template into the authenticated merchant's account as a Draft.  
+> Returns `201 Created` with the new workflow definition.
+
+---
+
+### Trigger Workflow (start a run)  ✅ Required: id (URL path)  |  ❌ Optional: contextJson, envelopeId
+```bash
+curl -X POST http://localhost:5163/api/workflows/<workflow-id>/trigger \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <jwt>" \
+  -d '{
+    "contextJson": "{\"signer\": {\"email\": \"john@example.com\", \"name\": \"John Doe\"}}",
+    "envelopeId": null
+  }'
+```
+> The workflow must be Published (`status: 1`). Starts execution asynchronously.  
+> Returns `201 Created` with the new `WorkflowInstance` (status `0` = Running).
+
+**Request body fields**
+| Field | Required | Notes |
+|---|---|---|
+| `contextJson` | ❌ | JSON string of variables available to all nodes (e.g. signer data) |
+| `envelopeId` | ❌ | Associate run with an existing envelope UUID |
+
+---
+
+### List Instances for a Workflow  ✅ Required: id (URL path)
+```bash
+curl http://localhost:5163/api/workflows/<workflow-id>/instances \
+  -H "Authorization: Bearer <jwt>"
+```
+> Returns all runs for this definition, sorted newest first.
+
+---
+
+### List All Instances (merchant)  — across all workflow definitions
+```bash
+curl http://localhost:5163/api/workflows/instances \
+  -H "Authorization: Bearer <jwt>"
+```
+> Returns all runs for the authenticated merchant (max 200), sorted newest first.
+
+---
+
+### Get Instance  ✅ Required: instanceId (URL path)
+```bash
+curl http://localhost:5163/api/workflows/instances/<instance-id> \
+  -H "Authorization: Bearer <jwt>"
+```
+> Returns the instance with the full `nodeExecutions[]` log:
+```json
+{
+  "id": "uuid",
+  "workflowDefinitionId": "uuid",
+  "status": 2,
+  "currentNodeId": "end-1",
+  "triggeredBy": "Manual",
+  "startedAt": "2026-05-06T10:00:00Z",
+  "completedAt": "2026-05-06T10:00:03Z",
+  "nodeExecutions": [
+    { "nodeId": "start-1",  "nodeType": "start",             "status": 2, "startedAt": "...", "completedAt": "..." },
+    { "nodeId": "email-1",  "nodeType": "sendEmail",          "status": 2, "startedAt": "...", "completedAt": "..." },
+    { "nodeId": "sign-1",   "nodeType": "signatureRequest",   "status": 2, "startedAt": "...", "completedAt": "..." },
+    { "nodeId": "end-1",    "nodeType": "end",                "status": 2, "startedAt": "...", "completedAt": "..." }
+  ]
+}
+```
+
+**Instance status codes**
+| Value | Meaning |
+|---|---|
+| `0` | Running — currently executing nodes |
+| `1` | Paused — waiting for human action (approval node) |
+| `2` | Completed — all nodes finished successfully |
+| `3` | Failed — a node errored; check `errorMessage` |
+| `4` | Cancelled — manually cancelled |
+
+---
+
+### Cancel Instance  ✅ Required: instanceId (URL path)
+```bash
+curl -X POST http://localhost:5163/api/workflows/instances/<instance-id>/cancel \
+  -H "Authorization: Bearer <jwt>"
+```
+> Sets instance status to `4` (Cancelled). Returns `200 OK` with the updated instance.
+
+---
+
+### Workflow Stats  — aggregate counts for the merchant
+```bash
+curl http://localhost:5163/api/workflows/stats \
+  -H "Authorization: Bearer <jwt>"
+```
+> Response:
+```json
+{
+  "totalDefinitions":    5,
+  "publishedDefinitions": 3,
+  "totalInstances":     42,
+  "runningInstances":    2,
+  "completedInstances": 38,
+  "failedInstances":     2
+}
+```
+
+---
+
+### Available Node Types
+
+| `type` | Description | Key `data` fields |
+|--------|-------------|-------------------|
+| `start` | Entry point | `label` |
+| `end` | Exit point | `label` |
+| `sendEmail` | Send templated email | `to`, `subject`, `body` |
+| `approval` | Pause for approver | `approverEmail`, `approverName` |
+| `delay` | Wait N hours/days | `delayHours`, `delayDays` |
+| `condition` | Branch true/false | `conditionExpression` |
+| `documentTemplate` | Generate document | `templateId`, `templateName` |
+| `signatureRequest` | Send signing envelope | `signerEmail`, `signerName`, `documentTitle` |
+| `webhook` | POST to external URL | `webhookUrl`, `method` |
+| `aiAction` | AI analysis | `prompt`, `model` |
+
+---
+
+### Built-in Template Names
+
+| Template | Category | Description |
+|----------|----------|-------------|
+| NDA Signing Process | Legal | Start → Email → Sign → AI Review → Reminder → End |
+| Employee Onboarding | HR | Start → Email → Doc Template → Sign → Approval → End |
+| Vendor Agreement | Procurement | Start → AI Review → Email → Sign → Webhook → End |
+| HR Approval Workflow | HR | Start → Email → Approval → Condition → Sign/Reject → End |
+| Procurement Approval | Procurement | Start → Email → Manager Approval → Director Approval → Sign → Webhook → End |
 

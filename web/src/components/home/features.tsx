@@ -1,7 +1,7 @@
 import {
   ShieldCheck, Clock, FileCheck, Layers, Lock, BellRing,
   FileText, Globe, BarChart2, Users, FileBadge,
-  Brain, ScanText, Send, CreditCard, Fingerprint, Link2, Palette,
+  Brain, ScanText, Send, CreditCard, Fingerprint, Link2, Palette, GitBranch,
 } from 'lucide-react';
 
 const CORE_FEATURES = [
@@ -16,6 +16,7 @@ const CORE_FEATURES = [
   { icon: Globe,       title: 'Multi-Tenant',           desc: 'Each merchant has isolated API keys, usage limits, branding, and audit logs.' },
   { icon: BarChart2,   title: 'Analytics Dashboard',    desc: 'Real-time charts for user growth, envelopes sent, and document completion trends.' },
   { icon: Users,       title: 'Admin Management',       desc: 'Manage users, roles, merchants, and support tickets from a secure admin panel.' },
+  { icon: GitBranch,   title: 'Visual Workflow Engine', desc: 'Drag-and-drop workflow builder with 10 node types — automate approvals, emails, delays, and AI actions.' },
 ];
 
 const AI_FEATURES = [

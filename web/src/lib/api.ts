@@ -16,11 +16,20 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Global 401 handler
+// Global 401 handler — redirect to login on session expiry.
+// Skip redirect for auth endpoints (login/register) and when already on /login.
 apiClient.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401 && typeof window !== 'undefined') {
+    const url: string = err.config?.url ?? '';
+    const isAuthEndpoint = url.startsWith('/auth/');
+    const isOnLoginPage  = typeof window !== 'undefined' && window.location.pathname === '/login';
+    if (
+      err.response?.status === 401 &&
+      typeof window !== 'undefined' &&
+      !isAuthEndpoint &&
+      !isOnLoginPage
+    ) {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('auth_user');
       window.location.href = '/login';
@@ -428,4 +437,118 @@ export const notificationsApi = {
 
   markRead: (id: string) =>
     apiClient.post(`/notifications/${id}/read`),
+};
+
+// ── Workflow Engine ───────────────────────────────────────────────────────────
+
+export interface WorkflowSummaryDto {
+  id: string;
+  name: string;
+  description?: string;
+  version: number;
+  status: 'Draft' | 'Published' | 'Archived';
+  isTemplate: boolean;
+  category?: string;
+  instanceCount: number;
+  updatedAt: string;
+}
+
+export interface WorkflowDefinitionDto extends WorkflowSummaryDto {
+  merchantId: string;
+  jsonDefinition: string;
+  templatName?: string;
+  createdBy?: string;
+  createdAt: string;
+}
+
+export interface NodeExecutionDto {
+  id: string;
+  nodeId: string;
+  nodeType: string;
+  nodeLabel: string;
+  status: 'Pending' | 'Running' | 'Completed' | 'Failed' | 'Skipped';
+  outputJson?: string;
+  errorMessage?: string;
+  startedAt: string;
+  completedAt?: string;
+}
+
+export interface WorkflowInstanceDto {
+  id: string;
+  workflowDefinitionId: string;
+  workflowName: string;
+  status: 'Running' | 'Paused' | 'Completed' | 'Failed' | 'Cancelled';
+  currentNodeId?: string;
+  envelopeId?: string;
+  triggeredBy?: string;
+  errorMessage?: string;
+  startedAt: string;
+  completedAt?: string;
+  nodeExecutions: NodeExecutionDto[];
+}
+
+export interface WorkflowStatsDto {
+  totalWorkflows: number;
+  publishedWorkflows: number;
+  runningInstances: number;
+  completedInstances: number;
+  failedInstances: number;
+}
+
+export interface CreateWorkflowRequest {
+  name: string;
+  description?: string;
+  category?: string;
+  jsonDefinition?: string;
+}
+
+export interface UpdateWorkflowRequest {
+  name: string;
+  description?: string;
+  category?: string;
+  jsonDefinition: string;
+}
+
+export const workflowApi = {
+  list: () =>
+    apiClient.get<WorkflowSummaryDto[]>('/workflows'),
+
+  listTemplates: () =>
+    apiClient.get<WorkflowSummaryDto[]>('/workflows/templates'),
+
+  getById: (id: string) =>
+    apiClient.get<WorkflowDefinitionDto>(`/workflows/${id}`),
+
+  create: (data: CreateWorkflowRequest) =>
+    apiClient.post<WorkflowDefinitionDto>('/workflows', data),
+
+  update: (id: string, data: UpdateWorkflowRequest) =>
+    apiClient.put<WorkflowDefinitionDto>(`/workflows/${id}`, data),
+
+  publish: (id: string) =>
+    apiClient.post(`/workflows/${id}/publish`),
+
+  delete: (id: string) =>
+    apiClient.delete(`/workflows/${id}`),
+
+  cloneTemplate: (templateId: string) =>
+    apiClient.post<WorkflowDefinitionDto>(`/workflows/clone/${templateId}`),
+
+  trigger: (id: string, data: { envelopeId?: string; contextJson?: string }) =>
+    apiClient.post<WorkflowInstanceDto>(`/workflows/${id}/trigger`, data),
+
+  getInstances: (id: string) =>
+    apiClient.get<WorkflowInstanceDto[]>(`/workflows/${id}/instances`),
+
+  listAllInstances: () =>
+    apiClient.get<WorkflowInstanceDto[]>('/workflows/instances'),
+
+  getInstance: (instanceId: string) =>
+    apiClient.get<WorkflowInstanceDto>(`/workflows/instances/${instanceId}`),
+
+  cancelInstance: (instanceId: string) =>
+    apiClient.post(`/workflows/instances/${instanceId}/cancel`),
+
+  getStats: () =>
+    apiClient.get<WorkflowStatsDto>('/workflows/stats'),
 };

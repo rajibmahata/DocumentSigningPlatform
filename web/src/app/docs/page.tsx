@@ -1501,6 +1501,236 @@ curl ${apiBaseUrl}/api/envelopes/{envelopeId}/blockchain \\
       },
     ],
   },
+  {
+    id: 'workflows', title: 'Workflow Engine',
+    wiki: [
+      {
+        heading: 'Overview',
+        body: 'The Workflow Engine lets you automate multi-step document signing processes using a visual drag-and-drop builder. Define a workflow as a directed graph of nodes and edges — the engine walks the graph sequentially, executing each node (email, approval, delay, AI action, webhook, etc.). All workflow endpoints require JWT Bearer authentication and are scoped to the authenticated merchant.',
+        table: {
+          headers: ['Concept', 'Detail'],
+          rows: [
+            ['Workflow Definition', 'The blueprint — nodes, edges, variables, and settings stored as JSON'],
+            ['Workflow Instance', 'A single run of a definition — tracks current node, status, and context'],
+            ['Node Execution', 'Per-node record: start time, end time, output, status'],
+            ['Trigger', 'Event that starts a run — manual, envelope event, scheduled, or webhook'],
+          ],
+        },
+      },
+      {
+        heading: 'Node Types',
+        body: 'Each node in a workflow definition has a `type` field that controls what the engine does when it reaches that node.',
+        table: {
+          headers: ['type', 'Description', 'Key Config'],
+          rows: [
+            ['start', 'Entry point — required', '—'],
+            ['end', 'Exit point — required', '—'],
+            ['sendEmail', 'Send a templated email', 'to, subject, body'],
+            ['approval', 'Pause and wait for approver', 'approverEmail, approverName'],
+            ['delay', 'Wait N hours/days', 'delayHours, delayDays'],
+            ['condition', 'Branch on true/false', 'conditionExpression'],
+            ['documentTemplate', 'Generate a document', 'templateId, templateName'],
+            ['signatureRequest', 'Send signing envelope', 'signerEmail, signerName, documentTitle'],
+            ['webhook', 'POST to external URL', 'webhookUrl, method'],
+            ['aiAction', 'Run AI analysis', 'prompt, model'],
+          ],
+        },
+      },
+      {
+        heading: 'Workflow Status Values',
+        body: 'Definitions and instances each have their own status lifecycle.',
+        table: {
+          headers: ['Entity', 'Status', 'Meaning'],
+          rows: [
+            ['Definition', 'Draft (0)', 'Being designed — not triggerable'],
+            ['Definition', 'Published (1)', 'Live and triggerable'],
+            ['Definition', 'Archived (2)', 'Retired — not triggerable'],
+            ['Instance', 'Running (0)', 'Currently executing'],
+            ['Instance', 'Paused (1)', 'Waiting for human action (approval)'],
+            ['Instance', 'Completed (2)', 'All nodes executed successfully'],
+            ['Instance', 'Failed (3)', 'A node failed — check errorMessage'],
+            ['Instance', 'Cancelled (4)', 'Manually cancelled'],
+          ],
+        },
+      },
+      {
+        heading: 'Quick Start — Create and Trigger a Workflow',
+        body: 'Create a workflow definition with a simple two-node graph (start → end), publish it, then trigger it manually.',
+        code: {
+          label: 'curl',
+          content: `# 1. Create a workflow (draft)
+curl -X POST ${apiBaseUrl}/api/workflows \\
+  -H "Authorization: Bearer eyJ..." \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "name": "NDA Sign-Off",
+    "description": "Automate NDA signing with AI review and reminders",
+    "definition": {
+      "nodes": [
+        { "id": "start-1", "type": "start",     "position": {"x": 100, "y": 100}, "data": {"label": "Start"} },
+        { "id": "email-1", "type": "sendEmail",  "position": {"x": 300, "y": 100}, "data": {"label": "Send NDA", "to": "{{signer.email}}", "subject": "Please sign the NDA" } },
+        { "id": "sign-1",  "type": "signatureRequest", "position": {"x": 500, "y": 100}, "data": {"label": "Signature Request", "signerEmail": "{{signer.email}}" } },
+        { "id": "end-1",   "type": "end",        "position": {"x": 700, "y": 100}, "data": {"label": "End"} }
+      ],
+      "edges": [
+        { "id": "e1", "source": "start-1", "target": "email-1" },
+        { "id": "e2", "source": "email-1", "target": "sign-1"  },
+        { "id": "e3", "source": "sign-1",  "target": "end-1"   }
+      ],
+      "variables": [],
+      "settings": {}
+    }
+  }'
+
+# 2. Publish the workflow
+curl -X POST ${apiBaseUrl}/api/workflows/{id}/publish \\
+  -H "Authorization: Bearer eyJ..."
+
+# 3. Trigger a run manually
+curl -X POST ${apiBaseUrl}/api/workflows/{id}/trigger \\
+  -H "Authorization: Bearer eyJ..." \\
+  -H "Content-Type: application/json" \\
+  -d '{"contextJson": "{\"signer\": {\"email\": \"john@example.com\", \"name\": \"John Doe\"}}"}'
+
+# 4. Monitor the run
+curl ${apiBaseUrl}/api/workflows/{id}/instances \\
+  -H "Authorization: Bearer eyJ..."
+
+# 5. Get a specific instance with node execution log
+curl ${apiBaseUrl}/api/workflows/instances/{instanceId} \\
+  -H "Authorization: Bearer eyJ..."
+
+# 6. Cancel a running instance
+curl -X POST ${apiBaseUrl}/api/workflows/instances/{instanceId}/cancel \\
+  -H "Authorization: Bearer eyJ..."`,
+        },
+      },
+      {
+        heading: 'Clone from Template',
+        body: 'Use one of the 5 built-in templates as a starting point. Clone it into your merchant account and customise freely.',
+        code: {
+          label: 'curl',
+          content: `# List available templates (no auth required)
+curl ${apiBaseUrl}/api/workflows/templates
+
+# Clone the NDA template into your account
+curl -X POST ${apiBaseUrl}/api/workflows/clone/{templateId} \\
+  -H "Authorization: Bearer eyJ..."`,
+        },
+      },
+    ],
+    endpoints: [
+      {
+        id: 'wf-list', method: 'GET', path: '/api/workflows',
+        title: 'List Workflows',
+        description: 'Return all workflow definitions belonging to the authenticated merchant.',
+        auth: 'bearer',
+        response: JSON.stringify([{ id: 'uuid', name: 'NDA Sign-Off', status: 1, version: 1, isTemplate: false, category: 'Legal', instanceCount: 3, createdAt: '2026-05-01T00:00:00Z' }], null, 2),
+      },
+      {
+        id: 'wf-create', method: 'POST', path: '/api/workflows',
+        title: 'Create Workflow',
+        description: 'Create a new workflow definition. Status defaults to Draft (0).',
+        auth: 'bearer',
+        body: JSON.stringify({ name: 'NDA Sign-Off', description: 'Automate NDA signing', definition: { nodes: [], edges: [], variables: [], settings: {} } }, null, 2),
+        response: JSON.stringify({ id: 'uuid', name: 'NDA Sign-Off', status: 0, version: 1 }, null, 2),
+      },
+      {
+        id: 'wf-templates', method: 'GET', path: '/api/workflows/templates',
+        title: 'List Templates',
+        description: 'Return all built-in workflow templates. No authentication required.',
+        response: JSON.stringify([{ id: 'uuid', name: 'NDA Signing Process', isTemplate: true, category: 'Legal', templateName: 'NDA Signing' }], null, 2),
+      },
+      {
+        id: 'wf-get', method: 'GET', path: '/api/workflows/{id}',
+        title: 'Get Workflow',
+        description: 'Return a workflow definition including its JSON graph and triggers.',
+        auth: 'bearer',
+        params: [{ name: 'id', type: 'string', required: true, description: 'Workflow definition UUID' }],
+        response: JSON.stringify({ id: 'uuid', name: 'NDA Sign-Off', status: 1, version: 2, jsonDefinition: '{...}', triggers: [] }, null, 2),
+      },
+      {
+        id: 'wf-update', method: 'PUT', path: '/api/workflows/{id}',
+        title: 'Update Workflow',
+        description: 'Save a new version of the workflow graph. Increments the version counter. Can only update Draft workflows.',
+        auth: 'bearer',
+        params: [{ name: 'id', type: 'string', required: true, description: 'Workflow definition UUID' }],
+        body: JSON.stringify({ name: 'NDA Sign-Off v2', definition: { nodes: [], edges: [], variables: [], settings: {} } }, null, 2),
+        response: JSON.stringify({ id: 'uuid', version: 2 }, null, 2),
+      },
+      {
+        id: 'wf-publish', method: 'POST', path: '/api/workflows/{id}/publish',
+        title: 'Publish Workflow',
+        description: 'Transition a Draft workflow to Published status so it can be triggered.',
+        auth: 'bearer',
+        params: [{ name: 'id', type: 'string', required: true, description: 'Workflow definition UUID' }],
+        response: JSON.stringify({ id: 'uuid', status: 1 }, null, 2),
+      },
+      {
+        id: 'wf-delete', method: 'DELETE', path: '/api/workflows/{id}',
+        title: 'Delete Workflow',
+        description: 'Permanently delete a workflow definition and all its instances. Returns 204 No Content.',
+        auth: 'bearer',
+        params: [{ name: 'id', type: 'string', required: true, description: 'Workflow definition UUID' }],
+        response: '204 No Content',
+      },
+      {
+        id: 'wf-clone', method: 'POST', path: '/api/workflows/clone/{templateId}',
+        title: 'Clone Template',
+        description: 'Clone a built-in template into your merchant account as a Draft workflow.',
+        auth: 'bearer',
+        params: [{ name: 'templateId', type: 'string', required: true, description: 'Template definition UUID' }],
+        response: JSON.stringify({ id: 'uuid', name: 'NDA Signing Process (copy)', status: 0, version: 1 }, null, 2),
+      },
+      {
+        id: 'wf-trigger', method: 'POST', path: '/api/workflows/{id}/trigger',
+        title: 'Trigger Workflow',
+        description: 'Start a new workflow run (instance). The workflow must be Published. Returns the new WorkflowInstance.',
+        auth: 'bearer',
+        params: [{ name: 'id', type: 'string', required: true, description: 'Workflow definition UUID' }],
+        body: JSON.stringify({ contextJson: '{"signer":{"email":"john@example.com","name":"John Doe"}}', envelopeId: null }, null, 2),
+        response: JSON.stringify({ id: 'uuid', workflowDefinitionId: 'uuid', status: 0, currentNodeId: 'email-1', startedAt: '2026-05-06T10:00:00Z' }, null, 2),
+      },
+      {
+        id: 'wf-instances', method: 'GET', path: '/api/workflows/{id}/instances',
+        title: 'List Instances by Definition',
+        description: 'Return all runs of a specific workflow definition.',
+        auth: 'bearer',
+        params: [{ name: 'id', type: 'string', required: true, description: 'Workflow definition UUID' }],
+        response: JSON.stringify([{ id: 'uuid', status: 2, startedAt: '2026-05-06T10:00:00Z', completedAt: '2026-05-06T10:01:00Z', triggeredBy: 'Manual' }], null, 2),
+      },
+      {
+        id: 'wf-instance-get', method: 'GET', path: '/api/workflows/instances/{instanceId}',
+        title: 'Get Instance',
+        description: 'Return a workflow instance including the full node execution log.',
+        auth: 'bearer',
+        params: [{ name: 'instanceId', type: 'string', required: true, description: 'WorkflowInstance UUID' }],
+        response: JSON.stringify({ id: 'uuid', status: 2, nodeExecutions: [{ nodeId: 'email-1', nodeType: 'sendEmail', status: 2, startedAt: '2026-05-06T10:00:01Z', completedAt: '2026-05-06T10:00:02Z' }] }, null, 2),
+      },
+      {
+        id: 'wf-instance-cancel', method: 'POST', path: '/api/workflows/instances/{instanceId}/cancel',
+        title: 'Cancel Instance',
+        description: 'Cancel a running or paused workflow instance. Returns 204 No Content.',
+        auth: 'bearer',
+        params: [{ name: 'instanceId', type: 'string', required: true, description: 'WorkflowInstance UUID' }],
+        response: '204 No Content',
+      },
+      {
+        id: 'wf-all-instances', method: 'GET', path: '/api/workflows/instances',
+        title: 'List All Instances',
+        description: 'Return all workflow runs across all definitions for the authenticated merchant (max 200).',
+        auth: 'bearer',
+        response: JSON.stringify([{ id: 'uuid', workflowDefinitionId: 'uuid', status: 2, startedAt: '2026-05-06T10:00:00Z' }], null, 2),
+      },
+      {
+        id: 'wf-stats', method: 'GET', path: '/api/workflows/stats',
+        title: 'Workflow Stats',
+        description: 'Return aggregate statistics for the merchant: total definitions, published count, active/completed/failed instances.',
+        auth: 'bearer',
+        response: JSON.stringify({ totalDefinitions: 5, publishedDefinitions: 3, totalInstances: 42, runningInstances: 2, completedInstances: 38, failedInstances: 2 }, null, 2),
+      },
+    ],
+  },
 ];
 
 const METHOD_COLOR: Record<string, string> = {

@@ -43,6 +43,7 @@ builder.Services.AddScoped<IEnvelopePaymentRepository, EnvelopePaymentRepository
 builder.Services.AddScoped<IIdentityVerificationRepository, IdentityVerificationRepository>();
 builder.Services.AddScoped<IMerchantBrandingRepository, MerchantBrandingRepository>();
 builder.Services.AddScoped<IBlockchainRepository, BlockchainRepository>();
+builder.Services.AddScoped<IWorkflowRepository, WorkflowRepository>();
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<MerchantApiKeyFilter>();
@@ -66,6 +67,7 @@ builder.Services.AddScoped<IBulkSendService, BulkSendService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IIdentityVerificationService, IdentityVerificationService>();
 builder.Services.AddScoped<IBlockchainService, BlockchainService>();
+builder.Services.AddScoped<IWorkflowService, WorkflowService>();
 
 // ─── Background job handler (scoped — instantiated inside OutboxWorker scope) ─
 builder.Services.AddScoped<StampDocJobHandler>();
@@ -181,16 +183,23 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new()
     {
-        Title   = "Document Signing API",
+        Title   = "DocSignerHub API",
         Version = "v1",
         Description = """
-            In-house electronic document signing platform.
+            **DocSignerHub** — Enterprise eSign & Workflow Automation Platform.
 
             ## Authentication
-            - **JWT Bearer** — most endpoints. Obtain a token via `POST /api/auth/login`.
+            - **JWT Bearer** — most endpoints. Obtain via `POST /api/auth/login`.
             - **X-Api-Key** — envelope endpoints. Obtain from `GET /api/merchants/by-user/{userId}`.
 
-            ## Sections
+            ## Quick Start
+            1. `POST /api/auth/register` → create account
+            2. Verify email → `GET /api/auth/verify-email/{token}`
+            3. `POST /api/auth/login` → receive JWT token
+            4. `POST /api/merchants` → create merchant, get API key
+            5. `POST /api/envelopes` with `X-Api-Key` → send signing envelope
+
+            ## API Sections
             | Tag | Description |
             |-----|-------------|
             | Auth | Register, login, verify email, password reset |
@@ -204,6 +213,42 @@ builder.Services.AddSwaggerGen(c =>
             | Tickets — Admin | Admin-level ticket management (Admin only) |
             | Audit Logs — Admin | Paged audit log viewer and entity timeline (Admin only) |
             | Webhooks | Register endpoints and view delivery history |
+            | Workflow | Visual workflow definitions, execution engine, templates, and monitoring |
+
+            ## Workflow Engine
+            The Workflow Engine lets you automate multi-step document signing processes using a visual drag-and-drop builder.
+
+            ### Node Types
+            | Node | Description |
+            |------|-------------|
+            | `start` | Entry point — required first node |
+            | `end` | Exit point — required last node |
+            | `sendEmail` | Send a templated notification email |
+            | `approval` | Pause and wait for an approver |
+            | `delay` | Wait N hours/days before continuing |
+            | `condition` | Branch on true/false logic |
+            | `documentTemplate` | Generate document from a template |
+            | `signatureRequest` | Send a signing envelope automatically |
+            | `webhook` | POST event data to an external URL |
+            | `aiAction` | Run AI analysis or clause summarisation |
+
+            ### Workflow Triggers
+            | Trigger | Value |
+            |---------|-------|
+            | Manual | `0` |
+            | On Envelope Created | `1` |
+            | On Envelope Completed | `2` |
+            | On Envelope Signed | `3` |
+            | On Payment Received | `4` |
+            | Scheduled | `5` |
+            | Webhook | `6` |
+
+            ### Workflow Status Values
+            | Status | Value |
+            |--------|-------|
+            | Draft | `0` |
+            | Published | `1` |
+            | Archived | `2` |
         """
     });
 
@@ -230,6 +275,7 @@ builder.Services.AddSwaggerGen(c =>
             "Envelope"        => "Envelope",
             "Webhooks"        => "Webhooks",
             "SignerContacts"  => "Signer Contacts",
+            "Workflow"        => "Workflow",
             _                 => controller
         };
         return new[] { tag };
