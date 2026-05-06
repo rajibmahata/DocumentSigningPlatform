@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { workflowApi, type WorkflowSummaryDto, type WorkflowStatsDto } from '@/lib/api';
-import { builtInTemplates, type BuiltInTemplate } from '@/data/workflowTemplates';
+import { builtInTemplates, templateCategories, complexityColors, type BuiltInTemplate, type TemplateCategory } from '@/data/workflowTemplates';
 import { useRouter } from 'next/navigation';
 
 type Tab = 'my-workflows' | 'templates' | 'monitoring';
@@ -27,13 +27,14 @@ function StatsCard({ label, value, icon, color }: { label: string; value: number
 
 export default function WorkflowsPage() {
   const router = useRouter();
-  const [tab,       setTab]       = useState<Tab>('my-workflows');
-  const [workflows, setWorkflows] = useState<WorkflowSummaryDto[]>([]);
-  const [stats,     setStats]     = useState<WorkflowStatsDto | null>(null);
-  const [loading,   setLoading]   = useState(true);
-  const [creating,  setCreating]  = useState(false);
-  const [newName,   setNewName]   = useState('');
-  const [showNew,   setShowNew]   = useState(false);
+  const [tab,            setTab]            = useState<Tab>('my-workflows');
+  const [workflows,      setWorkflows]      = useState<WorkflowSummaryDto[]>([]);
+  const [stats,          setStats]          = useState<WorkflowStatsDto | null>(null);
+  const [loading,        setLoading]        = useState(true);
+  const [creating,       setCreating]       = useState(false);
+  const [newName,        setNewName]        = useState('');
+  const [showNew,        setShowNew]        = useState(false);
+  const [activeCategory, setActiveCategory] = useState<TemplateCategory>('All');
 
   useEffect(() => {
     void (async () => {
@@ -194,32 +195,107 @@ export default function WorkflowsPage() {
 
         {/* ── Template Library ── */}
         {tab === 'templates' && (
-          <div className="p-4">
-            <p className="text-sm text-slate-500 mb-4">
-              Click <strong>Use Template</strong> to create a new workflow pre-filled with a sample process you can customise.
-            </p>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {builtInTemplates.map((tpl) => (
-                <div key={tpl.id} className="p-4 rounded-xl border border-slate-200 space-y-3">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-semibold text-slate-800">{tpl.name}</span>
-                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
-                        {tpl.category}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400 line-clamp-3">{tpl.description}</p>
-                  </div>
-                  <button
-                    disabled={creating}
-                    onClick={() => handleUseTemplate(tpl)}
-                    className="w-full py-2 text-xs font-medium text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50"
-                  >
-                    Use Template →
-                  </button>
-                </div>
-              ))}
+          <div className="p-5 space-y-5">
+            {/* Header */}
+            <div>
+              <h2 className="text-base font-semibold text-slate-800">Industry Template Library</h2>
+              <p className="text-sm text-slate-500 mt-0.5">
+                {builtInTemplates.length} ready-to-use workflows across {templateCategories.length - 1} industries. Click <strong>Use Template</strong> to clone and customise.
+              </p>
             </div>
+
+            {/* Category filter bar */}
+            <div className="flex flex-wrap gap-2">
+              {templateCategories.map((cat) => {
+                const count = cat === 'All' ? builtInTemplates.length : builtInTemplates.filter(t => t.category === cat).length;
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                      activeCategory === cat
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {cat} {count > 0 && <span className="ml-1 opacity-70">({count})</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Template grid */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {builtInTemplates
+                .filter(tpl => activeCategory === 'All' || tpl.category === activeCategory)
+                .map((tpl) => (
+                  <div key={tpl.id} className="flex flex-col rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-md transition-all overflow-hidden bg-white">
+                    {/* Card header */}
+                    <div className="px-4 pt-4 pb-3 border-b border-slate-100">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-2xl shrink-0">{tpl.icon}</span>
+                          <span className="text-sm font-semibold text-slate-800 leading-tight">{tpl.name}</span>
+                        </div>
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100 whitespace-nowrap">
+                            {tpl.category}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${complexityColors[tpl.complexity]}`}>
+                            {tpl.complexity}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-500 line-clamp-2 mt-1">{tpl.description}</p>
+                    </div>
+
+                    {/* Step flow preview */}
+                    <div className="px-4 py-3 bg-slate-50 border-b border-slate-100">
+                      <p className="text-xs font-medium text-slate-400 mb-2 uppercase tracking-wide">Workflow Steps</p>
+                      <div className="flex flex-wrap items-center gap-1">
+                        {tpl.steps.map((step, i) => (
+                          <span key={i} className="flex items-center gap-1">
+                            <span className="px-2 py-0.5 rounded text-xs bg-white border border-slate-200 text-slate-600 whitespace-nowrap shadow-sm">
+                              {step}
+                            </span>
+                            {i < tpl.steps.length - 1 && (
+                              <span className="text-slate-300 text-xs">→</span>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Use cases */}
+                    <div className="px-4 py-3 flex-1">
+                      <p className="text-xs font-medium text-slate-400 mb-1.5 uppercase tracking-wide">Use Cases</p>
+                      <ul className="space-y-0.5">
+                        {tpl.useCases.map((uc, i) => (
+                          <li key={i} className="text-xs text-slate-600 flex items-start gap-1.5">
+                            <span className="text-blue-400 mt-0.5 shrink-0">•</span>
+                            {uc}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Action */}
+                    <div className="px-4 pb-4">
+                      <button
+                        disabled={creating}
+                        onClick={() => handleUseTemplate(tpl)}
+                        className="w-full py-2 text-xs font-semibold text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
+                      >
+                        Use Template →
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+
+            {builtInTemplates.filter(t => activeCategory === 'All' || t.category === activeCategory).length === 0 && (
+              <div className="py-12 text-center text-slate-400 text-sm">No templates in this category yet.</div>
+            )}
           </div>
         )}
 
