@@ -7,34 +7,81 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, FileText, Send, Building2, User, BookOpen,
   LogOut, FileSignature, ChevronLeft, ChevronRight,
-  BarChart2, Users, Store, MessageSquare, Ticket, PenLine, Shield, Webhook, ContactRound, CreditCard, LayoutTemplate, Bell, ClipboardList,
+  BarChart2, Users, Store, MessageSquare, Ticket, PenLine, Shield, Webhook, ContactRound, CreditCard, LayoutTemplate, Bell, ClipboardList, GitBranch,
 } from 'lucide-react';
 import { useState } from 'react';
 
-const NAV_ITEMS = [
-  { href: '/dashboard',                   label: 'Dashboard',              icon: LayoutDashboard },
-  { href: '/dashboard/envelopes',         label: 'Envelopes',              icon: FileText },
-  { href: '/dashboard/send',              label: 'Send Document',          icon: Send },
-  { href: '/dashboard/my-signatures',     label: 'Awaiting My Signature',  icon: PenLine },
-  { href: '/dashboard/contacts',          label: 'Signer Contacts',        icon: ContactRound },
-  { href: '/dashboard/templates',         label: 'Document Templates',     icon: LayoutTemplate },
-  { href: '/dashboard/merchant',          label: 'Merchant',               icon: Building2 },
-  { href: '/dashboard/merchant/audit-log', label: 'Merchant Audit Log',     icon: ClipboardList },
-  { href: '/dashboard/billing',           label: 'Billing & Plans',        icon: CreditCard },
-  { href: '/dashboard/tickets',           label: 'Support Tickets',        icon: MessageSquare },
-  { href: '/dashboard/settings/webhooks',       label: 'Webhooks',               icon: Webhook },
-  { href: '/dashboard/settings/notifications',  label: 'Notifications',          icon: Bell },
-  { href: '/dashboard/audit-log',               label: 'My Audit Log',           icon: Shield },
-  { href: '/docs',                              label: 'API Docs',               icon: BookOpen },
-  { href: '/dashboard/profile',           label: 'Profile',                icon: User },
+interface NavItem {
+  href:  string;
+  label: string;
+  icon:  React.ElementType;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: 'Main',
+    items: [
+      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: 'Documents',
+    items: [
+      { href: '/dashboard/envelopes',     label: 'Envelopes',             icon: FileText },
+      { href: '/dashboard/send',          label: 'Send Document',         icon: Send },
+      { href: '/dashboard/my-signatures', label: 'Awaiting My Signature', icon: PenLine },
+      { href: '/dashboard/templates',     label: 'Document Templates',    icon: LayoutTemplate },
+    ],
+  },
+  {
+    label: 'Automation',
+    items: [
+      { href: '/dashboard/workflows', label: 'Workflows',      icon: GitBranch },
+      { href: '/dashboard/contacts',  label: 'Signer Contacts', icon: ContactRound },
+    ],
+  },
+  {
+    label: 'Account',
+    items: [
+      { href: '/dashboard/merchant', label: 'Merchant',       icon: Building2 },
+      { href: '/dashboard/billing',  label: 'Billing & Plans', icon: CreditCard },
+      { href: '/dashboard/profile',  label: 'Profile',         icon: User },
+    ],
+  },
+  {
+    label: 'Settings',
+    items: [
+      { href: '/dashboard/settings/webhooks',      label: 'Webhooks',          icon: Webhook },
+      { href: '/dashboard/settings/notifications', label: 'Notifications',     icon: Bell },
+      { href: '/dashboard/merchant/audit-log',     label: 'Merchant Audit Log', icon: ClipboardList },
+    ],
+  },
+  {
+    label: 'Support',
+    items: [
+      { href: '/dashboard/tickets', label: 'Support Tickets', icon: MessageSquare },
+      { href: '/dashboard/audit-log', label: 'My Audit Log',  icon: Shield },
+    ],
+  },
+  {
+    label: 'Resources',
+    items: [
+      { href: '/docs', label: 'API Docs', icon: BookOpen },
+    ],
+  },
 ];
 
-const ADMIN_NAV_ITEMS = [
-  { href: '/dashboard/analytics',          label: 'Analytics',           icon: BarChart2 },
-  { href: '/dashboard/admin/users',        label: 'User Management',     icon: Users },
-  { href: '/dashboard/admin/merchants',    label: 'Merchant Management', icon: Store },
-  { href: '/dashboard/admin/tickets',      label: 'Support Tickets',     icon: Ticket },
-  { href: '/dashboard/admin/audit-logs',   label: 'Audit Logs',          icon: Shield },
+const ADMIN_NAV_ITEMS: NavItem[] = [
+  { href: '/dashboard/analytics',        label: 'Analytics',           icon: BarChart2 },
+  { href: '/dashboard/admin/users',      label: 'User Management',     icon: Users },
+  { href: '/dashboard/admin/merchants',  label: 'Merchant Management', icon: Store },
+  { href: '/dashboard/admin/tickets',    label: 'Support Tickets',     icon: Ticket },
+  { href: '/dashboard/admin/audit-logs', label: 'Audit Logs',          icon: Shield },
 ];
 
 export function DashboardSidebar() {
@@ -49,14 +96,14 @@ export function DashboardSidebar() {
     router.push('/');
   };
 
-  function NavLink({ href, label, icon: Icon }: { href: string; label: string; icon: React.ElementType }) {
+  function NavLink({ href, label, icon: Icon }: NavItem) {
     const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href + '/'));
     return (
       <Link
         href={href}
         title={collapsed ? label : undefined}
         className={cn(
-          'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium mb-0.5 transition-colors',
+          'flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium mb-0.5 transition-colors',
           active
             ? 'bg-brand-50 text-brand-700'
             : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
@@ -65,6 +112,24 @@ export function DashboardSidebar() {
         <Icon className="h-4 w-4 shrink-0" />
         {!collapsed && <span>{label}</span>}
       </Link>
+    );
+  }
+
+  function NavGroupSection({ group }: { group: NavGroup }) {
+    return (
+      <div className="mb-3">
+        {!collapsed && (
+          <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+            {group.label}
+          </p>
+        )}
+        {collapsed && group.label !== 'Main' && (
+          <div className="my-2 border-t border-gray-100" />
+        )}
+        {group.items.map((item) => (
+          <NavLink key={item.href} {...item} />
+        ))}
+      </div>
     );
   }
 
@@ -112,18 +177,24 @@ export function DashboardSidebar() {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-4 px-2">
-        {NAV_ITEMS.map(item => <NavLink key={item.href} {...item} />)}
+        {NAV_GROUPS.map((group) => (
+          <NavGroupSection key={group.label} group={group} />
+        ))}
 
+        {/* Admin section */}
         {isAdmin && (
-          <>
-            {!collapsed && (
-              <p className="mt-4 mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+          <div className="mt-1">
+            {!collapsed ? (
+              <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-purple-500">
                 Admin
               </p>
+            ) : (
+              <div className="my-2 border-t border-gray-100" />
             )}
-            {collapsed && <div className="my-3 border-t border-gray-100" />}
-            {ADMIN_NAV_ITEMS.map(item => <NavLink key={item.href} {...item} />)}
-          </>
+            {ADMIN_NAV_ITEMS.map((item) => (
+              <NavLink key={item.href} {...item} />
+            ))}
+          </div>
         )}
       </nav>
 

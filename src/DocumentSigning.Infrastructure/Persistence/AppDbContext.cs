@@ -39,6 +39,12 @@ public class AppDbContext : DbContext
     public DbSet<MerchantBranding>         MerchantBrandings         => Set<MerchantBranding>();
     public DbSet<BlockchainRecord>         BlockchainRecords         => Set<BlockchainRecord>();
 
+    // ── Workflow engine DbSets ────────────────────────────────────────────────
+    public DbSet<WorkflowDefinition>    WorkflowDefinitions    => Set<WorkflowDefinition>();
+    public DbSet<WorkflowInstance>      WorkflowInstances      => Set<WorkflowInstance>();
+    public DbSet<WorkflowNodeExecution> WorkflowNodeExecutions => Set<WorkflowNodeExecution>();
+    public DbSet<WorkflowTrigger>       WorkflowTriggers       => Set<WorkflowTrigger>();
+
     protected override void OnModelCreating(ModelBuilder model)
     {
         base.OnModelCreating(model);
@@ -401,6 +407,67 @@ public class AppDbContext : DbContext
             e.Property(x => x.ErrorMessage).HasMaxLength(2000);
             e.HasIndex(x => x.EnvelopeId).IsUnique();
             e.HasOne(x => x.Envelope).WithMany().HasForeignKey(x => x.EnvelopeId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // WorkflowDefinitions
+        model.Entity<WorkflowDefinition>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("WorkflowDefinitions");
+            e.Property(x => x.Name).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(2000);
+            e.Property(x => x.TemplateName).HasMaxLength(256);
+            e.Property(x => x.Category).HasMaxLength(100);
+            e.Property(x => x.CreatedBy).HasMaxLength(256);
+            e.Property(x => x.Status).HasConversion<int>();
+            e.Property(x => x.JsonDefinition).HasColumnType("nvarchar(max)");
+            e.HasIndex(x => x.MerchantId);
+            e.HasIndex(x => x.IsTemplate);
+            e.HasOne(x => x.Merchant).WithMany().HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // WorkflowInstances
+        model.Entity<WorkflowInstance>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("WorkflowInstances");
+            e.Property(x => x.Status).HasConversion<int>();
+            e.Property(x => x.CurrentNodeId).HasMaxLength(128);
+            e.Property(x => x.TriggeredBy).HasMaxLength(256);
+            e.Property(x => x.ErrorMessage).HasMaxLength(2000);
+            e.Property(x => x.ContextJson).HasColumnType("nvarchar(max)");
+            e.HasIndex(x => x.WorkflowDefinitionId);
+            e.HasIndex(x => x.Status);
+            e.HasOne(x => x.Definition).WithMany(d => d.Instances)
+              .HasForeignKey(x => x.WorkflowDefinitionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // WorkflowNodeExecutions
+        model.Entity<WorkflowNodeExecution>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("WorkflowNodeExecutions");
+            e.Property(x => x.NodeId).HasMaxLength(128).IsRequired();
+            e.Property(x => x.NodeType).HasMaxLength(64).IsRequired();
+            e.Property(x => x.NodeLabel).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Status).HasConversion<int>();
+            e.Property(x => x.OutputJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.ErrorMessage).HasMaxLength(2000);
+            e.HasIndex(x => x.WorkflowInstanceId);
+            e.HasOne(x => x.Instance).WithMany(i => i.NodeExecutions)
+              .HasForeignKey(x => x.WorkflowInstanceId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // WorkflowTriggers
+        model.Entity<WorkflowTrigger>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("WorkflowTriggers");
+            e.Property(x => x.TriggerType).HasConversion<int>();
+            e.Property(x => x.ConfigurationJson).HasColumnType("nvarchar(max)");
+            e.HasIndex(x => x.WorkflowDefinitionId);
+            e.HasOne(x => x.Definition).WithMany(d => d.Triggers)
+              .HasForeignKey(x => x.WorkflowDefinitionId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

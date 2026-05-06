@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, ShieldCheck, Zap, Brain, Link2, CreditCard, Fingerprint } from 'lucide-react';
+import { ArrowRight, ShieldCheck, Zap, Brain, Link2, CreditCard, Fingerprint, GitBranch } from 'lucide-react';
 import { portalApi } from '@/lib/api';
 
 export function Hero() {
@@ -45,6 +45,10 @@ export function Hero() {
             <Link2 className="h-4 w-4" />
             Blockchain Verified
           </div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-purple-200 bg-purple-50 px-4 py-1.5 text-sm text-purple-700 font-medium">
+            <GitBranch className="h-4 w-4" />
+            Visual Workflow Engine
+          </div>
         </div>
 
         <h1 className="mx-auto max-w-4xl text-4xl font-extrabold leading-tight tracking-tight text-gray-900 sm:text-5xl lg:text-6xl">
@@ -56,9 +60,9 @@ export function Hero() {
 
         <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-600 leading-relaxed">
           DocSignerHub is an API-first, multi-tenant eSign platform with <strong>AI contract analysis</strong>,{' '}
-          <strong>blockchain notarisation</strong>, <strong>Stripe payments</strong>, <strong>bulk CSV sending</strong>, and{' '}
-          <strong>identity verification</strong> — all under a single REST API.
-        </p>
+          <strong>blockchain notarisation</strong>, <strong>Stripe payments</strong>, <strong>bulk CSV sending</strong>,{' '}
+          <strong>visual workflow automation</strong>, and{' '}
+          <strong>identity verification</strong> — all under a single REST API.</p>
 
         {/* Capability chips */}
         <div className="mt-5 flex items-center justify-center gap-2 flex-wrap">
@@ -68,6 +72,7 @@ export function Hero() {
             { label: '💳 Stripe Payments',   cls: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
             { label: '🪪 ID Verification',   cls: 'border-amber-200 bg-amber-50 text-amber-700'       },
             { label: '📤 Bulk CSV Send',      cls: 'border-sky-200 bg-sky-50 text-sky-700'            },
+            { label: '🔀 Workflow Engine',    cls: 'border-purple-200 bg-purple-50 text-purple-700'   },
             { label: '🎨 White-Label Ready', cls: 'border-pink-200 bg-pink-50 text-pink-700'          },
           ].map(({ label, cls }) => (
             <span key={label} className={`rounded-full border px-3 py-0.5 text-xs font-semibold ${cls}`}>
@@ -97,6 +102,11 @@ export function Hero() {
           </Button>
           <Button size="lg" variant="outline" asChild>
             <Link href="/how-to-use">How It Works</Link>
+          </Button>
+          <Button size="lg" variant="outline" asChild>
+            <Link href="/dashboard/workflows">
+              <GitBranch className="h-4 w-4" /> Workflow Builder
+            </Link>
           </Button>
           <Button size="lg" variant="ghost" asChild>
             <Link href="/docs">API Reference</Link>
