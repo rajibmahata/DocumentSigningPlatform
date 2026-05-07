@@ -1,15 +1,17 @@
 'use client';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { ChangeEvent } from 'react';
+import ContactGroupPicker, { type RecipientSelection } from './ContactGroupPicker';
 
+// ── Fields that use the generic input renderer ─────────────────────────────
 const fieldsByType: Record<string, { key: string; label: string; placeholder?: string; type?: string }[]> = {
   approval: [
     { key: 'approverEmail', label: 'Approver Email', placeholder: 'approver@company.com' },
     { key: 'approverRole',  label: 'Approver Role',  placeholder: 'manager' },
     { key: 'timeoutHours',  label: 'Timeout (hours)', placeholder: '48', type: 'number' },
   ],
+  // sendEmail handled separately (uses ContactGroupPicker for "to")
   sendEmail: [
-    { key: 'to',         label: 'To',      placeholder: '{{signer.email}}' },
     { key: 'subject',    label: 'Subject', placeholder: 'Please review...' },
     { key: 'body',       label: 'Body',    placeholder: 'Hello {{signer.name}},\n\nPlease review...', type: 'textarea' },
     { key: 'templateId', label: 'Email Template ID (optional)' },
@@ -27,10 +29,10 @@ const fieldsByType: Record<string, { key: string; label: string; placeholder?: s
     { key: 'templateId',  label: 'Document Template ID' },
     { key: 'variables',   label: 'Variables (JSON)',    placeholder: '{}', type: 'textarea' },
   ],
+  // signatureRequest handled separately (uses ContactGroupPicker for "signerEmail")
   signatureRequest: [
-    { key: 'templateId',     label: 'Document Template ID' },
-    { key: 'signerEmail',    label: 'Signer Email', placeholder: '{{signer.email}}' },
-    { key: 'expiresInDays',  label: 'Expires In Days', placeholder: '7', type: 'number' },
+    { key: 'templateId',    label: 'Document Template ID' },
+    { key: 'expiresInDays', label: 'Expires In Days', placeholder: '7', type: 'number' },
   ],
   webhook: [
     { key: 'url',          label: 'URL',          placeholder: 'https://...' },
@@ -43,14 +45,38 @@ const fieldsByType: Record<string, { key: string; label: string; placeholder?: s
   ],
 };
 
+// ── Helper — extract / save RecipientSelection stored inside node config ──────
+function getRecipients(config: Record<string, unknown>, key: string): RecipientSelection {
+  const raw = config[key];
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const r = raw as Partial<RecipientSelection>;
+    return {
+      contactIds: Array.isArray(r.contactIds) ? (r.contactIds as string[]) : [],
+      groupIds:   Array.isArray(r.groupIds)   ? (r.groupIds   as string[]) : [],
+      emails:     Array.isArray(r.emails)     ? (r.emails     as string[]) : [],
+    };
+  }
+  // Migrate legacy plain-string value
+  const legacyStr = typeof raw === 'string' && raw ? raw : '';
+  const emails = legacyStr
+    .split(/[;,\s]+/)
+    .map((s) => s.trim())
+    .filter((s) => s.includes('@'));
+  return { contactIds: [], groupIds: [], emails };
+}
+
 export default function PropertiesPanel() {
-  const nodes         = useWorkflowStore((s) => s.nodes);
-  const selectedId    = useWorkflowStore((s) => s.selectedNodeId);
+  const nodes          = useWorkflowStore((s) => s.nodes);
+  const selectedId     = useWorkflowStore((s) => s.selectedNodeId);
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
-  const deleteNode    = useWorkflowStore((s) => s.deleteNode);
-  const selectNode    = useWorkflowStore((s) => s.selectNode);
+  const deleteNode     = useWorkflowStore((s) => s.deleteNode);
+  const selectNode     = useWorkflowStore((s) => s.selectNode);
 
   const node = nodes.find((n) => n.id === selectedId);
+
+  // workflow category hint — stored by the canvas when a template is loaded
+  // falls back to empty string so AI suggestions are silent until data exists
+  const workflowCategory = (nodes[0]?.data?.config?.templateCategory as string) ?? '';
 
   if (!node) {
     return (
@@ -116,6 +142,27 @@ export default function PropertiesPanel() {
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider border-t border-slate-100 pt-3">
               Configuration
             </div>
+
+            {/* ── Recipient picker for sendEmail ── */}
+            {node.type === 'sendEmail' && (
+              <ContactGroupPicker
+                label="To"
+                value={getRecipients(node.data.config, 'recipients')}
+                workflowCategory={workflowCategory}
+                onChange={(v) => updateNodeData(node.id, { config: { ...node.data.config, recipients: v } })}
+              />
+            )}
+
+            {/* ── Recipient picker for signatureRequest ── */}
+            {node.type === 'signatureRequest' && (
+              <ContactGroupPicker
+                label="Signer(s)"
+                value={getRecipients(node.data.config, 'signers')}
+                workflowCategory={workflowCategory}
+                onChange={(v) => updateNodeData(node.id, { config: { ...node.data.config, signers: v } })}
+              />
+            )}
+
             {fields.map((f) => (
               <div key={f.key}>
                 <label className="block text-xs font-medium text-slate-600 mb-1">{f.label}</label>
