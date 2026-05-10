@@ -69,3 +69,6 @@ appsettings.*.json
 !appsettings.json
 !appsettings.Development.json
 secrets.json
+src/DocumentSigning.Api/appsettings.Development.json
+
+src/DocumentSigning.Api/appsettings.json

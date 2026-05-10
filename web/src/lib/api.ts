@@ -552,3 +552,289 @@ export const workflowApi = {
   getStats: () =>
     apiClient.get<WorkflowStatsDto>('/workflows/stats'),
 };
+
+// ── Agent Manager Types ───────────────────────────────────────────────────────
+
+export interface AgentDto {
+  id: string;
+  merchantId: string;
+  agentName: string;
+  agentType: string;
+  parentAgentType?: string;
+  description?: string;
+  isEnabled: boolean;
+  scheduleExpression?: string;
+  timezone: string;
+  approvalMode: string;
+  maxRetries: number;
+  configurationJson?: string;
+  createdAt: string;
+  updatedAt: string;
+  statusSummary?: AgentStatusSummaryDto;
+}
+
+export interface AgentStatusSummaryDto {
+  lastStatus: string;
+  lastRunAt?: string;
+  nextRunAt?: string;
+  totalRuns: number;
+  successRuns: number;
+  failedRuns: number;
+}
+
+export interface AgentExecutionDto {
+  id: string;
+  agentId: string;
+  agentName: string;
+  executionStatus: string;
+  startedAt: string;
+  completedAt?: string;
+  inputJson?: string;
+  outputJson?: string;
+  validationResultJson?: string;
+  errorDetails?: string;
+  retryCount: number;
+  stepLogJson?: string;
+  triggerType: string;
+}
+
+export interface AgentMemoryDto {
+  id: string;
+  agentId: string;
+  contextType: string;
+  contextKey: string;
+  contextValue: string;
+  updatedAt: string;
+}
+
+export interface CustomerInteractionDto {
+  id: string;
+  customerEmail: string;
+  customerName?: string;
+  interactionType: string;
+  platform: string;
+  message: string;
+  aiInterpretation?: string;
+  sentiment: string;
+  nextRecommendedAction?: string;
+  objectionType?: string;
+  reEngageDaysDelay: number;
+  createdAt: string;
+}
+
+export interface BlogSummaryDto {
+  id: string;
+  title: string;
+  slug: string;
+  category?: string;
+  tags?: string;
+  coverImageUrl?: string;
+  status: string;
+  publishedAt?: string;
+  createdByAgent: string;
+  viewCount: number;
+  metaDescription?: string;
+  createdAt: string;
+}
+
+export interface BlogDto extends BlogSummaryDto {
+  content: string;
+  keywords?: string;
+  seoScore?: string;
+  updatedAt: string;
+}
+
+// ── Agent Manager API ─────────────────────────────────────────────────────────
+
+export const agentApi = {
+  getAgents: () => apiClient.get<AgentDto[]>('/agent-manager'),
+  getAgent: (id: string) => apiClient.get<AgentDto>(`/agent-manager/${id}`),
+  createAgent: (data: Partial<AgentDto>) => apiClient.post<AgentDto>('/agent-manager', data),
+  updateAgent: (id: string, data: Partial<AgentDto>) => apiClient.put(`/agent-manager/${id}`, data),
+  deleteAgent: (id: string) => apiClient.delete(`/agent-manager/${id}`),
+  toggleAgent: (id: string, enabled: boolean) => apiClient.patch(`/agent-manager/${id}/toggle?enabled=${enabled}`),
+  executeAgent: (id: string, triggerType = 'manual') => apiClient.post(`/agent-manager/${id}/execute?triggerType=${triggerType}`),
+  getExecutions: (id: string) => apiClient.get<AgentExecutionDto[]>(`/agent-manager/${id}/executions`),
+  getAllExecutions: () => apiClient.get<AgentExecutionDto[]>('/agent-manager/executions'),
+  retryExecution: (execId: string) => apiClient.post(`/agent-manager/executions/${execId}/retry`),
+  getMemories: (id: string) => apiClient.get<AgentMemoryDto[]>(`/agent-manager/${id}/memories`),
+  upsertMemory: (id: string, data: { contextType: string; contextKey: string; contextValue: string }) =>
+    apiClient.post(`/agent-manager/${id}/memories`, data),
+  approveExecution: (execId: string) => apiClient.post(`/agent-manager/executions/${execId}/approve`),
+  cancelExecution: (execId: string) => apiClient.post(`/agent-manager/executions/${execId}/cancel`),
+  getCustomerInteractions: (email?: string) =>
+    apiClient.get<CustomerInteractionDto[]>(`/agent-manager/customer-interactions${email ? `?email=${email}` : ''}`),
+  recordInteraction: (data: Partial<CustomerInteractionDto>) =>
+    apiClient.post<CustomerInteractionDto>('/agent-manager/customer-interactions', data),
+  deleteInteraction: (id: string) => apiClient.delete(`/agent-manager/customer-interactions/${id}`),
+  // Presets
+  getPresets: (category?: string) =>
+    apiClient.get<AgentPresetDto[]>(`/agent-manager/presets${category ? `?category=${category}` : ''}`),
+  getPreset: (presetId: string) => apiClient.get<AgentPresetDto>(`/agent-manager/presets/${presetId}`),
+  provisionPreset: (presetId: string) =>
+    apiClient.post<ProvisionedPresetDto>(`/agent-manager/presets/${presetId}/provision`),
+};
+
+// ── Agent Preset types ────────────────────────────────────────────────────────
+
+export interface AgentPresetDto {
+  presetId: string;
+  category: string;
+  agentType: string;
+  name: string;
+  description: string;
+  icon: string;
+  complexity: 'Simple' | 'Medium' | 'Complex';
+  scheduleExpression: string;
+  timezone: string;
+  approvalMode: string;
+  maxRetries: number;
+  configurationJson: string;
+  workflowStepsJson: string;
+  tags: string[];
+}
+
+export interface ProvisionedPresetDto {
+  agent: AgentDto;
+  workflow: { id: string; agentId: string; workflowName: string; stepsJson: string; isEnabled: boolean; createdAt: string };
+}
+
+
+
+export const blogApi = {
+  getBlogs: (params?: { status?: string; category?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set('status', params.status);
+    if (params?.category) q.set('category', params.category);
+    return apiClient.get<BlogSummaryDto[]>(`/blogs${q.toString() ? '?' + q.toString() : ''}`);
+  },
+  getBlog: (id: string) => apiClient.get<BlogDto>(`/blogs/${id}`),
+  createBlog: (data: Partial<BlogDto>) => apiClient.post<BlogDto>('/blogs', data),
+  updateBlog: (id: string, data: Partial<BlogDto>) => apiClient.put<BlogDto>(`/blogs/${id}`, data),
+  deleteBlog: (id: string) => apiClient.delete(`/blogs/${id}`),
+  publishBlog: (id: string) => apiClient.post<BlogDto>(`/blogs/${id}/publish`),
+  unpublishBlog: (id: string) => apiClient.post<BlogDto>(`/blogs/${id}/unpublish`),
+  generateBlog: (data: { topic: string; keywords?: string; targetAudience?: string; tone?: string }) =>
+    apiClient.post<BlogDto>('/blogs/generate', data),
+};
+
+// ── Public Blog API (no auth required) ───────────────────────────────────────
+
+export interface BlogCategoryDto { name: string; slug: string; postCount: number; }
+
+export const publicBlogApi = {
+  getBlogs: (params?: { category?: string; page?: number; pageSize?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.category) q.set('category', params.category);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+    const qs = q.toString();
+    return fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5163'}/api/public/blogs${qs ? '?' + qs : ''}`)
+      .then(r => r.json() as Promise<BlogSummaryDto[]>);
+  },
+  getTrending: (count = 6) =>
+    fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5163'}/api/public/blogs/trending?count=${count}`)
+      .then(r => r.json() as Promise<BlogSummaryDto[]>),
+  getCategories: () =>
+    fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5163'}/api/public/blogs/categories`)
+      .then(r => r.json() as Promise<BlogCategoryDto[]>),
+  getBySlug: (slug: string) =>
+    fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5163'}/api/public/blogs/${slug}`)
+      .then(r => { if (!r.ok) return null; return r.json() as Promise<BlogDto>; }),
+  getRelated: (slug: string, count = 4) =>
+    fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5163'}/api/public/blogs/${slug}/related?count=${count}`)
+      .then(r => r.json() as Promise<BlogSummaryDto[]>),
+  trackView: (slug: string) =>
+    fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5163'}/api/public/blogs/${slug}/view`, { method: 'POST' })
+      .catch(() => {}),
+};
+
+
+
+export interface SocialAccountDto {
+  id: string; platform: string; accountName: string; pageId: string;
+  isActive: boolean; tokenExpiry?: string; createdAt: string;
+}
+export interface MarketingPostDto {
+  id: string; platform: string; content: string; imageUrl?: string;
+  status: string; scheduledAt?: string; publishedAt?: string;
+  engagementScore: number; contentCategory: string; hashtags?: string;
+  campaignId?: string; createdBy: string; createdAt: string;
+}
+export interface MarketingCampaignDto {
+  id: string; name: string; description?: string; campaignType: string;
+  status: string; startedAt?: string; endedAt?: string; createdAt: string;
+}
+export interface EngagementActivityDto {
+  id: string; platform: string; activityType: string; userName?: string;
+  message: string; response?: string; status: string; postId?: string; createdAt: string;
+}
+export interface MarketingAnalyticsDto {
+  totalPosts: number; publishedPosts: number; scheduledPosts: number; draftPosts: number;
+  totalEngagements: number; pendingReplies: number; activeCampaigns: number;
+  avgEngagementScore: number;
+  platformStats: { platform: string; posts: number; engagements: number }[];
+  topPosts: MarketingPostDto[];
+}
+export interface GeneratePostResult {
+  content: string; hashtags: string;
+  suggestedCtas: string[]; engagementScore: number;
+}
+
+export const marketingApi = {
+  // Social accounts
+  getSocialAccounts: () =>
+    apiClient.get<SocialAccountDto[]>('/marketing/social-accounts'),
+  connectSocialAccount: (data: {
+    platform: string; accountName: string; pageId: string;
+    accessToken: string; refreshToken?: string; tokenExpiry?: string;
+  }) => apiClient.post<SocialAccountDto>('/marketing/social-accounts', data),
+  disconnectSocialAccount: (id: string) =>
+    apiClient.delete(`/marketing/social-accounts/${id}`),
+
+  // Posts
+  getPosts: (params?: { status?: string; platform?: string }) =>
+    apiClient.get<MarketingPostDto[]>('/marketing/posts', { params }),
+  createPost: (data: {
+    platform: string; content: string; contentCategory: string;
+    hashtags?: string; imageUrl?: string; campaignId?: string; scheduledAt?: string;
+  }) => apiClient.post<MarketingPostDto>('/marketing/posts', data),
+  updatePostStatus: (id: string, status: string) =>
+    apiClient.patch<MarketingPostDto>(`/marketing/posts/${id}/status`, JSON.stringify(status), {
+      headers: { 'Content-Type': 'application/json' },
+    }),
+  deletePost: (id: string) =>
+    apiClient.delete(`/marketing/posts/${id}`),
+
+  // AI
+  generatePost: (data: {
+    platform: string; contentCategory: string;
+    tone?: string; campaignContext?: string; includeHashtags?: boolean;
+  }) => apiClient.post<GeneratePostResult>('/marketing/ai/generate-post', data),
+  suggestReply: (message: string, platform: string) =>
+    apiClient.post<{ reply: string }>('/marketing/ai/suggest-reply', { message, platform }),
+
+  // Campaigns
+  getCampaigns: () =>
+    apiClient.get<MarketingCampaignDto[]>('/marketing/campaigns'),
+  createCampaign: (data: { name: string; description?: string; campaignType: string }) =>
+    apiClient.post<MarketingCampaignDto>('/marketing/campaigns', data),
+  updateCampaignStatus: (id: string, status: string) =>
+    apiClient.patch<MarketingCampaignDto>(`/marketing/campaigns/${id}/status`, JSON.stringify(status), {
+      headers: { 'Content-Type': 'application/json' },
+    }),
+
+  // Engagements
+  getEngagements: (params?: { status?: string }) =>
+    apiClient.get<EngagementActivityDto[]>('/marketing/engagements', { params }),
+  replyEngagement: (id: string, response: string) =>
+    apiClient.post<EngagementActivityDto>(`/marketing/engagements/${id}/reply`, { response }),
+  updateEngagementStatus: (id: string, status: string) =>
+    apiClient.patch<EngagementActivityDto>(`/marketing/engagements/${id}/status`, JSON.stringify(status), {
+      headers: { 'Content-Type': 'application/json' },
+    }),
+
+  // Analytics
+  getAnalytics: () =>
+    apiClient.get<MarketingAnalyticsDto>('/marketing/analytics'),
+};

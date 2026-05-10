@@ -26,8 +26,9 @@ export function Footer() {
           </div>
 
           <div>
-            <h4 className="text-sm font-semibold text-gray-900 mb-3">Developers</h4>
+            <h4 className="text-sm font-semibold text-gray-900 mb-3">Resources</h4>
             <ul className="space-y-2 text-sm text-gray-500">
+              <li><Link href="/blog" className="hover:text-brand-700">Blog</Link></li>
               <li><Link href="/docs" className="hover:text-brand-700">API Docs</Link></li>
               <li><Link href="/#api-integration" className="hover:text-brand-700">API Integration</Link></li>
               <li><Link href="/faq" className="hover:text-brand-700">FAQ &amp; User Guide</Link></li>
