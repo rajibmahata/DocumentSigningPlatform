@@ -4,6 +4,7 @@ using DocumentSigning.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DocumentSigning.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260507053056_AddMarketingEngine")]
+    partial class AddMarketingEngine
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,204 +24,6 @@ namespace DocumentSigning.Infrastructure.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
-
-            modelBuilder.Entity("DocumentSigning.Core.Entities.AgentDefinition", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("AgentName")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<string>("AgentType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("ApprovalMode")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasDefaultValue("approval");
-
-                    b.Property<string>("ConfigurationJson")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<bool>("IsEnabled")
-                        .HasColumnType("bit");
-
-                    b.Property<int>("MaxRetries")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("MerchantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ParentAgentType")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("ScheduleExpression")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("Timezone")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)")
-                        .HasDefaultValue("UTC");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MerchantId", "AgentType");
-
-                    b.ToTable("AgentDefinitions", (string)null);
-                });
-
-            modelBuilder.Entity("DocumentSigning.Core.Entities.AgentExecutionHistory", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("AgentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("ErrorDetails")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
-                    b.Property<string>("ExecutionStatus")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
-
-                    b.Property<string>("InputJson")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("MerchantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("OutputJson")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("RetryCount")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("StartedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("StepLogJson")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("TriggerType")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasDefaultValue("scheduled");
-
-                    b.Property<string>("ValidationResultJson")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MerchantId");
-
-                    b.HasIndex("AgentId", "StartedAt");
-
-                    b.ToTable("AgentExecutionHistories", (string)null);
-                });
-
-            modelBuilder.Entity("DocumentSigning.Core.Entities.AgentMemory", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("AgentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ContextKey")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<string>("ContextType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("ContextValue")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("MerchantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MerchantId");
-
-                    b.HasIndex("AgentId", "ContextType", "ContextKey")
-                        .IsUnique();
-
-                    b.ToTable("AgentMemories", (string)null);
-                });
-
-            modelBuilder.Entity("DocumentSigning.Core.Entities.AgentWorkflow", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("AgentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsEnabled")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("StepsJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("WorkflowName")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AgentId");
-
-                    b.ToTable("AgentWorkflows", (string)null);
-                });
 
             modelBuilder.Entity("DocumentSigning.Core.Entities.AuditLog", b =>
                 {
@@ -358,84 +163,6 @@ namespace DocumentSigning.Infrastructure.Migrations
                     b.ToTable("BlockchainRecords", (string)null);
                 });
 
-            modelBuilder.Entity("DocumentSigning.Core.Entities.Blog", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Category")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("CoverImageUrl")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedByAgent")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
-                    b.Property<string>("Keywords")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<Guid>("MerchantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("MetaDescription")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<DateTime?>("PublishedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("SeoScore")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("Slug")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("Tags")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("ViewCount")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Slug");
-
-                    b.HasIndex("MerchantId", "Status");
-
-                    b.ToTable("Blogs", (string)null);
-                });
-
             modelBuilder.Entity("DocumentSigning.Core.Entities.BulkSendJob", b =>
                 {
                     b.Property<Guid>("Id")
@@ -525,69 +252,6 @@ namespace DocumentSigning.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Claims");
-                });
-
-            modelBuilder.Entity("DocumentSigning.Core.Entities.CustomerInteractionMemory", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("AiInterpretation")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CustomerEmail")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<string>("CustomerName")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<string>("InteractionType")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<Guid>("MerchantId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("NextRecommendedAction")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<string>("ObjectionType")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("Platform")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<int>("ReEngageDaysDelay")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Sentiment")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Sentiment");
-
-                    b.HasIndex("MerchantId", "CustomerEmail");
-
-                    b.ToTable("CustomerInteractionMemories", (string)null);
                 });
 
             modelBuilder.Entity("DocumentSigning.Core.Entities.Document", b =>
@@ -1976,66 +1640,6 @@ namespace DocumentSigning.Infrastructure.Migrations
                     b.ToTable("WorkflowTriggers", (string)null);
                 });
 
-            modelBuilder.Entity("DocumentSigning.Core.Entities.AgentDefinition", b =>
-                {
-                    b.HasOne("DocumentSigning.Core.Entities.Merchant", "Merchant")
-                        .WithMany()
-                        .HasForeignKey("MerchantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Merchant");
-                });
-
-            modelBuilder.Entity("DocumentSigning.Core.Entities.AgentExecutionHistory", b =>
-                {
-                    b.HasOne("DocumentSigning.Core.Entities.AgentDefinition", "Agent")
-                        .WithMany("ExecutionHistory")
-                        .HasForeignKey("AgentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("DocumentSigning.Core.Entities.Merchant", "Merchant")
-                        .WithMany()
-                        .HasForeignKey("MerchantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Agent");
-
-                    b.Navigation("Merchant");
-                });
-
-            modelBuilder.Entity("DocumentSigning.Core.Entities.AgentMemory", b =>
-                {
-                    b.HasOne("DocumentSigning.Core.Entities.AgentDefinition", "Agent")
-                        .WithMany("Memories")
-                        .HasForeignKey("AgentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("DocumentSigning.Core.Entities.Merchant", "Merchant")
-                        .WithMany()
-                        .HasForeignKey("MerchantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Agent");
-
-                    b.Navigation("Merchant");
-                });
-
-            modelBuilder.Entity("DocumentSigning.Core.Entities.AgentWorkflow", b =>
-                {
-                    b.HasOne("DocumentSigning.Core.Entities.AgentDefinition", "Agent")
-                        .WithMany("Workflows")
-                        .HasForeignKey("AgentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Agent");
-                });
-
             modelBuilder.Entity("DocumentSigning.Core.Entities.BlockchainRecord", b =>
                 {
                     b.HasOne("DocumentSigning.Core.Entities.SigningEnvelope", "Envelope")
@@ -2047,29 +1651,7 @@ namespace DocumentSigning.Infrastructure.Migrations
                     b.Navigation("Envelope");
                 });
 
-            modelBuilder.Entity("DocumentSigning.Core.Entities.Blog", b =>
-                {
-                    b.HasOne("DocumentSigning.Core.Entities.Merchant", "Merchant")
-                        .WithMany()
-                        .HasForeignKey("MerchantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Merchant");
-                });
-
             modelBuilder.Entity("DocumentSigning.Core.Entities.BulkSendJob", b =>
-                {
-                    b.HasOne("DocumentSigning.Core.Entities.Merchant", "Merchant")
-                        .WithMany()
-                        .HasForeignKey("MerchantId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Merchant");
-                });
-
-            modelBuilder.Entity("DocumentSigning.Core.Entities.CustomerInteractionMemory", b =>
                 {
                     b.HasOne("DocumentSigning.Core.Entities.Merchant", "Merchant")
                         .WithMany()
@@ -2385,15 +1967,6 @@ namespace DocumentSigning.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Definition");
-                });
-
-            modelBuilder.Entity("DocumentSigning.Core.Entities.AgentDefinition", b =>
-                {
-                    b.Navigation("ExecutionHistory");
-
-                    b.Navigation("Memories");
-
-                    b.Navigation("Workflows");
                 });
 
             modelBuilder.Entity("DocumentSigning.Core.Entities.SigningEnvelope", b =>

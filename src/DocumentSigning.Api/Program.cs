@@ -4,11 +4,11 @@ using DocumentSigning.Infrastructure.BackgroundJobs;
 using DocumentSigning.Infrastructure.Persistence;
 using DocumentSigning.Infrastructure.Repositories;
 using DocumentSigning.Infrastructure.Services;
+using DocumentSigning.Infrastructure.Services.Agents;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-
 var builder = WebApplication.CreateBuilder(args);
 
 // ─── Database ─────────────────────────────────────────────────────────────────
@@ -68,6 +68,30 @@ builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IIdentityVerificationService, IdentityVerificationService>();
 builder.Services.AddScoped<IBlockchainService, BlockchainService>();
 builder.Services.AddScoped<IWorkflowService, WorkflowService>();
+
+// ─── Marketing services ────────────────────────────────────────────────────
+builder.Services.AddScoped<IMarketingService, MarketingService>();
+builder.Services.AddScoped<IDeepSeekService, DeepSeekService>();
+builder.Services.AddHostedService<DailyMarketingAgent>();
+builder.Services.AddHttpClient("deepseek", client =>
+{
+    var baseUrl = builder.Configuration["DeepSeek:BaseUrl"] ?? "https://api.deepseek.com";
+    client.BaseAddress = new Uri(baseUrl);
+    client.Timeout     = TimeSpan.FromSeconds(60);
+});
+
+// ─── Agent Manager System ──────────────────────────────────────────────────
+builder.Services.AddScoped<IAgentManagerService, AgentManagerService>();
+builder.Services.AddScoped<IBlogService, BlogService>();
+builder.Services.AddScoped<IValidationPipeline, ValidationPipeline>();
+builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
+builder.Services.AddScoped<ISpecializedAgent, EmailMarketingAgent>();
+builder.Services.AddScoped<ISpecializedAgent, SocialMediaAgent>();
+builder.Services.AddScoped<ISpecializedAgent, CampaignAgent>();
+builder.Services.AddScoped<ISpecializedAgent, BlogAgent>();
+builder.Services.AddScoped<ISpecializedAgent, ValidationAgent>();
+builder.Services.AddScoped<ISpecializedAgent, AnalyticsIntelligenceAgent>();
+builder.Services.AddHostedService<AgentSchedulerWorker>();
 
 // ─── Background job handler (scoped — instantiated inside OutboxWorker scope) ─
 builder.Services.AddScoped<StampDocJobHandler>();
@@ -338,8 +362,29 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger
 
 if (app.Environment.IsDevelopment())
 {
-    // developer-only tooling can go here
+    app.UseDeveloperExceptionPage();
 }
+else
+{
+    app.UseExceptionHandler(errApp => errApp.Run(async ctx =>
+    {
+        ctx.Response.StatusCode = 500;
+        ctx.Response.ContentType = "application/json";
+        var ex = ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+        await ctx.Response.WriteAsJsonAsync(new { error = ex?.Message ?? "Internal Server Error", detail = ex?.ToString() });
+    }));
+}
+
+// Log all 500 responses in development for debugging
+app.Use(async (context, next) =>
+{
+    await next();
+    if (context.Response.StatusCode >= 500)
+    {
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogError("HTTP {StatusCode} on {Method} {Path}", context.Response.StatusCode, context.Request.Method, context.Request.Path);
+    }
+});
 
 app.UseStaticFiles();
 app.UseAntiforgery();

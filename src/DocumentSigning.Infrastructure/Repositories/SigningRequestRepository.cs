@@ -54,12 +54,21 @@ public class SigningRequestRepository : ISigningRequestRepository
 
     public async Task<int> ExpireByEnvelopeAsync(Guid envelopeId, CancellationToken ct = default)
     {
-        var expirableStatuses = new[] { SigningStatus.Pending, SigningStatus.Processing };
-        return await _db.SigningRequests
-            .Where(sr =>
-                expirableStatuses.Contains(sr.Status) &&
-                _db.Documents.Any(d => d.Id == sr.DocumentId && d.EnvelopeId == envelopeId))
-            .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status, SigningStatus.Expired), ct);
+        // Load doc IDs for this envelope
+        var docIds = await _db.Documents
+            .Where(d => d.EnvelopeId == envelopeId)
+            .Select(d => d.Id)
+            .ToListAsync(ct);
+        if (docIds.Count == 0) return 0;
+        // Load matching signing requests in memory, then update — avoids OPENJSON/CTE SQL compat issues
+        var requests = await _db.SigningRequests
+            .Where(sr => sr.Status == SigningStatus.Pending || sr.Status == SigningStatus.Processing)
+            .ToListAsync(ct);
+        var toExpire = requests.Where(sr => docIds.Contains(sr.DocumentId)).ToList();
+        foreach (var r in toExpire)
+            r.Status = SigningStatus.Expired;
+        await _db.SaveChangesAsync(ct);
+        return toExpire.Count;
     }
 
     public async Task<List<PendingReminderDto>> GetPendingRemindersAsync(CancellationToken ct = default)

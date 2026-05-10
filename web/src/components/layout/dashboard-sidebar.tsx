@@ -8,6 +8,8 @@ import {
   LayoutDashboard, FileText, Send, Building2, User, BookOpen,
   LogOut, FileSignature, ChevronLeft, ChevronRight,
   BarChart2, Users, Store, MessageSquare, Ticket, PenLine, Shield, Webhook, ContactRound, CreditCard, LayoutTemplate, Bell, ClipboardList, GitBranch,
+  Megaphone, Globe2, Target, Sparkles, CalendarClock, TrendingUp, Bot, PenSquare,
+  AlertCircle, BarChart3,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -43,6 +45,23 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: '/dashboard/workflows', label: 'Workflows',      icon: GitBranch },
       { href: '/dashboard/contacts',  label: 'Signer Contacts', icon: ContactRound },
+    ],
+  },
+  {
+    label: 'Marketing',
+    items: [
+      { href: '/dashboard/marketing',            label: 'Marketing Hub',    icon: Megaphone },
+      { href: '/dashboard/marketing/social',     label: 'Social Accounts',  icon: Globe2 },
+      { href: '/dashboard/marketing/campaigns',  label: 'Campaigns',        icon: Target },
+      { href: '/dashboard/marketing/content',    label: 'AI Content Studio', icon: Sparkles },
+      { href: '/dashboard/marketing/scheduled',  label: 'Scheduled Posts',  icon: CalendarClock },
+      { href: '/dashboard/marketing/engagement', label: 'Engagement Center', icon: MessageSquare },
+      { href: '/dashboard/marketing/analytics',  label: 'Analytics',        icon: TrendingUp },
+      { href: '/dashboard/marketing/agent-manager',                      label: 'Agent Manager',    icon: Bot },
+      { href: '/dashboard/marketing/agent-manager/approvals',             label: '↳ Approvals',      icon: AlertCircle },
+      { href: '/dashboard/marketing/agent-manager/interactions',          label: '↳ Customer Memory', icon: Users },
+      { href: '/dashboard/marketing/agent-manager/agent-analytics',      label: '↳ Agent Analytics', icon: BarChart3 },
+      { href: '/dashboard/marketing/blogs',                               label: 'Blogs',             icon: PenSquare },
     ],
   },
   {
