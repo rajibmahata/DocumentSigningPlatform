@@ -47,6 +47,11 @@ public interface IAgentManagerService
     Task<List<CustomerInteractionDto>> GetCustomerInteractionsAsync(Guid merchantId, string? email = null);
     Task<CustomerInteractionDto>  RecordInteractionAsync(Guid merchantId, CustomerInteractionDto dto);
     Task                           DeleteInteractionAsync(Guid id, Guid merchantId);
+
+    // Presets
+    List<AgentPresetDto>          GetAllPresets();
+    AgentPresetDto?               GetPreset(string presetId);
+    Task<ProvisionedPresetDto>    ProvisionPresetAsync(Guid merchantId, string presetId);
 }
 
 // ── Blog Service ──────────────────────────────────────────────────────────────

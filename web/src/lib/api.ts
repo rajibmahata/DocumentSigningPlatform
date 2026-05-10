@@ -667,9 +667,39 @@ export const agentApi = {
   recordInteraction: (data: Partial<CustomerInteractionDto>) =>
     apiClient.post<CustomerInteractionDto>('/agent-manager/customer-interactions', data),
   deleteInteraction: (id: string) => apiClient.delete(`/agent-manager/customer-interactions/${id}`),
+  // Presets
+  getPresets: (category?: string) =>
+    apiClient.get<AgentPresetDto[]>(`/agent-manager/presets${category ? `?category=${category}` : ''}`),
+  getPreset: (presetId: string) => apiClient.get<AgentPresetDto>(`/agent-manager/presets/${presetId}`),
+  provisionPreset: (presetId: string) =>
+    apiClient.post<ProvisionedPresetDto>(`/agent-manager/presets/${presetId}/provision`),
 };
 
-// ── Blog API ──────────────────────────────────────────────────────────────────
+// ── Agent Preset types ────────────────────────────────────────────────────────
+
+export interface AgentPresetDto {
+  presetId: string;
+  category: string;
+  agentType: string;
+  name: string;
+  description: string;
+  icon: string;
+  complexity: 'Simple' | 'Medium' | 'Complex';
+  scheduleExpression: string;
+  timezone: string;
+  approvalMode: string;
+  maxRetries: number;
+  configurationJson: string;
+  workflowStepsJson: string;
+  tags: string[];
+}
+
+export interface ProvisionedPresetDto {
+  agent: AgentDto;
+  workflow: { id: string; agentId: string; workflowName: string; stepsJson: string; isEnabled: boolean; createdAt: string };
+}
+
+
 
 export const blogApi = {
   getBlogs: (params?: { status?: string; category?: string }) => {

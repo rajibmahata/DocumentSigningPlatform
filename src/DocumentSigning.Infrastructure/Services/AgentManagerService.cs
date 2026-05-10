@@ -188,6 +188,56 @@ public sealed class AgentManagerService(AppDbContext db) : IAgentManagerService
         await db.SaveChangesAsync();
     }
 
+    // ── Presets ───────────────────────────────────────────────────────────────
+
+    public List<AgentPresetDto> GetAllPresets() => AgentPresetCatalog.All.ToList();
+
+    public AgentPresetDto? GetPreset(string presetId)
+        => AgentPresetCatalog.All.FirstOrDefault(p =>
+            string.Equals(p.PresetId, presetId, StringComparison.OrdinalIgnoreCase));
+
+    public async Task<ProvisionedPresetDto> ProvisionPresetAsync(Guid merchantId, string presetId)
+    {
+        var preset = GetPreset(presetId)
+            ?? throw new ArgumentException($"Preset '{presetId}' not found.");
+
+        // Check if merchant already has this preset provisioned (by preset name)
+        var existing = await db.AgentDefinitions
+            .FirstOrDefaultAsync(a => a.MerchantId == merchantId && a.AgentName == preset.Name);
+        if (existing is not null)
+            throw new InvalidOperationException($"Agent '{preset.Name}' is already provisioned for this merchant.");
+
+        var agent = new Core.Entities.AgentDefinition
+        {
+            MerchantId         = merchantId,
+            AgentName          = preset.Name,
+            AgentType          = preset.AgentType,
+            Description        = preset.Description,
+            IsEnabled          = false,   // user must explicitly enable after reviewing config
+            ScheduleExpression = string.IsNullOrWhiteSpace(preset.ScheduleExpression) ? null : preset.ScheduleExpression,
+            Timezone           = preset.Timezone,
+            ApprovalMode       = preset.ApprovalMode,
+            MaxRetries         = preset.MaxRetries,
+            ConfigurationJson  = preset.ConfigurationJson,
+        };
+        db.AgentDefinitions.Add(agent);
+        await db.SaveChangesAsync();
+
+        var workflow = new Core.Entities.AgentWorkflow
+        {
+            AgentId      = agent.Id,
+            WorkflowName = "default",
+            StepsJson    = preset.WorkflowStepsJson,
+            IsEnabled    = true,
+        };
+        db.AgentWorkflows.Add(workflow);
+        await db.SaveChangesAsync();
+
+        return new ProvisionedPresetDto(ToDto(agent),
+            new AgentWorkflowDto(workflow.Id, workflow.AgentId, workflow.WorkflowName,
+                workflow.StepsJson, workflow.IsEnabled, workflow.CreatedAt));
+    }
+
     // ── Mappers ───────────────────────────────────────────────────────────────
 
     private static AgentDto ToDto(AgentDefinition a) =>

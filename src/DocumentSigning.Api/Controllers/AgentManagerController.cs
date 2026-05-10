@@ -158,6 +158,48 @@ public class AgentManagerController : ControllerBase
         await _svc.DeleteInteractionAsync(id, await GetMerchantIdAsync(ct));
         return NoContent();
     }
+
+    // ── Presets ───────────────────────────────────────────────────────────────
+
+    /// <summary>Returns all predefined agent configuration presets (no auth required for browsing).</summary>
+    [HttpGet("presets")]
+    [AllowAnonymous]
+    public IActionResult GetPresets([FromQuery] string? category = null)
+    {
+        var all = _svc.GetAllPresets();
+        if (!string.IsNullOrWhiteSpace(category))
+            all = all.Where(p => string.Equals(p.Category, category, StringComparison.OrdinalIgnoreCase)).ToList();
+        return Ok(all);
+    }
+
+    /// <summary>Returns a single preset by its ID.</summary>
+    [HttpGet("presets/{presetId}")]
+    [AllowAnonymous]
+    public IActionResult GetPreset(string presetId)
+    {
+        var preset = _svc.GetPreset(presetId);
+        return preset is null ? NotFound() : Ok(preset);
+    }
+
+    /// <summary>Provisions a preset: creates the AgentDefinition + default Workflow for the authenticated merchant.</summary>
+    [HttpPost("presets/{presetId}/provision")]
+    public async Task<IActionResult> ProvisionPreset(string presetId, CancellationToken ct)
+    {
+        try
+        {
+            var merchantId = await GetMerchantIdAsync(ct);
+            var result     = await _svc.ProvisionPresetAsync(merchantId, presetId);
+            return CreatedAtAction(nameof(GetAgent), new { id = result.Agent.Id }, result);
+        }
+        catch (ArgumentException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { error = ex.Message });
+        }
+    }
 }
 
 public record UpsertMemoryRequest(string ContextType, string ContextKey, string ContextValue);

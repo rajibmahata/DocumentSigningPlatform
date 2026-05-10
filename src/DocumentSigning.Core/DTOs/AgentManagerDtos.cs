@@ -2,6 +2,29 @@ namespace DocumentSigning.Core.DTOs;
 
 // ── Agent Manager DTOs ────────────────────────────────────────────────────────
 
+// ── Agent Presets ─────────────────────────────────────────────────────────────
+
+/// <summary>A ready-made agent configuration template the user can provision with one click.</summary>
+public record AgentPresetDto(
+    string   PresetId,
+    string   Category,
+    string   AgentType,
+    string   Name,
+    string   Description,
+    string   Icon,
+    string   Complexity,
+    string?  ScheduleExpression,
+    string   Timezone,
+    string   ApprovalMode,
+    int      MaxRetries,
+    string   ConfigurationJson,
+    string   WorkflowStepsJson,
+    string[] Tags
+);
+
+public record ProvisionPresetRequest(string PresetId);
+public record ProvisionedPresetDto(AgentDto Agent, AgentWorkflowDto Workflow);
+
 public record AgentDto(
     Guid    Id,
     Guid    MerchantId,

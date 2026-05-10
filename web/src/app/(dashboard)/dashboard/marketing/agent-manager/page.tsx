@@ -12,7 +12,7 @@ import {
   Bot, Plus, Play, Pause, Loader2, RefreshCw, Cpu,
   Mail, Globe2, BarChart3, Target, ShieldCheck, PenSquare,
   Trash2, Clock, CheckCircle2, XCircle, AlertCircle,
-  Users, Activity, Zap,
+  Users, Activity, Zap, Sparkles,
 } from 'lucide-react';
 
 const AGENT_TYPES = [
@@ -128,6 +128,11 @@ export default function AgentManagerPage() {
           <Button variant="outline" onClick={load} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-1 ${loading ? 'animate-spin' : ''}`} /> Refresh
           </Button>
+          <Link href="/dashboard/marketing/agent-manager/presets">
+            <Button variant="outline">
+              <Sparkles className="h-4 w-4 mr-1" /> Preset Gallery
+            </Button>
+          </Link>
           <Button onClick={() => setShowForm(s => !s)}>
             <Plus className="h-4 w-4 mr-1" /> New Agent
           </Button>
