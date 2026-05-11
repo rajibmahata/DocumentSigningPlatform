@@ -28,10 +28,8 @@ public sealed class DeepSeekService : IDeepSeekService
     {
         _log   = log;
         _model = config["DeepSeek:Model"] ?? "deepseek-chat";
+        // Authorization header is already set by the named "deepseek" client in Program.cs
         _http  = factory.CreateClient("deepseek");
-        var key = config["DeepSeek:ApiKey"] ?? throw new InvalidOperationException("DeepSeek:ApiKey is required.");
-        _http.DefaultRequestHeaders.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
     }
 
     // ── Public API ────────────────────────────────────────────────────────────

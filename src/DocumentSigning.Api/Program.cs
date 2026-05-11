@@ -76,8 +76,12 @@ builder.Services.AddHostedService<DailyMarketingAgent>();
 builder.Services.AddHttpClient("deepseek", client =>
 {
     var baseUrl = builder.Configuration["DeepSeek:BaseUrl"] ?? "https://api.deepseek.com";
+    var apiKey  = builder.Configuration["DeepSeek:ApiKey"] ?? string.Empty;
     client.BaseAddress = new Uri(baseUrl);
     client.Timeout     = TimeSpan.FromSeconds(60);
+    if (!string.IsNullOrWhiteSpace(apiKey))
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
 });
 
 // ─── Agent Manager System ──────────────────────────────────────────────────
