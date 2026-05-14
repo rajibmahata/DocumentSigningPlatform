@@ -21,13 +21,13 @@ public class BrandingController : ControllerBase
     public BrandingController(IBrandingService branding) => _branding = branding;
 
     /// <summary>Returns branding settings for the merchant.</summary>
+    /// <remarks>Returns default (all-null) branding if none has been configured yet.</remarks>
     [HttpGet]
     [ProducesResponseType(typeof(MerchantBrandingDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Get(Guid merchantId, CancellationToken ct)
     {
         var result = await _branding.GetAsync(merchantId, ct);
-        return result is null ? NotFound() : Ok(result);
+        return Ok(result ?? new MerchantBrandingDto(merchantId, null, null, null, null, null, null));
     }
 
     /// <summary>Creates or updates branding settings for the merchant.</summary>

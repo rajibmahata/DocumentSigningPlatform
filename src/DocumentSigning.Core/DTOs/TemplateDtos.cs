@@ -13,7 +13,7 @@ public record CreateTemplateRequest(
     string Name,
     string? Description,
     string DefaultTitle,
-    List<TemplateSigner> Signers);
+    List<TemplateSigner>? Signers = null);
 
 public record UpdateTemplateRequest(
     string Name,

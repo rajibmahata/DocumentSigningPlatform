@@ -45,18 +45,24 @@ public class SignerContactsController : ControllerBase
     /// <summary>Search contacts by name or email (used for autocomplete on the send form).</summary>
     /// <remarks>
     /// Case-insensitive substring match on both `name` and `email`.
-    /// Returns up to 10 results. Pass an empty query to receive an empty array.
+    /// Returns up to 10 results. Accepts either `query` or `q` as the search parameter.
+    /// Pass an empty query to receive an empty array.
     /// </remarks>
-    /// <param name="query">Partial name or email to search for.</param>
+    /// <param name="query">Partial name or email to search for (alias: `q`).</param>
+    /// <param name="q">Short alias for the `query` parameter.</param>
     [HttpGet("search")]
     [ProducesResponseType(typeof(IReadOnlyList<SignerContactResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> Search([FromQuery] string query, CancellationToken ct)
+    public async Task<IActionResult> Search(
+        [FromQuery] string? query,
+        [FromQuery(Name = "q")] string? q,
+        CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(query))
+        var term = query ?? q;
+        if (string.IsNullOrWhiteSpace(term))
             return Ok(Array.Empty<SignerContactResponse>());
 
-        var contacts = await _service.SearchAsync(CurrentUserId, query, ct);
+        var contacts = await _service.SearchAsync(CurrentUserId, term, ct);
         return Ok(contacts);
     }
 
