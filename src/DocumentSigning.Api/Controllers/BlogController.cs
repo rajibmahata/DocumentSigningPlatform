@@ -11,13 +11,19 @@ namespace DocumentSigning.Api.Controllers;
 [Produces("application/json")]
 public class BlogController : ControllerBase
 {
+    private static readonly string[] AllowedMimeTypes  = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    private static readonly string[] AllowedExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
+    private const long MaxImageBytes = 5 * 1024 * 1024; // 5 MB
+
     private readonly IBlogService        _svc;
     private readonly IMerchantRepository _merchantRepo;
+    private readonly IWebHostEnvironment _env;
 
-    public BlogController(IBlogService svc, IMerchantRepository merchantRepo)
+    public BlogController(IBlogService svc, IMerchantRepository merchantRepo, IWebHostEnvironment env)
     {
         _svc          = svc;
         _merchantRepo = merchantRepo;
+        _env          = env;
     }
 
     private Guid UserId => Guid.Parse(
@@ -67,8 +73,20 @@ public class BlogController : ControllerBase
     [Authorize]
     public async Task<IActionResult> DeleteBlog(Guid id, CancellationToken ct)
     {
-        await _svc.DeleteBlogAsync(id, await GetMerchantIdAsync(ct));
+        var imageUrl = await _svc.DeleteBlogAsync(id, await GetMerchantIdAsync(ct));
+        DeleteImageFile(imageUrl);
         return NoContent();
+    }
+
+    private void DeleteImageFile(string? imageUrl)
+    {
+        if (string.IsNullOrWhiteSpace(imageUrl)) return;
+        // Only delete files we own (stored under /blogImages/)
+        var fileName = Path.GetFileName(imageUrl);
+        if (string.IsNullOrWhiteSpace(fileName)) return;
+        var filePath = Path.Combine(_env.WebRootPath, "blogImages", fileName);
+        if (System.IO.File.Exists(filePath))
+            System.IO.File.Delete(filePath);
     }
 
     [HttpPost("api/blogs/{id:guid}/publish")]
@@ -85,6 +103,36 @@ public class BlogController : ControllerBase
     [Authorize]
     public async Task<IActionResult> GenerateBlog([FromBody] GenerateBlogRequest req, CancellationToken ct)
         => Ok(await _svc.GenerateBlogWithAiAsync(await GetMerchantIdAsync(ct), req));
+
+    [HttpPost("api/blogs/upload-image")]
+    [Authorize]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UploadBlogImage(IFormFile file, CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { error = "No file uploaded." });
+
+        if (file.Length > MaxImageBytes)
+            return BadRequest(new { error = "File exceeds the 5 MB size limit." });
+
+        var mime = file.ContentType.ToLowerInvariant();
+        if (!AllowedMimeTypes.Contains(mime))
+            return BadRequest(new { error = "Only JPEG, PNG, GIF, and WebP images are allowed." });
+
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (!AllowedExtensions.Contains(ext))
+            return BadRequest(new { error = "Invalid file extension." });
+
+        var uniqueName  = $"{Guid.NewGuid():N}{ext}";
+        var imagesDir   = Path.Combine(_env.WebRootPath, "blogImages");
+        Directory.CreateDirectory(imagesDir);
+
+        var destPath = Path.Combine(imagesDir, uniqueName);
+        await using var stream = System.IO.File.Create(destPath);
+        await file.CopyToAsync(stream, ct);
+
+        return Ok(new { url = $"/blogImages/{uniqueName}" });
+    }
 
     // ── Public routes ─────────────────────────────────────────────────────────
 

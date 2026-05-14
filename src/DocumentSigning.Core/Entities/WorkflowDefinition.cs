@@ -32,4 +32,5 @@ public class WorkflowDefinition
     public Merchant?  Merchant   { get; set; }
     public ICollection<WorkflowInstance> Instances { get; set; } = [];
     public ICollection<WorkflowTrigger>  Triggers  { get; set; } = [];
+    public ICollection<WorkflowLibraryDocument> WorkflowDocuments { get; set; } = [];
 }

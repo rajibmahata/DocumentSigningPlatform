@@ -21,6 +21,56 @@ public sealed class AgentOrchestrator(
     private readonly Dictionary<string, ISpecializedAgent> _agentMap =
         agents.ToDictionary(a => a.AgentType, StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Maps sub-types declared in AgentDefinition.AgentType to the parent
+    /// ISpecializedAgent that handles them. Allows users to create agents
+    /// with granular types (e.g. "email_outreach") without needing a
+    /// dedicated implementation class for every sub-type.
+    /// </summary>
+    private static readonly Dictionary<string, string> _subTypeRouting =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            // Email sub-types → EmailMarketingAgent
+            ["email_outreach"]    = "email_marketing",
+            ["email_followup"]    = "email_marketing",
+            ["email_follow_up"]   = "email_marketing",
+            ["email_nurture"]     = "email_marketing",
+            ["email_reactivation"]= "email_marketing",
+
+            // Social sub-types → SocialMediaAgent
+            ["linkedin"]          = "social_media",
+            ["facebook"]          = "social_media",
+            ["engagement_reply"]  = "social_media",
+
+            // Campaign sub-types → CampaignAgent
+            ["campaign_planner"]  = "campaign",
+            ["campaign_executor"] = "campaign",
+
+            // Blog sub-types → BlogAgent
+            ["blog_writer"]       = "blog",
+            ["seo_research"]      = "blog",
+            ["blog_validator"]    = "blog",
+            ["blog_publisher"]    = "blog",
+
+            // Analytics sub-types → AnalyticsIntelligenceAgent
+            ["analytics_intelligence"] = "analytics",
+            ["analytics_insights"]     = "analytics",
+        };
+
+    /// <summary>Resolves an agent by exact type, then by sub-type routing table.</summary>
+    private bool TryResolveAgent(string agentType, out ISpecializedAgent? agent)
+    {
+        if (_agentMap.TryGetValue(agentType, out agent))
+            return true;
+
+        if (_subTypeRouting.TryGetValue(agentType, out var parentType)
+            && _agentMap.TryGetValue(parentType, out agent))
+            return true;
+
+        agent = null;
+        return false;
+    }
+
     // ── Public API ────────────────────────────────────────────────────────────
 
     public async Task<AgentExecutionOutput> ExecuteAgentAsync(
@@ -139,8 +189,8 @@ public sealed class AgentOrchestrator(
 
         try
         {
-            // Find the specialized agent implementation
-            if (!_agentMap.TryGetValue(definition.AgentType, out var specialAgent))
+            // Find the specialized agent implementation (supports sub-type routing)
+            if (!TryResolveAgent(definition.AgentType, out var specialAgent))
                 throw new InvalidOperationException($"No implementation registered for agent type: {definition.AgentType}");
 
             // Load agent memories for context
@@ -149,7 +199,21 @@ public sealed class AgentOrchestrator(
                 .ToListAsync(ct);
 
             var contextDict = memories.ToDictionary(m => $"{m.ContextType}:{m.ContextKey}", m => m.ContextValue);
+            // Keep full config blob for back-compat
             contextDict["agent_config"] = definition.ConfigurationJson ?? "{}";
+            // Flatten individual config keys so agents can read them directly
+            // e.g. cfg.GetValueOrDefault("email_type", "outreach") works correctly
+            if (!string.IsNullOrWhiteSpace(definition.ConfigurationJson))
+            {
+                try
+                {
+                    var flat = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(definition.ConfigurationJson);
+                    if (flat is not null)
+                        foreach (var (k, v) in flat)
+                            contextDict[k] = v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : v.ToString();
+                }
+                catch { /* ignore malformed config */ }
+            }
 
             var input = new AgentExecutionInput(
                 MerchantId:  definition.MerchantId,
@@ -162,8 +226,8 @@ public sealed class AgentOrchestrator(
 
             stepLog.Add(new { step = "init", status = "ok", timestamp = DateTime.UtcNow });
 
-            // Execute the specialized agent
-            var output = await specialAgent.ExecuteAsync(input, ct);
+            // Execute the specialized agent (specialAgent is non-null: TryResolveAgent guarantees it when returning true)
+            var output = await specialAgent!.ExecuteAsync(input, ct);
 
             stepLog.Add(new { step = "agent_run", status = output.Success ? "ok" : "failed", timestamp = DateTime.UtcNow });
 

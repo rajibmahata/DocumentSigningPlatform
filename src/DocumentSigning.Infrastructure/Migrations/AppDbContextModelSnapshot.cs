@@ -17,7 +17,7 @@ namespace DocumentSigning.Infrastructure.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.26")
+                .HasAnnotation("ProductVersion", "8.0.27")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -942,6 +942,80 @@ namespace DocumentSigning.Infrastructure.Migrations
                     b.ToTable("IdentityVerifications", (string)null);
                 });
 
+            modelBuilder.Entity("DocumentSigning.Core.Entities.LibraryDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("EditorContentHtml")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FilePath")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("FileType")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<bool>("IsSample")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsTemplateReady")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsWorkflowReady")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastUsedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("MerchantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("MerchantId", "IsSample");
+
+                    b.HasIndex("MerchantId", "Purpose");
+
+                    b.ToTable("LibraryDocuments", (string)null);
+                });
+
             modelBuilder.Entity("DocumentSigning.Core.Entities.MarketingCampaign", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1562,6 +1636,21 @@ namespace DocumentSigning.Infrastructure.Migrations
                     b.ToTable("SocialAccounts", (string)null);
                 });
 
+            modelBuilder.Entity("DocumentSigning.Core.Entities.TemplateLibraryDocument", b =>
+                {
+                    b.Property<Guid>("DocumentTemplateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LibraryDocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("DocumentTemplateId", "LibraryDocumentId");
+
+                    b.HasIndex("LibraryDocumentId");
+
+                    b.ToTable("TemplateLibraryDocuments", (string)null);
+                });
+
             modelBuilder.Entity("DocumentSigning.Core.Entities.Ticket", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1901,6 +1990,21 @@ namespace DocumentSigning.Infrastructure.Migrations
                     b.ToTable("WorkflowInstances", (string)null);
                 });
 
+            modelBuilder.Entity("DocumentSigning.Core.Entities.WorkflowLibraryDocument", b =>
+                {
+                    b.Property<Guid>("WorkflowDefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("LibraryDocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("WorkflowDefinitionId", "LibraryDocumentId");
+
+                    b.HasIndex("LibraryDocumentId");
+
+                    b.ToTable("WorkflowLibraryDocuments", (string)null);
+                });
+
             modelBuilder.Entity("DocumentSigning.Core.Entities.WorkflowNodeExecution", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2167,6 +2271,23 @@ namespace DocumentSigning.Infrastructure.Migrations
                     b.Navigation("SigningRequest");
                 });
 
+            modelBuilder.Entity("DocumentSigning.Core.Entities.LibraryDocument", b =>
+                {
+                    b.HasOne("DocumentSigning.Core.Entities.Merchant", "Merchant")
+                        .WithMany()
+                        .HasForeignKey("MerchantId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("DocumentSigning.Core.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Merchant");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("DocumentSigning.Core.Entities.MarketingCampaign", b =>
                 {
                     b.HasOne("DocumentSigning.Core.Entities.Merchant", "Merchant")
@@ -2288,6 +2409,25 @@ namespace DocumentSigning.Infrastructure.Migrations
                     b.Navigation("Merchant");
                 });
 
+            modelBuilder.Entity("DocumentSigning.Core.Entities.TemplateLibraryDocument", b =>
+                {
+                    b.HasOne("DocumentSigning.Core.Entities.DocumentTemplate", "Template")
+                        .WithMany("TemplateDocuments")
+                        .HasForeignKey("DocumentTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DocumentSigning.Core.Entities.LibraryDocument", "Document")
+                        .WithMany("TemplateDocuments")
+                        .HasForeignKey("LibraryDocumentId")
+                        .OnDelete(DeleteBehavior.ClientCascade)
+                        .IsRequired();
+
+                    b.Navigation("Document");
+
+                    b.Navigation("Template");
+                });
+
             modelBuilder.Entity("DocumentSigning.Core.Entities.Ticket", b =>
                 {
                     b.HasOne("DocumentSigning.Core.Entities.User", "User")
@@ -2365,6 +2505,25 @@ namespace DocumentSigning.Infrastructure.Migrations
                     b.Navigation("Definition");
                 });
 
+            modelBuilder.Entity("DocumentSigning.Core.Entities.WorkflowLibraryDocument", b =>
+                {
+                    b.HasOne("DocumentSigning.Core.Entities.LibraryDocument", "Document")
+                        .WithMany("WorkflowDocuments")
+                        .HasForeignKey("LibraryDocumentId")
+                        .OnDelete(DeleteBehavior.ClientCascade)
+                        .IsRequired();
+
+                    b.HasOne("DocumentSigning.Core.Entities.WorkflowDefinition", "Workflow")
+                        .WithMany("WorkflowDocuments")
+                        .HasForeignKey("WorkflowDefinitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Document");
+
+                    b.Navigation("Workflow");
+                });
+
             modelBuilder.Entity("DocumentSigning.Core.Entities.WorkflowNodeExecution", b =>
                 {
                     b.HasOne("DocumentSigning.Core.Entities.WorkflowInstance", "Instance")
@@ -2396,6 +2555,18 @@ namespace DocumentSigning.Infrastructure.Migrations
                     b.Navigation("Workflows");
                 });
 
+            modelBuilder.Entity("DocumentSigning.Core.Entities.DocumentTemplate", b =>
+                {
+                    b.Navigation("TemplateDocuments");
+                });
+
+            modelBuilder.Entity("DocumentSigning.Core.Entities.LibraryDocument", b =>
+                {
+                    b.Navigation("TemplateDocuments");
+
+                    b.Navigation("WorkflowDocuments");
+                });
+
             modelBuilder.Entity("DocumentSigning.Core.Entities.SigningEnvelope", b =>
                 {
                     b.Navigation("Documents");
@@ -2418,6 +2589,8 @@ namespace DocumentSigning.Infrastructure.Migrations
                     b.Navigation("Instances");
 
                     b.Navigation("Triggers");
+
+                    b.Navigation("WorkflowDocuments");
                 });
 
             modelBuilder.Entity("DocumentSigning.Core.Entities.WorkflowInstance", b =>

@@ -27,4 +27,5 @@ public class DocumentTemplate
 
     // Navigation
     public Merchant? Merchant  { get; set; }
+    public ICollection<TemplateLibraryDocument> TemplateDocuments { get; set; } = [];
 }

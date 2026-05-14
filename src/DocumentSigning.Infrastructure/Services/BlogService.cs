@@ -72,12 +72,14 @@ public sealed class BlogService(AppDbContext db, IAgentOrchestrator orchestrator
         return ToDto(blog);
     }
 
-    public async Task DeleteBlogAsync(Guid id, Guid merchantId)
+    public async Task<string?> DeleteBlogAsync(Guid id, Guid merchantId)
     {
         var blog = await db.Blogs.FirstOrDefaultAsync(x => x.Id == id && x.MerchantId == merchantId);
-        if (blog is null) return;
+        if (blog is null) return null;
+        var imageUrl = blog.CoverImageUrl;
         db.Blogs.Remove(blog);
         await db.SaveChangesAsync();
+        return imageUrl;
     }
 
     // ── Publish / Unpublish ───────────────────────────────────────────────────
