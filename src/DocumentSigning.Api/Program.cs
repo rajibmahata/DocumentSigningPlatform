@@ -96,6 +96,7 @@ builder.Services.AddScoped<ISpecializedAgent, CampaignAgent>();
 builder.Services.AddScoped<ISpecializedAgent, BlogAgent>();
 builder.Services.AddScoped<ISpecializedAgent, ValidationAgent>();
 builder.Services.AddScoped<ISpecializedAgent, AnalyticsIntelligenceAgent>();
+builder.Services.AddScoped<ISpecializedAgent, ContactEmailValidationAgent>();
 builder.Services.AddHostedService<AgentSchedulerWorker>();
 
 // ─── Background job handler (scoped — instantiated inside OutboxWorker scope) ─
