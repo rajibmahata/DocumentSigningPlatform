@@ -94,7 +94,11 @@ public record InitiateEnvelopeRequest(
     Guid MerchantId,
     List<DocumentInput> Documents,
     List<SignerInput> Signers,
-    int? TokenTtlDays = null);
+    int? TokenTtlDays = null,
+    string? RedirectUrl = null,
+    bool RequirePayment = false,
+    long? PaymentAmountCents = null,
+    string? PaymentCurrency = null);
 
 public record DocumentSummary(
     Guid DocumentId,
@@ -252,6 +256,16 @@ public record MerchantSignedDocPayload(
 public record AccountPendingApprovalPayload(
     string To,
     string ToName);
+
+// ── Feature-roadmap outbox payloads ───────────────────────────────────────────
+
+public record AiSummaryPayload(Guid DocumentId, Guid MerchantId);
+
+public record OcrFieldsPayload(Guid DocumentId);
+
+public record BulkSendJobPayload(Guid JobId);
+
+public record BlockchainNotarizePayload(Guid EnvelopeId);
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 

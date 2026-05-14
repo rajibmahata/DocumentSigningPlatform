@@ -1,4 +1,4 @@
-using DocumentSigning.Core.Entities;
+﻿using DocumentSigning.Core.Entities;
 using DocumentSigning.Core.Enums;
 using Microsoft.EntityFrameworkCore;
 
@@ -28,6 +28,41 @@ public class AppDbContext : DbContext
     public DbSet<SignerContact>            SignerContacts            => Set<SignerContact>();
     public DbSet<DocumentTemplate>         DocumentTemplates         => Set<DocumentTemplate>();
     public DbSet<Notification>             Notifications             => Set<Notification>();
+
+    // â”€â”€ Feature-roadmap DbSets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    public DbSet<MerchantFeatureFlag>      MerchantFeatureFlags      => Set<MerchantFeatureFlag>();
+    public DbSet<DocumentInsight>          DocumentInsights          => Set<DocumentInsight>();
+    public DbSet<DocumentField>            DocumentFields            => Set<DocumentField>();
+    public DbSet<BulkSendJob>              BulkSendJobs              => Set<BulkSendJob>();
+    public DbSet<EnvelopePayment>          EnvelopePayments          => Set<EnvelopePayment>();
+    public DbSet<IdentityVerification>     IdentityVerifications     => Set<IdentityVerification>();
+    public DbSet<MerchantBranding>         MerchantBrandings         => Set<MerchantBranding>();
+    public DbSet<BlockchainRecord>         BlockchainRecords         => Set<BlockchainRecord>();
+
+    // â”€â”€ Workflow engine DbSets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    public DbSet<WorkflowDefinition>    WorkflowDefinitions    => Set<WorkflowDefinition>();
+    public DbSet<WorkflowInstance>      WorkflowInstances      => Set<WorkflowInstance>();
+    public DbSet<WorkflowNodeExecution> WorkflowNodeExecutions => Set<WorkflowNodeExecution>();
+    public DbSet<WorkflowTrigger>       WorkflowTriggers       => Set<WorkflowTrigger>();
+
+    // â”€â”€ Marketing engine DbSets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    public DbSet<SocialAccount>       SocialAccounts       => Set<SocialAccount>();
+    public DbSet<MarketingPost>       MarketingPosts       => Set<MarketingPost>();
+    public DbSet<MarketingCampaign>   MarketingCampaigns   => Set<MarketingCampaign>();
+    public DbSet<EngagementActivity>  EngagementActivities => Set<EngagementActivity>();
+
+    // â”€â”€ Agent Manager DbSets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    public DbSet<AgentDefinition>          AgentDefinitions          => Set<AgentDefinition>();
+    public DbSet<AgentWorkflow>            AgentWorkflows            => Set<AgentWorkflow>();
+    public DbSet<AgentExecutionHistory>    AgentExecutionHistories   => Set<AgentExecutionHistory>();
+    public DbSet<AgentMemory>              AgentMemories             => Set<AgentMemory>();
+    public DbSet<CustomerInteractionMemory> CustomerInteractionMemories => Set<CustomerInteractionMemory>();
+    public DbSet<Blog>                     Blogs                     => Set<Blog>();
+
+    // ── Document Library DbSets ────────────────────────────────────────────────
+    public DbSet<LibraryDocument>          LibraryDocuments          => Set<LibraryDocument>();
+    public DbSet<TemplateLibraryDocument>  TemplateLibraryDocuments  => Set<TemplateLibraryDocument>();
+    public DbSet<WorkflowLibraryDocument>  WorkflowLibraryDocuments  => Set<WorkflowLibraryDocument>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -113,7 +148,7 @@ public class AppDbContext : DbContext
             e.HasIndex(x => x.Status);
         });
 
-        // AuditLog — append-only, immutable
+        // AuditLog â€” append-only, immutable
         model.Entity<AuditLog>(e =>
         {
             e.HasKey(x => x.Id);
@@ -286,6 +321,392 @@ public class AppDbContext : DbContext
              .WithMany()
              .HasForeignKey(x => x.UserId)
              .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // MerchantFeatureFlags
+        model.Entity<MerchantFeatureFlag>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("MerchantFeatureFlags");
+            e.Property(x => x.FeatureKey).HasMaxLength(64).IsRequired();
+            e.HasIndex(x => new { x.MerchantId, x.FeatureKey }).IsUnique();
+            e.HasOne(x => x.Merchant).WithMany().HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // DocumentInsights
+        model.Entity<DocumentInsight>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("DocumentInsights");
+            e.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            e.Property(x => x.RisksJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.Summary).HasColumnType("nvarchar(max)");
+            e.Property(x => x.ErrorMessage).HasMaxLength(2000);
+            e.HasIndex(x => x.DocumentId).IsUnique();
+            e.HasOne(x => x.Document).WithMany().HasForeignKey(x => x.DocumentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // DocumentFields
+        model.Entity<DocumentField>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("DocumentFields");
+            e.Property(x => x.FieldType).HasMaxLength(50).IsRequired();
+            e.HasIndex(x => x.DocumentId);
+            e.HasOne(x => x.Document).WithMany().HasForeignKey(x => x.DocumentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // BulkSendJobs
+        model.Entity<BulkSendJob>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("BulkSendJobs");
+            e.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            e.Property(x => x.RecipientName).HasMaxLength(256).IsRequired();
+            e.Property(x => x.RecipientEmail).HasMaxLength(256).IsRequired();
+            e.Property(x => x.RecipientCompany).HasMaxLength(256);
+            e.Property(x => x.MergeDataJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.ErrorMessage).HasMaxLength(2000);
+            e.HasIndex(x => x.BatchId);
+            e.HasIndex(x => new { x.Status, x.CreatedAt });
+            e.HasOne(x => x.Merchant).WithMany().HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // EnvelopePayments
+        model.Entity<EnvelopePayment>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("EnvelopePayments");
+            e.Property(x => x.PaymentIntentId).HasMaxLength(128).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            e.Property(x => x.Currency).HasMaxLength(10).IsRequired();
+            e.Property(x => x.ClientSecret).HasMaxLength(256).IsRequired();
+            e.HasIndex(x => x.EnvelopeId).IsUnique();
+            e.HasIndex(x => x.PaymentIntentId).IsUnique();
+            e.HasOne(x => x.Envelope).WithMany().HasForeignKey(x => x.EnvelopeId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // IdentityVerifications
+        model.Entity<IdentityVerification>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("IdentityVerifications");
+            e.Property(x => x.SignerEmail).HasMaxLength(256).IsRequired();
+            e.Property(x => x.DocumentType).HasMaxLength(50).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            e.Property(x => x.IdImageUrl).HasMaxLength(2000);
+            e.Property(x => x.RejectionReason).HasMaxLength(1000);
+            e.HasIndex(x => x.SigningRequestId);
+            e.HasOne(x => x.SigningRequest).WithMany().HasForeignKey(x => x.SigningRequestId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // MerchantBrandings
+        model.Entity<MerchantBranding>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("MerchantBrandings");
+            e.Property(x => x.CustomDomain).HasMaxLength(256);
+            e.Property(x => x.LogoUrl).HasMaxLength(2000);
+            e.Property(x => x.PrimaryColor).HasMaxLength(20);
+            e.Property(x => x.EmailFromName).HasMaxLength(256);
+            e.Property(x => x.PortalFooterText).HasMaxLength(2000);
+            e.HasIndex(x => x.MerchantId).IsUnique();
+            e.HasOne(x => x.Merchant).WithMany().HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // BlockchainRecords
+        model.Entity<BlockchainRecord>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("BlockchainRecords");
+            e.Property(x => x.DocumentHash).HasMaxLength(128).IsRequired();
+            e.Property(x => x.Network).HasMaxLength(50).IsRequired();
+            e.Property(x => x.TransactionHash).HasMaxLength(128);
+            e.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            e.Property(x => x.ErrorMessage).HasMaxLength(2000);
+            e.HasIndex(x => x.EnvelopeId).IsUnique();
+            e.HasOne(x => x.Envelope).WithMany().HasForeignKey(x => x.EnvelopeId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // WorkflowDefinitions
+        model.Entity<WorkflowDefinition>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("WorkflowDefinitions");
+            e.Property(x => x.Name).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(2000);
+            e.Property(x => x.TemplateName).HasMaxLength(256);
+            e.Property(x => x.Category).HasMaxLength(100);
+            e.Property(x => x.CreatedBy).HasMaxLength(256);
+            e.Property(x => x.Status).HasConversion<int>();
+            e.Property(x => x.JsonDefinition).HasColumnType("nvarchar(max)");
+            e.HasIndex(x => x.MerchantId);
+            e.HasIndex(x => x.IsTemplate);
+            e.HasOne(x => x.Merchant).WithMany().HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // WorkflowInstances
+        model.Entity<WorkflowInstance>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("WorkflowInstances");
+            e.Property(x => x.Status).HasConversion<int>();
+            e.Property(x => x.CurrentNodeId).HasMaxLength(128);
+            e.Property(x => x.TriggeredBy).HasMaxLength(256);
+            e.Property(x => x.ErrorMessage).HasMaxLength(2000);
+            e.Property(x => x.ContextJson).HasColumnType("nvarchar(max)");
+            e.HasIndex(x => x.WorkflowDefinitionId);
+            e.HasIndex(x => x.Status);
+            e.HasOne(x => x.Definition).WithMany(d => d.Instances)
+              .HasForeignKey(x => x.WorkflowDefinitionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // WorkflowNodeExecutions
+        model.Entity<WorkflowNodeExecution>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("WorkflowNodeExecutions");
+            e.Property(x => x.NodeId).HasMaxLength(128).IsRequired();
+            e.Property(x => x.NodeType).HasMaxLength(64).IsRequired();
+            e.Property(x => x.NodeLabel).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Status).HasConversion<int>();
+            e.Property(x => x.OutputJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.ErrorMessage).HasMaxLength(2000);
+            e.HasIndex(x => x.WorkflowInstanceId);
+            e.HasOne(x => x.Instance).WithMany(i => i.NodeExecutions)
+              .HasForeignKey(x => x.WorkflowInstanceId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // WorkflowTriggers
+        model.Entity<WorkflowTrigger>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("WorkflowTriggers");
+            e.Property(x => x.TriggerType).HasConversion<int>();
+            e.Property(x => x.ConfigurationJson).HasColumnType("nvarchar(max)");
+            e.HasIndex(x => x.WorkflowDefinitionId);
+            e.HasOne(x => x.Definition).WithMany(d => d.Triggers)
+              .HasForeignKey(x => x.WorkflowDefinitionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // â”€â”€ Marketing engine â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+        // SocialAccounts
+        model.Entity<SocialAccount>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("SocialAccounts");
+            e.Property(x => x.Platform).HasMaxLength(50).IsRequired();
+            e.Property(x => x.AccountName).HasMaxLength(256).IsRequired();
+            e.Property(x => x.PageId).HasMaxLength(256).IsRequired();
+            e.Property(x => x.AccessToken).HasMaxLength(2000).IsRequired();
+            e.Property(x => x.RefreshToken).HasMaxLength(2000);
+            e.HasIndex(x => new { x.MerchantId, x.Platform });
+            e.HasOne(x => x.Merchant).WithMany().HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // MarketingPosts
+        model.Entity<MarketingPost>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("MarketingPosts");
+            e.Property(x => x.Platform).HasMaxLength(50).IsRequired();
+            e.Property(x => x.Content).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.ImageUrl).HasMaxLength(2000);
+            e.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            e.Property(x => x.CreatedBy).HasMaxLength(128).IsRequired();
+            e.Property(x => x.ContentCategory).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Hashtags).HasMaxLength(1000);
+            e.Property(x => x.CampaignId).HasMaxLength(64);
+            e.HasIndex(x => new { x.MerchantId, x.Status });
+            e.HasIndex(x => x.ScheduledAt);
+            e.HasOne(x => x.Merchant).WithMany().HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // MarketingCampaigns
+        model.Entity<MarketingCampaign>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("MarketingCampaigns");
+            e.Property(x => x.Name).HasMaxLength(256).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(2000);
+            e.Property(x => x.CampaignType).HasMaxLength(50).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            e.HasIndex(x => x.MerchantId);
+            e.HasOne(x => x.Merchant).WithMany().HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // EngagementActivities
+        model.Entity<EngagementActivity>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("EngagementActivities");
+            e.Property(x => x.Platform).HasMaxLength(50).IsRequired();
+            e.Property(x => x.ActivityType).HasMaxLength(50).IsRequired();
+            e.Property(x => x.UserName).HasMaxLength(256);
+            e.Property(x => x.Message).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.Response).HasColumnType("nvarchar(max)");
+            e.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            e.Property(x => x.PostId).HasMaxLength(256);
+            e.HasIndex(x => new { x.MerchantId, x.Status });
+            e.HasOne(x => x.Merchant).WithMany().HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // â”€â”€ Agent Manager â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+        // AgentDefinitions
+        model.Entity<AgentDefinition>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("AgentDefinitions");
+            e.Property(x => x.AgentName).HasMaxLength(256).IsRequired();
+            e.Property(x => x.AgentType).HasMaxLength(100).IsRequired();
+            e.Property(x => x.ParentAgentType).HasMaxLength(100);
+            e.Property(x => x.Description).HasMaxLength(2000);
+            e.Property(x => x.ScheduleExpression).HasMaxLength(100);
+            e.Property(x => x.Timezone).HasMaxLength(64).HasDefaultValue("UTC");
+            e.Property(x => x.ApprovalMode).HasMaxLength(20).HasDefaultValue("approval");
+            e.Property(x => x.ConfigurationJson).HasColumnType("nvarchar(max)");
+            e.HasIndex(x => new { x.MerchantId, x.AgentType });
+            e.HasOne(x => x.Merchant).WithMany().HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // AgentWorkflows
+        model.Entity<AgentWorkflow>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("AgentWorkflows");
+            e.Property(x => x.WorkflowName).HasMaxLength(256).IsRequired();
+            e.Property(x => x.StepsJson).HasColumnType("nvarchar(max)").IsRequired();
+            e.HasIndex(x => x.AgentId);
+            e.HasOne(x => x.Agent).WithMany(a => a.Workflows)
+             .HasForeignKey(x => x.AgentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // AgentExecutionHistory
+        model.Entity<AgentExecutionHistory>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("AgentExecutionHistories");
+            e.Property(x => x.ExecutionStatus).HasMaxLength(30).IsRequired();
+            e.Property(x => x.InputJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.OutputJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.ValidationResultJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.ErrorDetails).HasMaxLength(4000);
+            e.Property(x => x.StepLogJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.TriggerType).HasMaxLength(20).HasDefaultValue("scheduled");
+            e.HasIndex(x => new { x.AgentId, x.StartedAt });
+            e.HasIndex(x => x.MerchantId);
+            e.HasOne(x => x.Agent).WithMany(a => a.ExecutionHistory)
+             .HasForeignKey(x => x.AgentId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Merchant).WithMany()
+             .HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // AgentMemory
+        model.Entity<AgentMemory>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("AgentMemories");
+            e.Property(x => x.ContextType).HasMaxLength(100).IsRequired();
+            e.Property(x => x.ContextKey).HasMaxLength(256).IsRequired();
+            e.Property(x => x.ContextValue).HasColumnType("nvarchar(max)").IsRequired();
+            e.HasIndex(x => new { x.AgentId, x.ContextType, x.ContextKey }).IsUnique();
+            e.HasOne(x => x.Agent).WithMany(a => a.Memories)
+             .HasForeignKey(x => x.AgentId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Merchant).WithMany()
+             .HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // CustomerInteractionMemory
+        model.Entity<CustomerInteractionMemory>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("CustomerInteractionMemories");
+            e.Property(x => x.CustomerEmail).HasMaxLength(256).IsRequired();
+            e.Property(x => x.CustomerName).HasMaxLength(256);
+            e.Property(x => x.InteractionType).HasMaxLength(64).IsRequired();
+            e.Property(x => x.Platform).HasMaxLength(50).IsRequired();
+            e.Property(x => x.Message).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.AiInterpretation).HasColumnType("nvarchar(max)");
+            e.Property(x => x.Sentiment).HasMaxLength(30).IsRequired();
+            e.Property(x => x.NextRecommendedAction).HasMaxLength(2000);
+            e.Property(x => x.ObjectionType).HasMaxLength(50);
+            e.HasIndex(x => new { x.MerchantId, x.CustomerEmail });
+            e.HasIndex(x => x.Sentiment);
+            e.HasOne(x => x.Merchant).WithMany()
+             .HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Blogs
+        model.Entity<Blog>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("Blogs");
+            e.Property(x => x.Title).HasMaxLength(512).IsRequired();
+            e.Property(x => x.Slug).HasMaxLength(512).IsRequired();
+            e.Property(x => x.Content).HasColumnType("nvarchar(max)").IsRequired();
+            e.Property(x => x.MetaDescription).HasMaxLength(1000);
+            e.Property(x => x.Keywords).HasMaxLength(1000);
+            e.Property(x => x.Tags).HasMaxLength(500);
+            e.Property(x => x.Category).HasMaxLength(100);
+            e.Property(x => x.CoverImageUrl).HasMaxLength(2000);
+            e.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            e.Property(x => x.CreatedByAgent).HasMaxLength(128).IsRequired();
+            e.Property(x => x.SeoScore).HasMaxLength(20);
+            e.HasIndex(x => new { x.MerchantId, x.Status });
+            e.HasIndex(x => x.Slug);
+            e.HasOne(x => x.Merchant).WithMany()
+             .HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── Document Library ────────────────────────────────────────────────────
+
+        model.Entity<LibraryDocument>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("LibraryDocuments");
+            e.Property(x => x.Name).HasMaxLength(512).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(2000);
+            e.Property(x => x.Purpose).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Category).HasMaxLength(100);
+            e.Property(x => x.FileType).HasMaxLength(10).IsRequired();
+            e.Property(x => x.FilePath).HasMaxLength(2000);
+            e.Property(x => x.EditorContentHtml).HasColumnType("nvarchar(max)");
+            e.HasIndex(x => new { x.MerchantId, x.Purpose });
+            e.HasIndex(x => new { x.MerchantId, x.IsSample });
+            e.HasOne(x => x.Merchant).WithMany()
+             .HasForeignKey(x => x.MerchantId).IsRequired(false).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.User).WithMany()
+             .HasForeignKey(x => x.UserId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        model.Entity<TemplateLibraryDocument>(e =>
+        {
+            e.HasKey(x => new { x.DocumentTemplateId, x.LibraryDocumentId });
+            e.ToTable("TemplateLibraryDocuments");
+            e.HasOne(x => x.Template)
+             .WithMany(t => t.TemplateDocuments)
+             .HasForeignKey(x => x.DocumentTemplateId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Document)
+             .WithMany(d => d.TemplateDocuments)
+             .HasForeignKey(x => x.LibraryDocumentId)
+             .OnDelete(DeleteBehavior.ClientCascade);
+        });
+
+        model.Entity<WorkflowLibraryDocument>(e =>
+        {
+            e.HasKey(x => new { x.WorkflowDefinitionId, x.LibraryDocumentId });
+            e.ToTable("WorkflowLibraryDocuments");
+            e.HasOne(x => x.Workflow)
+             .WithMany(w => w.WorkflowDocuments)
+             .HasForeignKey(x => x.WorkflowDefinitionId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Document)
+             .WithMany(d => d.WorkflowDocuments)
+             .HasForeignKey(x => x.LibraryDocumentId)
+             .OnDelete(DeleteBehavior.ClientCascade);
         });
     }
 }

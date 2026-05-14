@@ -8,9 +8,11 @@ import { FileSignature, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 
 const NAV = [
-  { href: '/',     label: 'Home' },
-  { href: '/faq',  label: 'FAQ' },
-  { href: '/docs', label: 'API Docs' },
+  { href: '/',           label: 'Home'       },
+  { href: '/features',   label: 'Features'   },
+  { href: '/pricing',    label: 'Pricing'    },
+  { href: '/blog',       label: 'Blog'       },
+  { href: '/docs',       label: 'API Docs'   },
 ];
 
 export function Header() {

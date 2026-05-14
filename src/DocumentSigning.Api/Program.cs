@@ -4,11 +4,11 @@ using DocumentSigning.Infrastructure.BackgroundJobs;
 using DocumentSigning.Infrastructure.Persistence;
 using DocumentSigning.Infrastructure.Repositories;
 using DocumentSigning.Infrastructure.Services;
+using DocumentSigning.Infrastructure.Services.Agents;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-
 var builder = WebApplication.CreateBuilder(args);
 
 // ─── Database ─────────────────────────────────────────────────────────────────
@@ -34,6 +34,17 @@ builder.Services.AddScoped<ISignerContactRepository, SignerContactRepository>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<ISignerRepository, SignerRepository>();
 
+// ─── Feature-roadmap repositories ────────────────────────────────────────────
+builder.Services.AddScoped<IFeatureFlagRepository, FeatureFlagRepository>();
+builder.Services.AddScoped<IDocumentInsightRepository, DocumentInsightRepository>();
+builder.Services.AddScoped<IDocumentFieldRepository, DocumentFieldRepository>();
+builder.Services.AddScoped<IBulkSendRepository, BulkSendRepository>();
+builder.Services.AddScoped<IEnvelopePaymentRepository, EnvelopePaymentRepository>();
+builder.Services.AddScoped<IIdentityVerificationRepository, IdentityVerificationRepository>();
+builder.Services.AddScoped<IMerchantBrandingRepository, MerchantBrandingRepository>();
+builder.Services.AddScoped<IBlockchainRepository, BlockchainRepository>();
+builder.Services.AddScoped<IWorkflowRepository, WorkflowRepository>();
+
 // ─── Filters ──────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<MerchantApiKeyFilter>();
 
@@ -46,6 +57,46 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<ISignerContactService, SignerContactService>();
 builder.Services.AddScoped<ICertificateService, CertificateService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+
+// ─── Feature-roadmap services ─────────────────────────────────────────────────
+builder.Services.AddScoped<IFeatureFlagService, FeatureFlagService>();
+builder.Services.AddScoped<IBrandingService, BrandingService>();
+builder.Services.AddScoped<IAiInsightService, AiInsightService>();
+builder.Services.AddScoped<IOcrService, OcrService>();
+builder.Services.AddScoped<IBulkSendService, BulkSendService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<IIdentityVerificationService, IdentityVerificationService>();
+builder.Services.AddScoped<IBlockchainService, BlockchainService>();
+builder.Services.AddScoped<IWorkflowService, WorkflowService>();
+
+// ─── Marketing services ────────────────────────────────────────────────────
+builder.Services.AddScoped<IMarketingService, MarketingService>();
+builder.Services.AddScoped<IDeepSeekService, DeepSeekService>();
+builder.Services.AddHostedService<DailyMarketingAgent>();
+builder.Services.AddHttpClient("deepseek", client =>
+{
+    var baseUrl = builder.Configuration["DeepSeek:BaseUrl"] ?? "https://api.deepseek.com";
+    var apiKey  = builder.Configuration["DeepSeek:ApiKey"] ?? string.Empty;
+    client.BaseAddress = new Uri(baseUrl);
+    client.Timeout     = TimeSpan.FromSeconds(60);
+    if (!string.IsNullOrWhiteSpace(apiKey))
+        client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+});
+
+// ─── Agent Manager System ──────────────────────────────────────────────────
+builder.Services.AddScoped<IAgentManagerService, AgentManagerService>();
+builder.Services.AddScoped<IBlogService, BlogService>();
+builder.Services.AddScoped<ILibraryDocumentService, LibraryDocumentService>();
+builder.Services.AddScoped<IValidationPipeline, ValidationPipeline>();
+builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
+builder.Services.AddScoped<ISpecializedAgent, EmailMarketingAgent>();
+builder.Services.AddScoped<ISpecializedAgent, SocialMediaAgent>();
+builder.Services.AddScoped<ISpecializedAgent, CampaignAgent>();
+builder.Services.AddScoped<ISpecializedAgent, BlogAgent>();
+builder.Services.AddScoped<ISpecializedAgent, ValidationAgent>();
+builder.Services.AddScoped<ISpecializedAgent, AnalyticsIntelligenceAgent>();
+builder.Services.AddHostedService<AgentSchedulerWorker>();
 
 // ─── Background job handler (scoped — instantiated inside OutboxWorker scope) ─
 builder.Services.AddScoped<StampDocJobHandler>();
@@ -161,16 +212,23 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new()
     {
-        Title   = "Document Signing API",
+        Title   = "DocSignerHub API",
         Version = "v1",
         Description = """
-            In-house electronic document signing platform.
+            **DocSignerHub** — Enterprise eSign & Workflow Automation Platform.
 
             ## Authentication
-            - **JWT Bearer** — most endpoints. Obtain a token via `POST /api/auth/login`.
+            - **JWT Bearer** — most endpoints. Obtain via `POST /api/auth/login`.
             - **X-Api-Key** — envelope endpoints. Obtain from `GET /api/merchants/by-user/{userId}`.
 
-            ## Sections
+            ## Quick Start
+            1. `POST /api/auth/register` → create account
+            2. Verify email → `GET /api/auth/verify-email/{token}`
+            3. `POST /api/auth/login` → receive JWT token
+            4. `POST /api/merchants` → create merchant, get API key
+            5. `POST /api/envelopes` with `X-Api-Key` → send signing envelope
+
+            ## API Sections
             | Tag | Description |
             |-----|-------------|
             | Auth | Register, login, verify email, password reset |
@@ -184,6 +242,42 @@ builder.Services.AddSwaggerGen(c =>
             | Tickets — Admin | Admin-level ticket management (Admin only) |
             | Audit Logs — Admin | Paged audit log viewer and entity timeline (Admin only) |
             | Webhooks | Register endpoints and view delivery history |
+            | Workflow | Visual workflow definitions, execution engine, templates, and monitoring |
+
+            ## Workflow Engine
+            The Workflow Engine lets you automate multi-step document signing processes using a visual drag-and-drop builder.
+
+            ### Node Types
+            | Node | Description |
+            |------|-------------|
+            | `start` | Entry point — required first node |
+            | `end` | Exit point — required last node |
+            | `sendEmail` | Send a templated notification email |
+            | `approval` | Pause and wait for an approver |
+            | `delay` | Wait N hours/days before continuing |
+            | `condition` | Branch on true/false logic |
+            | `documentTemplate` | Generate document from a template |
+            | `signatureRequest` | Send a signing envelope automatically |
+            | `webhook` | POST event data to an external URL |
+            | `aiAction` | Run AI analysis or clause summarisation |
+
+            ### Workflow Triggers
+            | Trigger | Value |
+            |---------|-------|
+            | Manual | `0` |
+            | On Envelope Created | `1` |
+            | On Envelope Completed | `2` |
+            | On Envelope Signed | `3` |
+            | On Payment Received | `4` |
+            | Scheduled | `5` |
+            | Webhook | `6` |
+
+            ### Workflow Status Values
+            | Status | Value |
+            |--------|-------|
+            | Draft | `0` |
+            | Published | `1` |
+            | Archived | `2` |
         """
     });
 
@@ -210,6 +304,7 @@ builder.Services.AddSwaggerGen(c =>
             "Envelope"        => "Envelope",
             "Webhooks"        => "Webhooks",
             "SignerContacts"  => "Signer Contacts",
+            "Workflow"        => "Workflow",
             _                 => controller
         };
         return new[] { tag };
@@ -272,8 +367,29 @@ if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger
 
 if (app.Environment.IsDevelopment())
 {
-    // developer-only tooling can go here
+    app.UseDeveloperExceptionPage();
 }
+else
+{
+    app.UseExceptionHandler(errApp => errApp.Run(async ctx =>
+    {
+        ctx.Response.StatusCode = 500;
+        ctx.Response.ContentType = "application/json";
+        var ex = ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+        await ctx.Response.WriteAsJsonAsync(new { error = ex?.Message ?? "Internal Server Error", detail = ex?.ToString() });
+    }));
+}
+
+// Log all 500 responses in development for debugging
+app.Use(async (context, next) =>
+{
+    await next();
+    if (context.Response.StatusCode >= 500)
+    {
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogError("HTTP {StatusCode} on {Method} {Path}", context.Response.StatusCode, context.Request.Method, context.Request.Path);
+    }
+});
 
 app.UseStaticFiles();
 app.UseAntiforgery();
@@ -287,7 +403,35 @@ app.MapControllers();
 app.MapRazorComponents<DocumentSigning.Api.Components.App>()
     .AddInteractiveServerRenderMode();
 
+// ─── Seed sample library documents ───────────────────────────────────────────
+await SeedLibraryDocumentsAsync(app);
+
 app.Run();
+
+async Task SeedLibraryDocumentsAsync(WebApplication webApp)
+{
+    await using var scope = webApp.Services.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    if (await db.LibraryDocuments.AnyAsync(x => x.IsSample)) return; // already seeded
+
+    var samples = new DocumentSigning.Core.Entities.LibraryDocument[]
+    {
+        new() { Id = Guid.NewGuid(), MerchantId = null, UserId = null, IsSample = true, Name = "Employment Offer Letter",   Purpose = "OfferLetter",      Category = "HR",           FileType = "html", EditorContentHtml = "<h1>Employment Offer Letter</h1><p>Dear <strong>{{SignerName}}</strong>,</p><p>We are pleased to offer you the position of <strong>{{JobTitle}}</strong> at <strong>{{CompanyName}}</strong>, commencing on <strong>{{StartDate}}</strong>.</p><p>Your annual salary will be <strong>{{Salary}}</strong>.</p><p>Please sign below to accept this offer.</p><p>Signature: _______________</p><p>Date: {{Date}}</p>" },
+        new() { Id = Guid.NewGuid(), MerchantId = null, UserId = null, IsSample = true, Name = "Non-Disclosure Agreement",  Purpose = "NDA",              Category = "Legal",        FileType = "html", EditorContentHtml = "<h1>Non-Disclosure Agreement</h1><p>This Agreement is entered into between <strong>{{PartyA}}</strong> and <strong>{{PartyB}}</strong> on <strong>{{Date}}</strong>.</p><p>Both parties agree to keep all shared information strictly confidential and not to disclose it to any third party without prior written consent.</p><p>This agreement shall remain in effect for a period of <strong>{{Duration}}</strong>.</p><p>Signatures:</p><p>Party A: _______________</p><p>Party B: _______________</p>" },
+        new() { Id = Guid.NewGuid(), MerchantId = null, UserId = null, IsSample = true, Name = "Freelancer Contract",       Purpose = "Contract",         Category = "Legal",        FileType = "html", EditorContentHtml = "<h1>Freelancer Services Agreement</h1><p>This Agreement is between <strong>{{ClientName}}</strong> (Client) and <strong>{{FreelancerName}}</strong> (Service Provider).</p><p><strong>Services:</strong> {{ServiceDescription}}</p><p><strong>Rate:</strong> {{Rate}} per {{RateUnit}}</p><p><strong>Timeline:</strong> {{StartDate}} to {{EndDate}}</p><p>Payment is due within 30 days of invoice submission.</p><p>Signature: _______________  Date: {{Date}}</p>" },
+        new() { Id = Guid.NewGuid(), MerchantId = null, UserId = null, IsSample = true, Name = "Vendor Approval Form",      Purpose = "VendorAgreement",  Category = "Procurement",  FileType = "html", EditorContentHtml = "<h1>Vendor Approval Form</h1><p>Vendor Name: <strong>{{VendorName}}</strong></p><p>Services/Products: {{VendorServices}}</p><p>Contract Value: {{ContractValue}}</p><p>Approved by: _______________</p><p>Date: {{Date}}</p>" },
+        new() { Id = Guid.NewGuid(), MerchantId = null, UserId = null, IsSample = true, Name = "Rental Agreement",          Purpose = "RentalAgreement",  Category = "Real Estate",  FileType = "html", EditorContentHtml = "<h1>Rental Agreement</h1><p>This agreement is between <strong>{{LandlordName}}</strong> (Landlord) and <strong>{{TenantName}}</strong> (Tenant) for the property at <strong>{{PropertyAddress}}</strong>.</p><p>Monthly Rent: {{RentAmount}}</p><p>Lease Period: {{StartDate}} to {{EndDate}}</p><p>Landlord Signature: _______________</p><p>Tenant Signature: _______________</p><p>Date: {{Date}}</p>" },
+        new() { Id = Guid.NewGuid(), MerchantId = null, UserId = null, IsSample = true, Name = "Invoice Approval Form",     Purpose = "Invoice",          Category = "Finance",      FileType = "html", EditorContentHtml = "<h1>Invoice Approval</h1><p>Invoice #: <strong>{{InvoiceNumber}}</strong></p><p>Vendor: {{VendorName}}</p><p>Amount: <strong>{{Amount}}</strong></p><p>Description: {{Description}}</p><p>Approved by: _______________</p><p>Date: {{Date}}</p>" },
+        new() { Id = Guid.NewGuid(), MerchantId = null, UserId = null, IsSample = true, Name = "HR Onboarding Checklist",   Purpose = "HRForm",           Category = "HR",           FileType = "html", EditorContentHtml = "<h1>New Employee Onboarding Checklist</h1><p>Employee: <strong>{{EmployeeName}}</strong> | Start Date: {{StartDate}}</p><ul><li>☐ ID verification completed</li><li>☐ Tax forms submitted</li><li>☐ Benefits enrollment</li><li>☐ Equipment issued</li><li>☐ Access credentials created</li><li>☐ Orientation completed</li></ul><p>HR Signature: _______________  Date: {{Date}}</p>" },
+        new() { Id = Guid.NewGuid(), MerchantId = null, UserId = null, IsSample = true, Name = "Software License Agreement",Purpose = "Legal",            Category = "Technology",   FileType = "html", EditorContentHtml = "<h1>Software License Agreement</h1><p>This License Agreement is between <strong>{{LicensorName}}</strong> and <strong>{{LicenseeName}}</strong>.</p><p>Software: <strong>{{SoftwareName}}</strong> v{{Version}}</p><p>License Type: {{LicenseType}}</p><p>Term: {{StartDate}} to {{EndDate}}</p><p>The Licensee agrees not to reverse-engineer, copy, or redistribute the software.</p><p>Signatures: _______________  Date: {{Date}}</p>" },
+        new() { Id = Guid.NewGuid(), MerchantId = null, UserId = null, IsSample = true, Name = "Consulting Agreement",      Purpose = "Contract",         Category = "Professional", FileType = "html", EditorContentHtml = "<h1>Consulting Agreement</h1><p>This Agreement is between <strong>{{ClientName}}</strong> and <strong>{{ConsultantName}}</strong>.</p><p>Scope of Work: {{ScopeOfWork}}</p><p>Fee: {{ConsultingFee}}</p><p>Duration: {{StartDate}} – {{EndDate}}</p><p>Both parties agree to maintain confidentiality of all project information.</p><p>Client Signature: _______________  Consultant Signature: _______________</p><p>Date: {{Date}}</p>" },
+        new() { Id = Guid.NewGuid(), MerchantId = null, UserId = null, IsSample = true, Name = "Internal Approval Form",    Purpose = "InternalApproval", Category = "Operations",   FileType = "html", EditorContentHtml = "<h1>Internal Approval Request</h1><p>Requested by: <strong>{{RequesterName}}</strong></p><p>Department: {{Department}}</p><p>Request Date: {{Date}}</p><p>Description: {{RequestDescription}}</p><p>Budget Impact: {{BudgetImpact}}</p><p>Manager Approval: _______________</p><p>Director Approval: _______________</p><p>Date Approved: _______________</p>" },
+    };
+
+    db.LibraryDocuments.AddRange(samples);
+    await db.SaveChangesAsync();
+}
 
 // Make Program accessible to WebApplicationFactory in tests
 public partial class Program { }
