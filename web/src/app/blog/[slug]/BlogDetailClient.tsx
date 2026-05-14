@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { BlogDto, BlogSummaryDto, publicBlogApi } from '@/lib/api';
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
 function formatDate(d?: string | null) {
   if (!d) return '';
   return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -13,19 +14,70 @@ function formatDate(d?: string | null) {
 
 function readingTime(content?: string | null) {
   if (!content) return 1;
-  return Math.max(1, Math.ceil(content.split(/\s+/).length / 200));
+  const text = content.replace(/<[^>]+>/g, ' ');
+  return Math.max(1, Math.ceil(text.split(/\s+/).filter(Boolean).length / 200));
 }
 
-/* ── Floating vertical share bar (desktop) ─────────────────────── */
-function ShareBar({ url, title }: { url: string; title: string }) {
+// ── Reading Progress Bar ──────────────────────────────────────────────────────
+function ReadingProgressBar() {
+  const { scrollYProgress } = useScroll();
+  const width = useTransform(scrollYProgress, [0, 1], ['0%', '100%']);
+  return (
+    <div className="fixed top-0 left-0 right-0 h-[3px] z-50">
+      <motion.div
+        className="h-full bg-gradient-to-r from-indigo-500 via-violet-500 to-pink-500 origin-left"
+        style={{ width }}
+      />
+    </div>
+  );
+}
+
+// ── Table of Contents ─────────────────────────────────────────────────────────
+interface TocItem { id: string; text: string; level: number }
+
+function TableOfContents({ items, activeId }: { items: TocItem[]; activeId: string }) {
+  if (items.length < 2) return null;
+  return (
+    <nav aria-label="Table of contents">
+      <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400 mb-3">On this page</p>
+      <ul className="space-y-0.5">
+        {items.map(item => (
+          <li key={item.id}>
+            <a
+              href={`#${item.id}`}
+              onClick={e => {
+                e.preventDefault();
+                document.getElementById(item.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              className={`
+                flex text-xs leading-snug py-1.5 pl-3 transition-all duration-150 border-l-2 rounded-r
+                ${item.level === 3 ? 'ml-3 text-[11px]' : ''}
+                ${activeId === item.id
+                  ? 'border-indigo-500 text-indigo-600 font-semibold bg-indigo-50/60'
+                  : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-200 hover:bg-gray-50'}
+              `}
+            >
+              {item.text}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+// ── Floating Share Bar ────────────────────────────────────────────────────────
+function ShareBar({ url, title, copied, onCopy }: {
+  url: string; title: string; copied: boolean; onCopy: () => void;
+}) {
   const enc = encodeURIComponent;
-  const shares = [
+  const btns = [
     {
-      label: 'X / Twitter',
+      label: 'Twitter / X',
       href: `https://twitter.com/intent/tweet?text=${enc(title)}&url=${enc(url)}`,
       bg: 'bg-black hover:bg-gray-800',
       icon: (
-        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
           <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.742l7.73-8.835L1.254 2.25H8.08l4.261 5.638 5.903-5.638Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
         </svg>
       ),
@@ -35,7 +87,7 @@ function ShareBar({ url, title }: { url: string; title: string }) {
       href: `https://www.linkedin.com/shareArticle?mini=true&url=${enc(url)}&title=${enc(title)}`,
       bg: 'bg-[#0077b5] hover:bg-[#006097]',
       icon: (
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
           <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
         </svg>
       ),
@@ -45,7 +97,7 @@ function ShareBar({ url, title }: { url: string; title: string }) {
       href: `https://www.facebook.com/sharer/sharer.php?u=${enc(url)}`,
       bg: 'bg-[#1877f2] hover:bg-[#1465d1]',
       icon: (
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
           <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
         </svg>
       ),
@@ -53,9 +105,9 @@ function ShareBar({ url, title }: { url: string; title: string }) {
     {
       label: 'Email',
       href: `mailto:?subject=${enc(title)}&body=${enc(url)}`,
-      bg: 'bg-gray-600 hover:bg-gray-700',
+      bg: 'bg-gray-500 hover:bg-gray-600',
       icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
         </svg>
       ),
@@ -64,68 +116,73 @@ function ShareBar({ url, title }: { url: string; title: string }) {
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Share</span>
-      {shares.map(s => (
+      <span className="text-[9px] font-bold uppercase tracking-widest text-gray-400 mb-0.5">Share</span>
+      {btns.map(b => (
         <a
-          key={s.label}
-          href={s.href}
+          key={b.label}
+          href={b.href}
           target="_blank"
           rel="noopener noreferrer"
-          title={`Share on ${s.label}`}
-          className={`${s.bg} text-white w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110 shadow-md`}
+          title={`Share on ${b.label}`}
+          className={`${b.bg} text-white w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 hover:scale-110 shadow-sm`}
         >
-          {s.icon}
+          {b.icon}
         </a>
       ))}
+      <button
+        onClick={onCopy}
+        title="Copy link"
+        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-150 hover:scale-110 shadow-sm mt-0.5
+          ${copied ? 'bg-emerald-500 text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-500'}`}
+      >
+        {copied ? (
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+          </svg>
+        ) : (
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+        )}
+      </button>
     </div>
   );
 }
 
-/* ── Related article card ────────────────────────────────────────── */
-function RelatedCard({ blog }: { blog: BlogSummaryDto }) {
+// ── Related Article Row (sidebar) ─────────────────────────────────────────────
+function RelatedRow({ blog }: { blog: BlogSummaryDto }) {
   return (
-    <Link href={`/blog/${blog.slug}`} className="group flex flex-col bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-indigo-200 transition-all">
-      {blog.coverImageUrl ? (
-        <div className="relative h-40 w-full overflow-hidden">
-          <Image
-            src={blog.coverImageUrl} alt={blog.title} fill
-            className="object-cover group-hover:scale-105 transition-transform duration-500"
-          />
-        </div>
-      ) : (
-        <div className="h-40 w-full bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center">
-          <svg className="w-8 h-8 text-indigo-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-        </div>
-      )}
-      <div className="p-4">
-        {blog.category && (
-          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 mb-1 block">
-            {blog.category}
-          </span>
+    <Link
+      href={`/blog/${blog.slug}`}
+      className="group flex gap-3 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 -mx-2 px-2 rounded-xl transition-colors"
+    >
+      <div className="flex-shrink-0 w-[68px] h-12 rounded-lg overflow-hidden bg-gradient-to-br from-indigo-50 to-purple-50">
+        {blog.coverImageUrl ? (
+          <div className="relative w-full h-full">
+            <Image
+              src={blog.coverImageUrl} alt={blog.title} fill
+              className="object-cover group-hover:scale-105 transition-transform duration-300"
+            />
+          </div>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <svg className="w-4 h-4 text-indigo-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
         )}
-        <h4 className="text-sm font-bold text-gray-900 group-hover:text-indigo-600 transition-colors line-clamp-2 leading-snug">
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[12px] font-semibold text-gray-800 group-hover:text-indigo-600 transition-colors line-clamp-2 leading-snug mb-1">
           {blog.title}
-        </h4>
-        <p className="text-xs text-gray-400 mt-2">{formatDate(blog.publishedAt)}</p>
+        </p>
+        <p className="text-[10px] text-gray-400">{formatDate(blog.publishedAt)}</p>
       </div>
     </Link>
   );
 }
 
-/* ── Reading Progress Bar ───────────────────────────────────────── */
-function ReadingProgressBar() {
-  const { scrollYProgress } = useScroll();
-  const width = useTransform(scrollYProgress, [0, 1], ['0%', '100%']);
-  return (
-    <div className="fixed top-0 left-0 right-0 h-1 z-50 bg-gray-100">
-      <motion.div className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" style={{ width }} />
-    </div>
-  );
-}
-
-/* ── Main Component ─────────────────────────────────────────────── */
+// ── Main Component ─────────────────────────────────────────────────────────────
 export default function BlogDetailClient({ blog, related }: { blog: BlogDto; related: BlogSummaryDto[] }) {
   const [copied, setCopied] = useState(false);
 
