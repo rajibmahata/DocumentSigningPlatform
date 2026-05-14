@@ -3,10 +3,10 @@ namespace DocumentSigning.Core.DTOs;
 // ── DeepSeek / Marketing DTOs ─────────────────────────────────────────────────
 
 public record GeneratePostRequest(
-    string Platform,           // linkedin | facebook
-    string ContentCategory,    // product_feature | workflow_automation | ...
-    string? Tone,              // professional | casual | inspirational
-    string? CampaignContext,   // optional extra context
+    string Platform = "linkedin",               // linkedin | facebook
+    string ContentCategory = "general",         // product_feature | workflow_automation | general
+    string? Tone = null,                        // professional | casual | inspirational
+    string? CampaignContext = null,             // optional extra context
     bool   IncludeHashtags = true
 );
 
@@ -76,7 +76,7 @@ public record MarketingCampaignDto
     public DateTime CreatedAt    { get; init; }
 }
 
-public record CreateCampaignRequest(string Name, string? Description, string CampaignType);
+public record CreateCampaignRequest(string Name, string? Description = null, string CampaignType = "general");
 
 public record EngagementActivityDto
 {

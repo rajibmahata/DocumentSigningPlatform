@@ -38,14 +38,16 @@ public class BrandingControllerTests
     }
 
     [Fact]
-    public async Task Get_Returns404_WhenNoBranding()
+    public async Task Get_Returns200WithDefaults_WhenNoBranding()
     {
         var merchantId = Guid.NewGuid();
         _svc.Setup(s => s.GetAsync(merchantId, default)).ReturnsAsync((MerchantBrandingDto?)null);
 
         var result = await CreateController().Get(merchantId, default);
 
-        result.Should().BeOfType<NotFoundResult>();
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        ok.Value.Should().BeOfType<MerchantBrandingDto>()
+          .Which.MerchantId.Should().Be(merchantId);
     }
 
     // ── Upsert ────────────────────────────────────────────────────────────────

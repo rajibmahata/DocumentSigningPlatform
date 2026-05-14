@@ -50,23 +50,6 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: 'Marketing',
-    items: [
-      { href: '/dashboard/marketing',            label: 'Marketing Hub',    icon: Megaphone },
-      { href: '/dashboard/marketing/social',     label: 'Social Accounts',  icon: Globe2 },
-      { href: '/dashboard/marketing/campaigns',  label: 'Campaigns',        icon: Target },
-      { href: '/dashboard/marketing/content',    label: 'AI Content Studio', icon: Sparkles },
-      { href: '/dashboard/marketing/scheduled',  label: 'Scheduled Posts',  icon: CalendarClock },
-      { href: '/dashboard/marketing/engagement', label: 'Engagement Center', icon: MessageSquare },
-      { href: '/dashboard/marketing/analytics',  label: 'Analytics',        icon: TrendingUp },
-      { href: '/dashboard/marketing/agent-manager',                      label: 'Agent Manager',    icon: Bot },
-      { href: '/dashboard/marketing/agent-manager/approvals',             label: '↳ Approvals',      icon: AlertCircle },
-      { href: '/dashboard/marketing/agent-manager/interactions',          label: '↳ Customer Memory', icon: Users },
-      { href: '/dashboard/marketing/agent-manager/agent-analytics',      label: '↳ Agent Analytics', icon: BarChart3 },
-      { href: '/dashboard/marketing/blogs',                               label: 'Blogs',             icon: PenSquare },
-    ],
-  },
-  {
     label: 'Account',
     items: [
       { href: '/dashboard/merchant', label: 'Merchant',       icon: Building2 },
@@ -96,6 +79,24 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
+
+const MARKETING_NAV_GROUP: NavGroup = {
+  label: 'Marketing',
+  items: [
+    { href: '/dashboard/marketing',                                   label: 'Marketing Hub',      icon: Megaphone },
+    { href: '/dashboard/marketing/social',                            label: 'Social Accounts',    icon: Globe2 },
+    { href: '/dashboard/marketing/campaigns',                         label: 'Campaigns',          icon: Target },
+    { href: '/dashboard/marketing/content',                           label: 'AI Content Studio',  icon: Sparkles },
+    { href: '/dashboard/marketing/scheduled',                         label: 'Scheduled Posts',    icon: CalendarClock },
+    { href: '/dashboard/marketing/engagement',                        label: 'Engagement Center',  icon: MessageSquare },
+    { href: '/dashboard/marketing/analytics',                         label: 'Analytics',          icon: TrendingUp },
+    { href: '/dashboard/marketing/agent-manager',                     label: 'Agent Manager',      icon: Bot },
+    { href: '/dashboard/marketing/agent-manager/approvals',           label: '↳ Approvals',        icon: AlertCircle },
+    { href: '/dashboard/marketing/agent-manager/interactions',        label: '↳ Customer Memory',  icon: Users },
+    { href: '/dashboard/marketing/agent-manager/agent-analytics',     label: '↳ Agent Analytics',  icon: BarChart3 },
+    { href: '/dashboard/marketing/blogs',                             label: 'Blogs',              icon: PenSquare },
+  ],
+};
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
   { href: '/dashboard/analytics',        label: 'Analytics',           icon: BarChart2 },
@@ -201,6 +202,9 @@ export function DashboardSidebar() {
         {NAV_GROUPS.map((group) => (
           <NavGroupSection key={group.label} group={group} />
         ))}
+
+        {/* Marketing — admin only */}
+        {isAdmin && <NavGroupSection group={MARKETING_NAV_GROUP} />}
 
         {/* Admin section */}
         {isAdmin && (

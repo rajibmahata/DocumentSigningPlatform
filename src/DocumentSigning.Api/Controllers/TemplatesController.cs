@@ -113,7 +113,7 @@ public class TemplatesController : ControllerBase
             Name         = req.Name.Trim(),
             Description  = req.Description?.Trim(),
             DefaultTitle = req.DefaultTitle.Trim(),
-            SignersJson  = JsonSerializer.Serialize(req.Signers, _opts),
+            SignersJson  = JsonSerializer.Serialize(req.Signers ?? [], _opts),
             CreatedAt    = DateTime.UtcNow,
             UpdatedAt    = DateTime.UtcNow,
         };
@@ -121,7 +121,7 @@ public class TemplatesController : ControllerBase
         await _db.DocumentTemplates.AddAsync(template, ct);
         await _db.SaveChangesAsync(ct);
 
-        var response = ToResponse(template, req.Signers);
+        var response = ToResponse(template, req.Signers ?? []);
         return CreatedAtAction(nameof(GetById), new { id = template.Id }, response);
     }
 
