@@ -716,6 +716,13 @@ export const blogApi = {
   unpublishBlog: (id: string) => apiClient.post<BlogDto>(`/blogs/${id}/unpublish`),
   generateBlog: (data: { topic: string; keywords?: string; targetAudience?: string; tone?: string }) =>
     apiClient.post<BlogDto>('/blogs/generate', data),
+  uploadBlogImage: (file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return apiClient.post<{ url: string }>('/blogs/upload-image', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };
 
 // ── Public Blog API (no auth required) ───────────────────────────────────────
@@ -747,6 +754,109 @@ export const publicBlogApi = {
   trackView: (slug: string) =>
     fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5163'}/api/public/blogs/${slug}/view`, { method: 'POST' })
       .catch(() => {}),
+};
+
+// ── Document Library types ──────────────────────────────────────────────────
+export interface LibraryDocumentSummaryDto {
+  id: string;
+  name: string;
+  description?: string;
+  purpose: string;
+  category?: string;
+  fileType: string;
+  isSample: boolean;
+  isTemplateReady: boolean;
+  isWorkflowReady: boolean;
+  updatedAt: string;
+  lastUsedAt?: string;
+}
+
+export interface LibraryDocumentDto extends LibraryDocumentSummaryDto {
+  merchantId: string;
+  userId?: string;
+  filePath?: string;
+  editorContentHtml?: string;
+  version: number;
+  createdAt: string;
+}
+
+export interface CreateLibraryDocumentRequest {
+  name: string;
+  description?: string;
+  purpose: string;
+  category?: string;
+  fileType?: string;
+  filePath?: string;
+  editorContentHtml?: string;
+  isTemplateReady?: boolean;
+  isWorkflowReady?: boolean;
+}
+
+export interface UpdateLibraryDocumentRequest {
+  name: string;
+  description?: string;
+  purpose: string;
+  category?: string;
+  editorContentHtml?: string;
+  isTemplateReady?: boolean;
+  isWorkflowReady?: boolean;
+}
+
+// ── Document Library API ────────────────────────────────────────────────────
+export const libraryDocumentApi = {
+  getAll: (params?: { purpose?: string; category?: string; search?: string; isSample?: boolean }) =>
+    apiClient.get<LibraryDocumentSummaryDto[]>('/library/documents', { params }),
+
+  getById: (id: string) =>
+    apiClient.get<LibraryDocumentDto>(`/library/documents/${id}`),
+
+  create: (data: CreateLibraryDocumentRequest) =>
+    apiClient.post<LibraryDocumentDto>('/library/documents', data),
+
+  update: (id: string, data: UpdateLibraryDocumentRequest) =>
+    apiClient.put<LibraryDocumentDto>(`/library/documents/${id}`, data),
+
+  delete: (id: string) =>
+    apiClient.delete(`/library/documents/${id}`),
+
+  duplicate: (id: string) =>
+    apiClient.post<LibraryDocumentDto>(`/library/documents/${id}/duplicate`),
+
+  touch: (id: string) =>
+    apiClient.post(`/library/documents/${id}/touch`),
+
+  getSamples: () =>
+    apiClient.get<LibraryDocumentSummaryDto[]>('/library/documents/samples'),
+
+  uploadFile: (file: File, name: string, purpose: string, description?: string, category?: string) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('name', name);
+    fd.append('purpose', purpose);
+    if (description) fd.append('description', description);
+    if (category) fd.append('category', category);
+    return apiClient.post<LibraryDocumentDto>('/library/documents/upload', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
+  getByTemplate: (templateId: string) =>
+    apiClient.get<LibraryDocumentSummaryDto[]>(`/library/templates/${templateId}/documents`),
+
+  linkToTemplate: (templateId: string, documentIds: string[]) =>
+    apiClient.post(`/library/templates/${templateId}/documents`, { documentIds }),
+
+  unlinkFromTemplate: (templateId: string, documentId: string) =>
+    apiClient.delete(`/library/templates/${templateId}/documents/${documentId}`),
+
+  getByWorkflow: (workflowId: string) =>
+    apiClient.get<LibraryDocumentSummaryDto[]>(`/library/workflows/${workflowId}/documents`),
+
+  linkToWorkflow: (workflowId: string, documentIds: string[]) =>
+    apiClient.post(`/library/workflows/${workflowId}/documents`, { documentIds }),
+
+  unlinkFromWorkflow: (workflowId: string, documentId: string) =>
+    apiClient.delete(`/library/workflows/${workflowId}/documents/${documentId}`),
 };
 
 

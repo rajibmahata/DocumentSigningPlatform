@@ -87,6 +87,7 @@ builder.Services.AddHttpClient("deepseek", client =>
 // ─── Agent Manager System ──────────────────────────────────────────────────
 builder.Services.AddScoped<IAgentManagerService, AgentManagerService>();
 builder.Services.AddScoped<IBlogService, BlogService>();
+builder.Services.AddScoped<ILibraryDocumentService, LibraryDocumentService>();
 builder.Services.AddScoped<IValidationPipeline, ValidationPipeline>();
 builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
 builder.Services.AddScoped<ISpecializedAgent, EmailMarketingAgent>();
@@ -402,7 +403,35 @@ app.MapControllers();
 app.MapRazorComponents<DocumentSigning.Api.Components.App>()
     .AddInteractiveServerRenderMode();
 
+// ─── Seed sample library documents ───────────────────────────────────────────
+await SeedLibraryDocumentsAsync(app);
+
 app.Run();
+
+async Task SeedLibraryDocumentsAsync(WebApplication webApp)
+{
+    await using var scope = webApp.Services.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+    if (await db.LibraryDocuments.AnyAsync(x => x.IsSample)) return; // already seeded
+
+    var samples = new DocumentSigning.Core.Entities.LibraryDocument[]
+    {
+        new() { Id = Guid.NewGuid(), MerchantId = null, UserId = null, IsSample = true, Name = "Employment Offer Letter",   Purpose = "OfferLetter",      Category = "HR",           FileType = "html", EditorContentHtml = "<h1>Employment Offer Letter</h1><p>Dear <strong>{{SignerName}}</strong>,</p><p>We are pleased to offer you the position of <strong>{{JobTitle}}</strong> at <strong>{{CompanyName}}</strong>, commencing on <strong>{{StartDate}}</strong>.</p><p>Your annual salary will be <strong>{{Salary}}</strong>.</p><p>Please sign below to accept this offer.</p><p>Signature: _______________</p><p>Date: {{Date}}</p>" },
+        new() { Id = Guid.NewGuid(), MerchantId = null, UserId = null, IsSample = true, Name = "Non-Disclosure Agreement",  Purpose = "NDA",              Category = "Legal",        FileType = "html", EditorContentHtml = "<h1>Non-Disclosure Agreement</h1><p>This Agreement is entered into between <strong>{{PartyA}}</strong> and <strong>{{PartyB}}</strong> on <strong>{{Date}}</strong>.</p><p>Both parties agree to keep all shared information strictly confidential and not to disclose it to any third party without prior written consent.</p><p>This agreement shall remain in effect for a period of <strong>{{Duration}}</strong>.</p><p>Signatures:</p><p>Party A: _______________</p><p>Party B: _______________</p>" },
+        new() { Id = Guid.NewGuid(), MerchantId = null, UserId = null, IsSample = true, Name = "Freelancer Contract",       Purpose = "Contract",         Category = "Legal",        FileType = "html", EditorContentHtml = "<h1>Freelancer Services Agreement</h1><p>This Agreement is between <strong>{{ClientName}}</strong> (Client) and <strong>{{FreelancerName}}</strong> (Service Provider).</p><p><strong>Services:</strong> {{ServiceDescription}}</p><p><strong>Rate:</strong> {{Rate}} per {{RateUnit}}</p><p><strong>Timeline:</strong> {{StartDate}} to {{EndDate}}</p><p>Payment is due within 30 days of invoice submission.</p><p>Signature: _______________  Date: {{Date}}</p>" },
+        new() { Id = Guid.NewGuid(), MerchantId = null, UserId = null, IsSample = true, Name = "Vendor Approval Form",      Purpose = "VendorAgreement",  Category = "Procurement",  FileType = "html", EditorContentHtml = "<h1>Vendor Approval Form</h1><p>Vendor Name: <strong>{{VendorName}}</strong></p><p>Services/Products: {{VendorServices}}</p><p>Contract Value: {{ContractValue}}</p><p>Approved by: _______________</p><p>Date: {{Date}}</p>" },
+        new() { Id = Guid.NewGuid(), MerchantId = null, UserId = null, IsSample = true, Name = "Rental Agreement",          Purpose = "RentalAgreement",  Category = "Real Estate",  FileType = "html", EditorContentHtml = "<h1>Rental Agreement</h1><p>This agreement is between <strong>{{LandlordName}}</strong> (Landlord) and <strong>{{TenantName}}</strong> (Tenant) for the property at <strong>{{PropertyAddress}}</strong>.</p><p>Monthly Rent: {{RentAmount}}</p><p>Lease Period: {{StartDate}} to {{EndDate}}</p><p>Landlord Signature: _______________</p><p>Tenant Signature: _______________</p><p>Date: {{Date}}</p>" },
+        new() { Id = Guid.NewGuid(), MerchantId = null, UserId = null, IsSample = true, Name = "Invoice Approval Form",     Purpose = "Invoice",          Category = "Finance",      FileType = "html", EditorContentHtml = "<h1>Invoice Approval</h1><p>Invoice #: <strong>{{InvoiceNumber}}</strong></p><p>Vendor: {{VendorName}}</p><p>Amount: <strong>{{Amount}}</strong></p><p>Description: {{Description}}</p><p>Approved by: _______________</p><p>Date: {{Date}}</p>" },
+        new() { Id = Guid.NewGuid(), MerchantId = null, UserId = null, IsSample = true, Name = "HR Onboarding Checklist",   Purpose = "HRForm",           Category = "HR",           FileType = "html", EditorContentHtml = "<h1>New Employee Onboarding Checklist</h1><p>Employee: <strong>{{EmployeeName}}</strong> | Start Date: {{StartDate}}</p><ul><li>☐ ID verification completed</li><li>☐ Tax forms submitted</li><li>☐ Benefits enrollment</li><li>☐ Equipment issued</li><li>☐ Access credentials created</li><li>☐ Orientation completed</li></ul><p>HR Signature: _______________  Date: {{Date}}</p>" },
+        new() { Id = Guid.NewGuid(), MerchantId = null, UserId = null, IsSample = true, Name = "Software License Agreement",Purpose = "Legal",            Category = "Technology",   FileType = "html", EditorContentHtml = "<h1>Software License Agreement</h1><p>This License Agreement is between <strong>{{LicensorName}}</strong> and <strong>{{LicenseeName}}</strong>.</p><p>Software: <strong>{{SoftwareName}}</strong> v{{Version}}</p><p>License Type: {{LicenseType}}</p><p>Term: {{StartDate}} to {{EndDate}}</p><p>The Licensee agrees not to reverse-engineer, copy, or redistribute the software.</p><p>Signatures: _______________  Date: {{Date}}</p>" },
+        new() { Id = Guid.NewGuid(), MerchantId = null, UserId = null, IsSample = true, Name = "Consulting Agreement",      Purpose = "Contract",         Category = "Professional", FileType = "html", EditorContentHtml = "<h1>Consulting Agreement</h1><p>This Agreement is between <strong>{{ClientName}}</strong> and <strong>{{ConsultantName}}</strong>.</p><p>Scope of Work: {{ScopeOfWork}}</p><p>Fee: {{ConsultingFee}}</p><p>Duration: {{StartDate}} – {{EndDate}}</p><p>Both parties agree to maintain confidentiality of all project information.</p><p>Client Signature: _______________  Consultant Signature: _______________</p><p>Date: {{Date}}</p>" },
+        new() { Id = Guid.NewGuid(), MerchantId = null, UserId = null, IsSample = true, Name = "Internal Approval Form",    Purpose = "InternalApproval", Category = "Operations",   FileType = "html", EditorContentHtml = "<h1>Internal Approval Request</h1><p>Requested by: <strong>{{RequesterName}}</strong></p><p>Department: {{Department}}</p><p>Request Date: {{Date}}</p><p>Description: {{RequestDescription}}</p><p>Budget Impact: {{BudgetImpact}}</p><p>Manager Approval: _______________</p><p>Director Approval: _______________</p><p>Date Approved: _______________</p>" },
+    };
+
+    db.LibraryDocuments.AddRange(samples);
+    await db.SaveChangesAsync();
+}
 
 // Make Program accessible to WebApplicationFactory in tests
 public partial class Program { }

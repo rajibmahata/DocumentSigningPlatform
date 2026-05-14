@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { blogApi, BlogSummaryDto, BlogDto } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
   PenSquare, Plus, Loader2, RefreshCw, Sparkles, Globe,
-  Eye, EyeOff, Trash2, Edit2,
+  Eye, EyeOff, Trash2, Edit2, Upload, X,
 } from 'lucide-react';
 
 type Mode = 'list' | 'create' | 'edit' | 'generate';
@@ -36,6 +36,8 @@ export default function BlogsPage() {
   const [publishing, setPublishing] = useState<string | null>(null);
   const [error,     setError]     = useState<string | null>(null);
   const [filter,    setFilter]    = useState<'all' | 'published' | 'draft'>('all');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [imageUploading, setImageUploading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -116,6 +118,22 @@ export default function BlogsPage() {
       await load();
     } catch { setError('AI generation failed'); }
     finally  { setSaving(false); }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageUploading(true);
+    try {
+      const res = await blogApi.uploadBlogImage(file);
+      // API returns "/blogImages/{filename}"; prefix with /backend to proxy through Next.js
+      setForm(f => ({ ...f, coverImageUrl: `/backend${res.data.url}` }));
+    } catch {
+      setError('Image upload failed. Please try again.');
+    } finally {
+      setImageUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const filtered = blogs;
@@ -229,8 +247,54 @@ export default function BlogsPage() {
                   <Input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} placeholder="e.g. Product, Tutorial" />
                 </div>
                 <div>
-                  <Label>Cover Image URL</Label>
-                  <Input value={form.coverImageUrl} onChange={e => setForm(f => ({ ...f, coverImageUrl: e.target.value }))} placeholder="https://..." />
+                  <Label>Cover Image</Label>
+                  <div className="mt-1 space-y-2">
+                    {form.coverImageUrl && (
+                      <div className="relative w-full h-40 rounded-lg overflow-hidden border border-slate-200 bg-slate-50">
+                        <img
+                          src={form.coverImageUrl}
+                          alt="Cover preview"
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setForm(f => ({ ...f, coverImageUrl: '' }))}
+                          className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                          title="Remove image"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/gif,image/webp"
+                      className="hidden"
+                      onChange={handleImageUpload}
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={imageUploading}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="gap-2"
+                      >
+                        {imageUploading
+                          ? <Loader2 className="h-4 w-4 animate-spin" />
+                          : <Upload className="h-4 w-4" />}
+                        {imageUploading ? 'Uploading…' : form.coverImageUrl ? 'Replace Image' : 'Upload Image'}
+                      </Button>
+                      {form.coverImageUrl && !imageUploading && (
+                        <span className="text-xs text-slate-400 truncate max-w-[200px]">
+                          {form.coverImageUrl.split('/').pop()}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400">JPEG, PNG, GIF or WebP · max 5 MB</p>
+                  </div>
                 </div>
                 <div>
                   <Label>Status</Label>

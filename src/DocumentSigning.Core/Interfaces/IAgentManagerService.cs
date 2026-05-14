@@ -64,7 +64,7 @@ public interface IBlogService
     Task<BlogDto?>             GetBlogBySlugAsync(string slug, Guid merchantId);
     Task<BlogDto>              CreateBlogAsync(Guid merchantId, CreateBlogRequest req, string createdBy = "user");
     Task<BlogDto>              UpdateBlogAsync(Guid id, Guid merchantId, UpdateBlogRequest req);
-    Task                       DeleteBlogAsync(Guid id, Guid merchantId);
+    Task<string?>               DeleteBlogAsync(Guid id, Guid merchantId);
     Task<BlogDto>              PublishBlogAsync(Guid id, Guid merchantId);
     Task<BlogDto>              UnpublishBlogAsync(Guid id, Guid merchantId);
     Task<BlogDto>              GenerateBlogWithAiAsync(Guid merchantId, GenerateBlogRequest req);

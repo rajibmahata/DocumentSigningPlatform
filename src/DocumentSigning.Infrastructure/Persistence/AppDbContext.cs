@@ -59,6 +59,11 @@ public class AppDbContext : DbContext
     public DbSet<CustomerInteractionMemory> CustomerInteractionMemories => Set<CustomerInteractionMemory>();
     public DbSet<Blog>                     Blogs                     => Set<Blog>();
 
+    // ── Document Library DbSets ────────────────────────────────────────────────
+    public DbSet<LibraryDocument>          LibraryDocuments          => Set<LibraryDocument>();
+    public DbSet<TemplateLibraryDocument>  TemplateLibraryDocuments  => Set<TemplateLibraryDocument>();
+    public DbSet<WorkflowLibraryDocument>  WorkflowLibraryDocuments  => Set<WorkflowLibraryDocument>();
+
     protected override void OnModelCreating(ModelBuilder model)
     {
         base.OnModelCreating(model);
@@ -653,6 +658,55 @@ public class AppDbContext : DbContext
             e.HasIndex(x => x.Slug);
             e.HasOne(x => x.Merchant).WithMany()
              .HasForeignKey(x => x.MerchantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── Document Library ────────────────────────────────────────────────────
+
+        model.Entity<LibraryDocument>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("LibraryDocuments");
+            e.Property(x => x.Name).HasMaxLength(512).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(2000);
+            e.Property(x => x.Purpose).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Category).HasMaxLength(100);
+            e.Property(x => x.FileType).HasMaxLength(10).IsRequired();
+            e.Property(x => x.FilePath).HasMaxLength(2000);
+            e.Property(x => x.EditorContentHtml).HasColumnType("nvarchar(max)");
+            e.HasIndex(x => new { x.MerchantId, x.Purpose });
+            e.HasIndex(x => new { x.MerchantId, x.IsSample });
+            e.HasOne(x => x.Merchant).WithMany()
+             .HasForeignKey(x => x.MerchantId).IsRequired(false).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.User).WithMany()
+             .HasForeignKey(x => x.UserId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        model.Entity<TemplateLibraryDocument>(e =>
+        {
+            e.HasKey(x => new { x.DocumentTemplateId, x.LibraryDocumentId });
+            e.ToTable("TemplateLibraryDocuments");
+            e.HasOne(x => x.Template)
+             .WithMany(t => t.TemplateDocuments)
+             .HasForeignKey(x => x.DocumentTemplateId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Document)
+             .WithMany(d => d.TemplateDocuments)
+             .HasForeignKey(x => x.LibraryDocumentId)
+             .OnDelete(DeleteBehavior.ClientCascade);
+        });
+
+        model.Entity<WorkflowLibraryDocument>(e =>
+        {
+            e.HasKey(x => new { x.WorkflowDefinitionId, x.LibraryDocumentId });
+            e.ToTable("WorkflowLibraryDocuments");
+            e.HasOne(x => x.Workflow)
+             .WithMany(w => w.WorkflowDocuments)
+             .HasForeignKey(x => x.WorkflowDefinitionId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Document)
+             .WithMany(d => d.WorkflowDocuments)
+             .HasForeignKey(x => x.LibraryDocumentId)
+             .OnDelete(DeleteBehavior.ClientCascade);
         });
     }
 }

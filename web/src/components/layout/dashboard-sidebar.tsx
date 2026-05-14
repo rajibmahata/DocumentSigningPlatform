@@ -9,7 +9,7 @@ import {
   LogOut, FileSignature, ChevronLeft, ChevronRight,
   BarChart2, Users, Store, MessageSquare, Ticket, PenLine, Shield, Webhook, ContactRound, CreditCard, LayoutTemplate, Bell, ClipboardList, GitBranch,
   Megaphone, Globe2, Target, Sparkles, CalendarClock, TrendingUp, Bot, PenSquare,
-  AlertCircle, BarChart3,
+  AlertCircle, BarChart3, FolderOpen, BookMarked,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -34,10 +34,12 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Documents',
     items: [
-      { href: '/dashboard/envelopes',     label: 'Envelopes',             icon: FileText },
-      { href: '/dashboard/send',          label: 'Send Document',         icon: Send },
-      { href: '/dashboard/my-signatures', label: 'Awaiting My Signature', icon: PenLine },
-      { href: '/dashboard/templates',     label: 'Document Templates',    icon: LayoutTemplate },
+      { href: '/dashboard/documents',          label: 'Document Library',      icon: FolderOpen },
+      { href: '/dashboard/documents/samples',  label: 'Sample Documents',      icon: BookMarked },
+      { href: '/dashboard/envelopes',          label: 'Envelopes',             icon: FileText },
+      { href: '/dashboard/send',               label: 'Send Document',         icon: Send },
+      { href: '/dashboard/my-signatures',      label: 'Awaiting My Signature', icon: PenLine },
+      { href: '/dashboard/templates',          label: 'Document Templates',    icon: LayoutTemplate },
     ],
   },
   {
