@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { libraryDocumentApi, LibraryDocumentSummaryDto } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -67,11 +68,13 @@ type TabKey = 'all' | 'mine' | 'samples';
 
 export default function DocumentLibraryPage() {
   const router = useRouter();
-  const [tab, setTab]         = useState<TabKey>('all');
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get('tab') as TabKey | null) ?? 'all';
+  const [tab, setTab]         = useState<TabKey>(initialTab);
   const [docs, setDocs]       = useState<LibraryDocumentSummaryDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch]   = useState('');
-  const [purpose, setPurpose] = useState('');
+  const [purpose, setPurpose] = useState('all');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -90,7 +93,7 @@ export default function DocumentLibraryPage() {
     try {
       const params: Record<string, string | boolean> = {};
       if (search)  params.search  = search;
-      if (purpose) params.purpose = purpose;
+      if (purpose && purpose !== 'all') params.purpose = purpose;
       if (tab === 'samples') params.isSample = true;
       if (tab === 'mine')    params.isSample = false;
 
@@ -203,7 +206,7 @@ export default function DocumentLibraryPage() {
             <SelectValue placeholder="All purposes" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All purposes</SelectItem>
+            <SelectItem value="all">All purposes</SelectItem>
             {PURPOSES.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
           </SelectContent>
         </Select>
