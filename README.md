@@ -60,7 +60,7 @@ The backend is an ASP.NET Core Web API application that:
 - exposes REST endpoints for auth, users, merchants, templates, envelopes, workflows, analytics, audit logs, webhooks, and more
 - uses Entity Framework Core with SQL Server
 - runs background workers for outbox processing, reminder handling, expiry processing, webhook delivery, and scheduled marketing jobs
-- secures most endpoints with JWT ******
+- secures most endpoints with JWT bearer tokens
 
 ### Frontend
 
@@ -111,7 +111,7 @@ DocumentSigningPlatform/
 | Database | SQL Server |
 | Frontend | Next.js 14, TypeScript, React |
 | Styling | Tailwind CSS |
-| Auth | JWT ******
+| Auth | JWT bearer tokens |
 | Email | MailKit / SMTP |
 | Payments | Stripe |
 | AI integration | DeepSeek |
@@ -139,7 +139,7 @@ The backend Swagger description is configured in `src/DocumentSigning.Api/Progra
 
 ## Local development setup
 
-## Prerequisites
+### Prerequisites
 
 Install the following first:
 
@@ -147,7 +147,7 @@ Install the following first:
 - Node.js 18+ and npm
 - SQL Server
 
-## Backend configuration
+### Backend configuration
 
 Update `src/DocumentSigning.Api/appsettings.Development.json` with values for:
 
@@ -158,7 +158,7 @@ Update `src/DocumentSigning.Api/appsettings.Development.json` with values for:
 - `Email:*`
 - optional integrations such as `DeepSeek:*` and Stripe settings
 
-## Frontend configuration
+### Frontend configuration
 
 Create `web/.env.local` if you need to override the API URL:
 
@@ -166,7 +166,7 @@ Create `web/.env.local` if you need to override the API URL:
 NEXT_PUBLIC_API_URL=http://localhost:5163
 ```
 
-## Database migration
+### Database migration
 
 From the repository root:
 
@@ -176,7 +176,7 @@ dotnet ef database update \
   --startup-project src/DocumentSigning.Api
 ```
 
-## Run the backend
+### Run the backend
 
 ```bash
 dotnet run --project src/DocumentSigning.Api --launch-profile http
@@ -185,7 +185,7 @@ dotnet run --project src/DocumentSigning.Api --launch-profile http
 Backend URL: `http://localhost:5163`  
 Swagger URL: `http://localhost:5163/swagger`
 
-## Run the frontend
+### Run the frontend
 
 ```bash
 cd web
